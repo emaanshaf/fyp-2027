@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"d:/Qitabe Noor App/src/screens\" \"d:/Qitabe Noor App/src/navigation\" \"d:/Qitabe Noor App/src/theme\" \"d:/Qitabe Noor App/assets\")"
+    ],
+    "additionalDirectories": [
+      "d:\\Qitabe Noor App\\src"
+    ]
+  }
+}
