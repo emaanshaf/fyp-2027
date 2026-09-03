@@ -284,8 +284,17 @@ export default function AppNavigator() {
     AsyncStorage.getItem(LANDING_SEEN_KEY).then(seen => setShowLanding(!seen));
 
     if (Platform.OS !== 'web') {
-      Linking.addEventListener('url', ({ url }) => handleDeepLink(url));
-      return () => Linking.removeEventListener('url', ({ url }) => handleDeepLink(url));
+      // Linking.removeEventListener was removed in React Native 0.65 and does
+      // not exist in 0.76. Calling it threw from the cleanup, and a throw in a
+      // cleanup propagates — the effect depends on handleDeepLink, so any
+      // change to it re-ran the effect, crashed on teardown, and handed the
+      // whole tree to the ErrorBoundary instead of the app.
+      //
+      // The old call could not have worked anyway: it passed a freshly created
+      // arrow function, never the one that was registered, so every re-run
+      // added another listener and removed none.
+      const subscription = Linking.addEventListener('url', ({ url }) => handleDeepLink(url));
+      return () => subscription.remove();
     }
   }, [handleDeepLink]);
 

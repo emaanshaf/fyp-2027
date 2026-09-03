@@ -140,3 +140,27 @@ jest.mock('expo-av', () => ({
     setAudioModeAsync: jest.fn(() => Promise.resolve()),
   },
 }));
+
+// react-native-gesture-handler's native module is absent under jest, and its
+// GestureHandlerRootView calls install() on it during render. Anything that
+// mounts the drawer navigator — that is, the app's real boot path — threw
+// "_RNGestureHandlerModule.default.install is not a function" and rendered
+// nothing, which meant the boot path had no test coverage at all.
+jest.mock('react-native-gesture-handler', () => {
+  const { View } = require('react-native');
+  const pass = ({ children }) => children ?? null;
+  return {
+    GestureHandlerRootView: View,
+    PanGestureHandler: View,
+    TapGestureHandler: View,
+    LongPressGestureHandler: View,
+    ScrollView: require('react-native').ScrollView,
+    Swipeable: View,
+    DrawerLayout: View,
+    State: {},
+    Directions: {},
+    gestureHandlerRootHOC: (C) => C,
+    GestureDetector: pass,
+    Gesture: new Proxy({}, { get: () => () => ({}) }),
+  };
+});
