@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { port, corsOrigin, isProduction } = require('./config/env');
 const { errorHandler } = require('./middleware/errorHandler');
+const { ready: dbReady } = require('./config/database');
 const {
   securityHeaders, generalLimiter, writeLimiter,
   sanitizeInput, securityLogger,
@@ -80,11 +81,18 @@ app.use((req, res) => {
 // Error handler
 app.use(errorHandler);
 
-const server = app.listen(port, () => {
-  console.log(`Qitabe Noor API running on http://localhost:${port}`);
-  console.log(`  security : helmet, rate limiting, input sanitisation`);
-  console.log(`  auth     : JWT + bcrypt, RBAC (admin/moderator/user)`);
-  console.log(`  cors     : ${Array.isArray(corsOrigin) ? corsOrigin.join(', ') : corsOrigin}`);
+// Wait for the database probe before accepting traffic. In production an
+// unreachable database exits the process from inside that probe, and binding
+// the port first would mean serving requests against the fallback store for
+// the couple of seconds before that happened.
+let server;
+dbReady.then(() => {
+  server = app.listen(port, () => {
+    console.log(`Qitabe Noor API running on http://localhost:${port}`);
+    console.log(`  security : helmet, rate limiting, input sanitisation`);
+    console.log(`  auth     : JWT + bcrypt, RBAC (admin/moderator/user)`);
+    console.log(`  cors     : ${Array.isArray(corsOrigin) ? corsOrigin.join(', ') : corsOrigin}`);
+  });
 });
 
 // Let the process exit cleanly so nodemon/--watch restarts don't leak the port.

@@ -1,6 +1,7 @@
 const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
+const { isProduction } = require('./env');
 
 function genId() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -12,23 +13,65 @@ function genId() {
 let pool = null;
 let dbAvailable = false;
 
-async function tryConnect() {
-  try {
-    pool = new Pool({
+// Every managed Postgres (Neon, Supabase, Render, Railway) hands out a single
+// DATABASE_URL connection string, and .env.example has told people to use one
+// since it was written — but only the discrete DB_* vars were ever read, so a
+// correctly configured deployment connected to nothing and silently fell back
+// to the file store. Prefer the URL when it is set.
+function poolConfig() {
+  const url = (process.env.DATABASE_URL || '').trim();
+  const shared = {
+    max: 5,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 3000,
+  };
+
+  if (!url) {
+    return {
+      ...shared,
       host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT || '5432'),
       database: process.env.DB_NAME || 'qitabe_noor',
       user: process.env.DB_USER || 'postgres',
       password: process.env.DB_PASSWORD || '',
-      max: 5,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 3000,
-    });
+    };
+  }
+
+  return {
+    ...shared,
+    connectionString: url,
+    // Hosted Postgres requires TLS but presents a chain Node has no root for,
+    // so verification has to be relaxed or the connection is refused outright.
+    // PGSSLMODE=disable opts out for a local or sidecar database.
+    ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: false },
+  };
+}
+
+async function tryConnect() {
+  const usingUrl = Boolean((process.env.DATABASE_URL || '').trim());
+
+  try {
+    pool = new Pool(poolConfig());
     await pool.query('SELECT 1');
     dbAvailable = true;
-    console.log('PostgreSQL connected');
+    console.log(`PostgreSQL connected (via ${usingUrl ? 'DATABASE_URL' : 'DB_* variables'})`);
   } catch (err) {
     dbAvailable = false;
+
+    // The file-backed store is a development convenience. In production it is
+    // silent data loss: containers have ephemeral disks, so every redeploy
+    // would wipe the accounts and bookmarks written to it while nothing in the
+    // app or the logs said anything was wrong. Refuse to serve instead.
+    if (isProduction) {
+      console.error(
+        `\nFATAL: PostgreSQL is unreachable (${err.message}).\n` +
+        'Refusing to start in production on the file-backed fallback store, ' +
+        'which is wiped on every redeploy.\n' +
+        'Set DATABASE_URL to your database connection string.\n'
+      );
+      process.exit(1);
+    }
+
     console.log('PostgreSQL not available — using file-backed local storage (server/.data)');
   }
 }
@@ -235,7 +278,13 @@ async function query(text, params) {
     try {
       return await pool.query(text, params);
     } catch (err) {
-      console.error('DB query error, falling back to memory:', err.message);
+      console.error('DB query error:', err.message);
+      // Falling back to the memory store here would write the row to a
+      // different database than the one that just failed, so the data is
+      // there on one read and gone on the next. In development that is a
+      // usable trade; in production it is corruption, so surface the error.
+      if (isProduction) throw err;
+      console.error('  falling back to the local memory store (development only)');
       return memQuery(text, params);
     }
   }
@@ -247,6 +296,9 @@ async function connect() {
   return { query, release: () => {} };
 }
 
-tryConnect();
+// Exported so the server can wait for the connection attempt before it starts
+// listening. Without that, production briefly accepts requests on the fallback
+// store before the guard in tryConnect() gets to exit.
+const ready = tryConnect();
 
-module.exports = { query, connect, isDbAvailable: () => dbAvailable };
+module.exports = { query, connect, ready, isDbAvailable: () => dbAvailable };
