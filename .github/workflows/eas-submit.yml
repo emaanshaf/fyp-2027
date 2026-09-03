@@ -92,6 +92,39 @@ jobs:
             fi
           fi
 
+          # A production build bakes EXPO_PUBLIC_API_URL into the bundle and
+          # cannot be repointed afterwards. Shipping one aimed at a host that
+          # does not resolve gives every user a silently dead backend — no
+          # sync, no live AI — so refuse to build it. Preview builds only warn:
+          # they are internal, and pointing one at a not-yet-live host is a
+          # legitimate thing to do.
+          api_url=$(node -e "
+            const j = require('./eas.json');
+            const resolve = (name, seen = new Set()) => {
+              if (!name || seen.has(name)) return {};
+              seen.add(name);
+              const p = j.build?.[name] || {};
+              return { ...resolve(p.extends, seen), ...(p.env || {}) };
+            };
+            process.stdout.write(resolve('${{ inputs.profile }}').EXPO_PUBLIC_API_URL || '');
+          ")
+
+          if [ -z "$api_url" ]; then
+            echo "::warning::No EXPO_PUBLIC_API_URL for profile '${{ inputs.profile }}';"               "the app will fall back to its localhost default."
+          else
+            api_host=$(node -e "process.stdout.write(new URL('$api_url').hostname)")
+            echo "Backend for '${{ inputs.profile }}': $api_url (host $api_host)"
+
+            if getent hosts "$api_host" > /dev/null 2>&1; then
+              echo "  $api_host resolves."
+            elif [ "${{ inputs.profile }}" = "production" ]; then
+              echo "::error::$api_host does not resolve in DNS, so this production"                 "build would ship pointing at a backend that does not exist."                 "Register and deploy the host, or change EXPO_PUBLIC_API_URL in"                 "eas.json to one that is live."
+              fail=1
+            else
+              echo "::warning::$api_host does not resolve in DNS. This build will"                 "have no working backend until it does."
+            fi
+          fi
+
           [ "$fail" = "0" ] || exit 1
           echo "Preflight passed."
 
