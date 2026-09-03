@@ -18,7 +18,8 @@
     "server:migrate": "node server/migrations/run.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "verify": "npm run lint && npm test && npm run doctor"
+    "verify": "npm run lint && npm test && npm run doctor",
+    "verify:deploy": "node scripts/verify-deployment.js"
   },
   "dependencies": {
     "@expo/metro-runtime": "~4.0.1",
