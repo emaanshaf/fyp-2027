@@ -51,6 +51,50 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Both of these fail deep inside the EAS CLI with errors that do not name
+      # the real cause, so check them here where the message can be useful.
+      - name: Preflight
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          fail=0
+
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN secret is not set. Create a token at"               "https://expo.dev -> Account Settings -> Access Tokens, then add it under"               "Settings -> Secrets and variables -> Actions as EXPO_TOKEN."
+            fail=1
+          fi
+
+          if ! node -e "process.exit(require('./app.json').expo?.extra?.eas?.projectId ? 0 : 1)"; then
+            echo "::error::app.json has no extra.eas.projectId — the repo is not linked to"               "an EAS project. Run 'eas init' locally and commit the change."
+            fail=1
+          fi
+
+          if ! node -e "process.exit(require('./app.json').expo?.android?.package ? 0 : 1)"; then
+            echo "::error::app.json is missing android.package, which Play requires."
+            fail=1
+          fi
+
+          if ! node -e "process.exit(require('./app.json').expo?.ios?.bundleIdentifier ? 0 : 1)"; then
+            echo "::error::app.json is missing ios.bundleIdentifier, which the App Store requires."
+            fail=1
+          fi
+
+          # An empty submit.production cannot submit unattended: Android needs a
+          # track and iOS needs an ascAppId.
+          if [ "${{ inputs.submit }}" = "true" ]; then
+            if ! node -e "const s=require('./eas.json').submit?.production||{}; process.exit(s.android?.track ? 0 : 1)"; then
+              echo "::error::submit.production.android.track is not set in eas.json,"                 "so 'eas submit --non-interactive' has no track to publish to."
+              fail=1
+            fi
+            if ! node -e "const s=require('./eas.json').submit?.production||{}; process.exit(s.ios?.ascAppId ? 0 : 1)"; then
+              echo "::error::submit.production.ios.ascAppId is not set in eas.json."                 "Take the numeric id from the App Store Connect URL for your app."
+              fail=1
+            fi
+          fi
+
+          [ "$fail" = "0" ] || exit 1
+          echo "Preflight passed."
+
       - name: Set up EAS
         uses: expo/expo-github-action@v8
         with:
