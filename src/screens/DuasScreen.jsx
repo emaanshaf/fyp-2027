@@ -6,9 +6,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Speech from 'expo-speech';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getItem, setItem } from '../firebase/syncedStorage';
 import { COLORS, globalStyles } from '../theme';
 import { DUAS, CATEGORIES, CAT_ICONS, getContextualDua } from '../data/duas';
+import { backend } from '../services/backend';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function DuasScreen() {
   const [category, setCategory] = useState('Morning');
@@ -18,13 +20,49 @@ export default function DuasScreen() {
   const [recommended] = useState(() => getContextualDua());
 
   useEffect(() => {
-    AsyncStorage.getItem('qitab_fav_duas').then(v => v && setFavorites(JSON.parse(v)));
+    loadFavorites();
   }, []);
+
+  const loadFavorites = async () => {
+    try {
+      const hasToken = await AsyncStorage.getItem('qitab_auth_token');
+      if (hasToken) {
+        try {
+          const apiFavs = await backend.getFavorites();
+          const favIds = (apiFavs || []).map(f => parseInt(f.dua_id));
+          setFavorites(favIds);
+          return;
+        } catch (e) { /* fall through to local */ }
+      }
+      getItem('qitab_fav_duas').then(v => v && setFavorites(JSON.parse(v)));
+    } catch (e) {
+      getItem('qitab_fav_duas').then(v => v && setFavorites(JSON.parse(v)));
+    }
+  };
 
   const saveFav = async (id) => {
     const next = favorites.includes(id) ? favorites.filter(f => f !== id) : [...favorites, id];
     setFavorites(next);
-    await AsyncStorage.setItem('qitab_fav_duas', JSON.stringify(next));
+    await setItem('qitab_fav_duas', JSON.stringify(next));
+
+    // Also save to backend if logged in
+    const hasToken = await AsyncStorage.getItem('qitab_auth_token');
+    if (hasToken) {
+      try {
+        const dua = DUAS.find(d => d.id === id);
+        if (next.includes(id)) {
+          await backend.addFavorite({
+            dua_id: id.toString(),
+            dua_title: dua?.title,
+            dua_text: dua?.arabic,
+            dua_category: dua?.category,
+            source: 'duas_screen',
+          });
+        } else {
+          await backend.deleteFavoriteByDuaId(id.toString());
+        }
+      } catch (e) { /* backend unavailable */ }
+    }
   };
 
   const filtered = DUAS.filter(d => {
@@ -182,9 +220,9 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     padding: 16,
     borderRadius: 18,
-    backgroundColor: 'rgba(212,175,55,0.06)',
+    backgroundColor: 'rgba(255, 255, 255,0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.25)',
+    borderColor: 'rgba(255, 255, 255,0.25)',
   },
   recommendReason: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '600', flex: 1 },
   recommendTitle: { color: COLORS.textPrimary, fontSize: 16, fontWeight: '800', marginBottom: 6 },
@@ -214,7 +252,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.glassBorder,
     backgroundColor: COLORS.glass,
   },
-  catChipActive: { borderColor: COLORS.gold, backgroundColor: 'rgba(212,175,55,0.1)' },
+  catChipActive: { borderColor: COLORS.gold, backgroundColor: 'rgba(255, 255, 255,0.1)' },
   catText: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '700' },
   duaCard: {
     backgroundColor: COLORS.glass,
@@ -251,14 +289,14 @@ const styles = StyleSheet.create({
     lineHeight: 46,
     marginBottom: 24,
   },
-  translitText: { color: '#94a3b8', fontStyle: 'italic', fontSize: 15, lineHeight: 24, marginTop: 6, marginBottom: 16 },
+  translitText: { color: '#aaaaaa', fontStyle: 'italic', fontSize: 15, lineHeight: 24, marginTop: 6, marginBottom: 16 },
   translationFull: { color: COLORS.textPrimary, fontSize: 16, lineHeight: 26, marginTop: 6 },
   benefitBox: {
     marginTop: 20,
     padding: 16,
-    backgroundColor: 'rgba(16,185,129,0.05)',
+    backgroundColor: 'rgba(255, 255, 255,0.05)',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(16,185,129,0.2)',
+    borderColor: 'rgba(255, 255, 255,0.2)',
   },
 });

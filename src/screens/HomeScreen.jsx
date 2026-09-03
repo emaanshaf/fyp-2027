@@ -1,377 +1,527 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  FlatList, Dimensions, Animated
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, Animated, Platform, Linking
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, globalStyles } from '../theme';
-import { getContextualDua } from '../data/duas';
+import { getModulePath, openModuleInApp } from '../utils/deepLinking';
+import { useNavigationUrl } from '../hooks/useNavigationUrl';
+import { moduleByName, accentFor, hasAccess } from '../config/routes';
+import { useRole } from '../context/RoleContext';
+import { usePrayerLock } from '../context/PrayerLockContext';
+import { formatHijri, resolveHijriDate } from '../utils/hijri';
+import { getNextPrayer } from '../utils/nextPrayer';
 
-const { width } = Dimensions.get('window');
+// The dashboard grid, drawn from the shared route table so labels, icons,
+// accents and permissions cannot drift from the drawer and navigator.
+// `sublabel` is the only thing that lives here — it is dashboard copy.
+const SUBLABELS = {
+  Quran: 'Read & Listen',
+  Hadith: '6 Authentic Books',
+  Prayer: 'Adhan & Tracker',
+  PrayerTracker: 'Track Daily',
+  Tasbih: 'Counter',
+  Duas: 'Daily Supplications',
+  NamesOfAllah: 'Asma ul Husna',
+  Calendar: 'Islamic Dates',
+  Zakat: 'Calculator',
+  Reminders: 'Never Miss',
+  Generator: 'Creator',
+  AIChat: 'Ask Anything',
+  Learning: 'Guided & Adaptive',
+};
 
-const MODULES = [
-  { id: 'quran',    title: 'Noble Quran',      desc: 'Read, listen & explore',        icon: 'book-outline',            color: '#d4af37', screen: 'Quran' },
-  { id: 'hadith',   title: 'Hadith',           desc: 'Verified traditions',            icon: 'shield-checkmark-outline', color: '#10b981', screen: 'Hadith' },
-  { id: 'prayer',   title: 'Prayer Times',     desc: 'Timings & Qibla',               icon: 'time-outline',            color: '#3b82f6', screen: 'Prayer' },
-  { id: 'duas',     title: 'Daily Duas',       desc: 'Supplications for every need',  icon: 'heart-outline',           color: '#f43f5e', screen: 'Duas' },
-  { id: 'zakat',    title: 'Zakat & Ushr',     desc: 'Calculate your dues',           icon: 'calculator-outline',      color: '#8b5cf6', screen: 'Zakat' },
-  { id: 'tasbih',   title: 'Tasbih Counter',   desc: 'Digital dhikr companion',       icon: 'radio-button-on-outline', color: '#ec4899', screen: 'Tasbih' },
-  { id: 'remind',   title: 'Reminders',        desc: 'Prayer & custom alerts',        icon: 'notifications-outline',   color: '#f59e0b', screen: 'Reminders' },
-  { id: 'gen',      title: 'Content Creator',  desc: 'Design Islamic graphics',       icon: 'grid-outline',            color: '#06b6d4', screen: 'Generator' },
-  { id: 'library',  title: 'My Library',       desc: 'Saved verses & notes',          icon: 'bookmark-outline',        color: '#a855f7', screen: 'Bookmarks' },
-  { id: 'ai',       title: 'Islamic AI',       desc: 'Ask anything about Islam',      icon: 'chatbubbles-outline',     color: '#22d3ee', screen: 'AIChat' },
+const DASHBOARD_MODULES = [
+  'Quran', 'Hadith', 'Prayer', 'PrayerTracker', 'Tasbih', 'Duas',
+  'NamesOfAllah', 'Calendar', 'Zakat', 'Reminders', 'Generator',
+  'AIChat', 'Learning',
 ];
 
-const getHijriDate = () => {
-  try {
-    return new Intl.DateTimeFormat('en-u-ca-islamic-umalqura', {
-      day: 'numeric', month: 'long', year: 'numeric'
-    }).format(new Date());
-  } catch { return ''; }
-};
+// Built per-role rather than once at module scope: the grid used to include
+// every entry unconditionally, so a plain user saw the moderator-only Content
+// Creator tile and tapping it did nothing (the route is never registered for
+// them). The drawer and tab bar already filtered on the same rule.
+const modulesForRole = role =>
+  DASHBOARD_MODULES.filter(name => hasAccess(role, name)).map(name => {
+    const mod = moduleByName(name);
+    return {
+      id: name,
+      label: mod.title,
+      sublabel: SUBLABELS[name] || '',
+      icon: mod.icon,
+      accent: accentFor(COLORS, name),
+      featured: name === 'Duas',
+    };
+  });
 
-const getGreeting = () => {
-  const h = new Date().getHours();
-  if (h < 12) return 'Good Morning';
-  if (h < 17) return 'Good Afternoon';
-  return 'Good Evening';
-};
+const DAILY_AYAH = [
+  { text: 'Indeed, with hardship comes ease.', surah: 'Ash-Sharh 94:6' },
+  { text: 'And He found you lost and guided you.', surah: 'Ad-Duha 93:7' },
+  { text: 'So remember Me; I will remember you.', surah: 'Al-Baqarah 2:152' },
+  { text: 'Allah does not burden a soul beyond that it can bear.', surah: 'Al-Baqarah 2:286' },
+  { text: 'And rely upon Allah. And sufficient is Allah as Disposer of affairs.', surah: 'Al-Ahzab 33:3' },
+  { text: 'Verily, with every difficulty there is relief.', surah: 'Ash-Sharh 94:5' },
+  { text: 'And your Lord says, "Call upon Me; I will respond to you."', surah: 'Ghafir 40:60' },
+  { text: 'Indeed, Allah is with the patient.', surah: 'Al-Baqarah 2:153' },
+];
+
+const SALAWAT_TEXT = 'Allahumma salli ala Muhammad wa aali Muhammad';
 
 export default function HomeScreen({ navigation }) {
+  const role = useRole();
+  const { enabled: lockEnabled, pendingPrayer, delayMin, confirmPrayed } = usePrayerLock();
+  const modules = React.useMemo(() => modulesForRole(role), [role]);
   const [userName, setUserName] = useState('');
-  const [hijriDate, setHijriDate] = useState('');
-  const [nextPrayer, setNextPrayer] = useState({ name: '...', time: '--:--', remaining: '--:--:--' });
-  const [timings, setTimings] = useState(null);
-  const [contextDua] = useState(() => getContextualDua());
-  const timerRef = useRef(null);
+  const [ayah, setAyah] = useState(null);
+  const [prayerCount, setPrayerCount] = useState(0);
+  const [salawatCount, setSalawatCount] = useState(0);
+  const [nextPrayer, setNextPrayer] = useState(null);
+  const [streak, setStreak] = useState(0);
+  const [hijriDate, setHijriDate] = useState(null);
+  const hijri = hijriDate ? formatHijri(hijriDate) : formatHijri();
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(16)).current;
+  const { navigateTo } = useNavigationUrl();
 
   useEffect(() => {
-    AsyncStorage.getItem('qitab_user_name').then(n => setUserName(n || ''));
-    setHijriDate(getHijriDate());
-    fetchPrayer();
-    Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
-    ]).start();
-    return () => clearInterval(timerRef.current);
+    loadUserInfo();
+    pickDailyAyah();
+    loadPrayerCount();
+    loadSalawatCount();
+    loadStreak();
+    resolveHijriDate().then(setHijriDate);
+    Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }).start();
   }, []);
 
+  // The countdown re-reads once a minute rather than once a second: the card
+  // shows whole minutes, so a per-second timer would just burn battery.
   useEffect(() => {
-    if (!timings) return;
-    timerRef.current = setInterval(updateCountdown, 1000);
-    updateCountdown();
-    return () => clearInterval(timerRef.current);
-  }, [timings]);
+    let alive = true;
+    const tick = () => getNextPrayer().then(p => { if (alive) setNextPrayer(p); });
+    tick();
+    const id = setInterval(tick, 60000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
 
-  const fetchPrayer = async () => {
-    try {
-      const cached = await AsyncStorage.getItem('qitab_home_timings');
-      const ts = await AsyncStorage.getItem('qitab_home_timings_ts');
-      if (cached && ts && Date.now() - parseInt(ts) < 3600000) {
-        setTimings(JSON.parse(cached)); return;
-      }
-      const res = await fetch('https://api.aladhan.com/v1/timingsByCity?city=Islamabad&country=Pakistan&method=2');
-      const data = await res.json();
-      const t = data.data.timings;
-      setTimings(t);
-      await AsyncStorage.setItem('qitab_home_timings', JSON.stringify(t));
-      await AsyncStorage.setItem('qitab_home_timings_ts', Date.now().toString());
-    } catch {}
+  // No placeholder identity. An unset name renders a "Add your name" prompt
+  // that opens Settings, rather than calling the user "Guest".
+  const loadUserInfo = async () => {
+    setUserName((await AsyncStorage.getItem('qitab_user_name')) || '');
   };
 
-  const updateCountdown = () => {
-    if (!timings) return;
-    const now = new Date();
-    const prayers = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
-    let next = null;
-    for (const p of prayers) {
-      const [h, m] = timings[p].split(':');
-      const t = new Date(); t.setHours(+h, +m, 0, 0);
-      if (t > now) { next = { name: p, date: t }; break; }
+  /** Consecutive days ending today with at least one prayer logged. */
+  const loadStreak = async () => {
+    const keyFor = d => `prayer_log_${d.getFullYear()}_${d.getMonth()}_${d.getDate()}`;
+    let count = 0;
+    for (let back = 0; back < 60; back++) {
+      const d = new Date();
+      d.setDate(d.getDate() - back);
+      const raw = await AsyncStorage.getItem(keyFor(d));
+      const logged = raw ? Object.values(JSON.parse(raw)).filter(Boolean).length : 0;
+      if (logged > 0) count++;
+      // Today not being logged yet must not zero a real streak, so day 0 is
+      // allowed to be empty; any earlier gap ends the run.
+      else if (back > 0) break;
     }
-    if (!next) {
-      const [h, m] = timings['Fajr'].split(':');
-      const t = new Date(); t.setDate(t.getDate() + 1); t.setHours(+h, +m, 0, 0);
-      next = { name: 'Fajr', date: t };
-    }
-    const diff = next.date - now;
-    const hh = Math.floor(diff / 3600000);
-    const mm = Math.floor((diff % 3600000) / 60000);
-    const ss = Math.floor((diff % 60000) / 1000);
-    setNextPrayer({
-      name: next.name,
-      time: timings[next.name],
-      remaining: `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`
-    });
+    setStreak(count);
   };
 
-  const navigateTo = (screen) => {
-    // Tab screens vs drawer screens
-    const tabScreens = ['Quran', 'Prayer', 'Duas'];
-    if (screen === 'Home') navigation.navigate('Home');
-    else if (tabScreens.includes(screen)) navigation.navigate(screen);
-    else navigation.getParent()?.navigate(screen);
+  const pickDailyAyah = () => {
+    const idx = new Date().getDate() % DAILY_AYAH.length;
+    setAyah(DAILY_AYAH[idx]);
   };
 
-  const renderModule = ({ item }) => (
-    <ModuleCard item={item} onPress={() => navigateTo(item.screen)} />
-  );
+  const loadPrayerCount = async () => {
+    const key = `prayer_log_${new Date().getFullYear()}_${new Date().getMonth()}_${new Date().getDate()}`;
+    const raw = await AsyncStorage.getItem(key);
+    const log = raw ? JSON.parse(raw) : {};
+    setPrayerCount(Object.values(log).filter(Boolean).length);
+  };
+
+  const loadSalawatCount = async () => {
+    const raw = await AsyncStorage.getItem('salawat_total');
+    setSalawatCount(parseInt(raw || '0'));
+  };
+
+  const addSalawat = async () => {
+    const newCount = salawatCount + 1;
+    setSalawatCount(newCount);
+    await AsyncStorage.setItem('salawat_total', newCount.toString());
+  };
+
+  const handleModulePress = (module) => {
+    // Use URL-based navigation
+    navigateTo(module.id, { fromHome: true });
+  };
+
+
+  const getGreeting = () => 'Assalamu Alaikum';
 
   return (
-    <SafeAreaView style={globalStyles.screen} edges={['bottom']}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
-      <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
-        {/* Hero */}
-        <LinearGradient
-          colors={['rgba(212,175,55,0.08)', 'transparent']}
-          style={styles.hero}
-        >
-          <Text style={styles.greeting}>
-            {getGreeting()}{userName ? `, ${userName}` : ''}
-          </Text>
-          <Text style={styles.welcomeText}>
-            Welcome to <Text style={{ color: COLORS.gold }}>Qitab-e-Noor</Text>
-          </Text>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 100 }}>
+      <Animated.View style={{ opacity: fadeAnim }}>
 
-          {hijriDate ? (
-            <View style={[globalStyles.row, styles.dateChip]}>
-              <Ionicons name="calendar-outline" size={14} color={COLORS.gold} />
-              <Text style={styles.dateText}>{hijriDate}</Text>
-            </View>
-          ) : null}
-        </LinearGradient>
-
-        {/* Quick Stats */}
-        <View style={styles.statsRow}>
-          {/* Next Prayer */}
-          <View style={[styles.statCard, { flex: 1 }]}>
-            <View style={[globalStyles.spaceBetween, { marginBottom: 12 }]}>
-              <View style={styles.statIconWrap}>
-                <Ionicons name="time-outline" size={20} color={COLORS.gold} />
+        {/* Hero Header */}
+        <View style={styles.hero}>
+          <View style={styles.heroGlow} />
+          <View style={styles.heroContent}>
+            <View style={styles.heroTopRow}>
+              <Text style={styles.greeting}>{getGreeting()}</Text>
+              {/* The Hijri date is the single most-asked-for piece of ambient
+                  information in an Islamic app, and it was buried in the
+                  calendar module. */}
+              <View style={styles.hijriChip}>
+                <Ionicons name="moon-outline" size={11} color={COLORS.gold} />
+                <Text style={styles.hijriChipText}>{hijri}</Text>
               </View>
-              <Text style={styles.statLabel}>NEXT PRAYER</Text>
             </View>
-            <Text style={styles.statValue}>{nextPrayer.name}</Text>
-            <Text style={{ color: COLORS.textSecondary, fontSize: 13, marginTop: 2 }}>
-              at <Text style={{ color: '#fff', fontWeight: '700' }}>{nextPrayer.time}</Text>
-            </Text>
-            <View style={[globalStyles.row, { marginTop: 10, gap: 4 }]}>
-              <Ionicons name="flash-outline" size={12} color={COLORS.emerald} />
-              <Text style={{ color: COLORS.emerald, fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
-                {nextPrayer.remaining}
-              </Text>
-            </View>
+
+            {userName ? (
+              <Text style={styles.userName}>{userName}</Text>
+            ) : (
+              <TouchableOpacity
+                onPress={() => navigateTo('Settings')}
+                activeOpacity={0.7}
+                style={styles.namePrompt}
+                accessibilityRole="button"
+                accessibilityLabel="Add your name"
+              >
+                <Text style={styles.namePromptText}>Add your name</Text>
+                <Ionicons name="arrow-forward" size={15} color={COLORS.gold} />
+              </TouchableOpacity>
+            )}
+            <Text style={styles.heroSub}>What would you like to explore today?</Text>
           </View>
 
-          {/* Verse of Day */}
-          <View style={[styles.statCard, { flex: 1 }]}>
-            <View style={[globalStyles.spaceBetween, { marginBottom: 12 }]}>
-              <View style={[styles.statIconWrap, { backgroundColor: 'rgba(16,185,129,0.1)' }]}>
-                <Ionicons name="star-outline" size={20} color={COLORS.emerald} />
-              </View>
-              <Text style={[styles.statLabel, { color: COLORS.emerald }]}>VERSE OF DAY</Text>
+          {/* Quick Stats */}
+          <View style={styles.quickStats}>
+            <TouchableOpacity
+              style={styles.statItem}
+              onPress={() => navigateTo('PrayerTracker')}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`${prayerCount} of 5 prayers logged today`}
+            >
+              <Ionicons name="checkmark-done" size={16} color={COLORS.blue} />
+              <Text style={styles.statNum}>{prayerCount}/5</Text>
+              <Text style={styles.statLabel}>Today</Text>
+            </TouchableOpacity>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Ionicons name="flame" size={16} color={COLORS.amber} />
+              <Text style={styles.statNum}>{streak}</Text>
+              <Text style={styles.statLabel}>Day streak</Text>
             </View>
-            <Text style={{ color: '#f8fafc', fontStyle: 'italic', fontSize: 13, lineHeight: 20 }}>
-              "Indeed, with hardship comes ease."
-            </Text>
-            <Text style={{ color: COLORS.gold, fontSize: 10, fontWeight: '800', letterSpacing: 2, marginTop: 10 }}>
-              ASH-SHARH 94:6
-            </Text>
+            <View style={styles.statDivider} />
+            <TouchableOpacity style={styles.statItem} onPress={addSalawat} activeOpacity={0.7}>
+              <Ionicons name="heart" size={16} color={COLORS.pink} />
+              <Text style={styles.statNum}>{salawatCount}</Text>
+              <Text style={styles.statLabel}>Salawat</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* Contextual Dua — changes based on time of day / Friday */}
-        {contextDua?.dua && (
-          <TouchableOpacity
-            activeOpacity={0.85}
-            style={[styles.duaCard]}
-            onPress={() => navigateTo('Duas')}
-          >
-            <View style={[globalStyles.spaceBetween, { marginBottom: 14 }]}>
-              <View style={[globalStyles.row, { gap: 8 }]}>
-                <Ionicons name="heart" size={18} color="#f43f5e" />
-                <Text style={{ color: COLORS.textPrimary, fontWeight: '800', fontSize: 15 }}>Dua for Right Now</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} />
+        {/* The reminder that precedes the lock. It states the deadline rather
+            than appearing without warning when the app locks. */}
+        {lockEnabled && pendingPrayer ? (
+          <View style={styles.lockNotice}>
+            <View style={styles.lockNoticeIcon}>
+              <Ionicons name="notifications" size={17} color={COLORS.amber} />
             </View>
-            <Text style={{ color: COLORS.gold, fontSize: 11, fontWeight: '700', marginBottom: 10 }}>
-              {contextDua.reason}
-            </Text>
-            <Text style={[styles.arabicDua]}>{contextDua.dua.arabic}</Text>
-            <Text style={{ color: COLORS.textSecondary, fontSize: 13, lineHeight: 20, marginTop: 10 }}>
-              "{contextDua.dua.translation}"
-            </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.lockNoticeTitle}>
+                It is time for {pendingPrayer}
+              </Text>
+              <Text style={styles.lockNoticeBody}>
+                The app will pause {delayMin} minutes after the adhan until you
+                confirm you have prayed.
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => confirmPrayed(pendingPrayer)}
+              style={styles.lockNoticeBtn}
+              accessibilityRole="button"
+              accessibilityLabel={`Mark ${pendingPrayer} as prayed`}
+            >
+              <Ionicons name="checkmark" size={16} color="#000" />
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {/* Next prayer. Reads the timings the prayer screen cached, so this
+            adds no second call to the prayer API and can never disagree with
+            it. With nothing cached it invites the user to set a location
+            rather than showing a plausible-looking wrong time. */}
+        <TouchableOpacity
+          style={styles.prayerCard}
+          activeOpacity={0.85}
+          onPress={() => navigateTo('Prayer')}
+          accessibilityRole="button"
+          accessibilityLabel={nextPrayer
+            ? `Next prayer ${nextPrayer.name} at ${nextPrayer.time}, in ${nextPrayer.countdown}`
+            : 'Set your prayer location'}
+        >
+          <View style={[styles.prayerIcon, {
+            backgroundColor: COLORS.cyan + '1F', borderColor: COLORS.cyan + '38',
+          }]}>
+            <Ionicons name="time" size={22} color={COLORS.cyan} />
+          </View>
+          <View style={{ flex: 1 }}>
+            {nextPrayer ? (
+              <>
+                <Text style={styles.prayerLabel}>
+                  Next prayer{nextPrayer.tomorrow ? ' · tomorrow' : ''}
+                </Text>
+                <Text style={styles.prayerName}>
+                  {nextPrayer.name} <Text style={styles.prayerTime}>{nextPrayer.time}</Text>
+                </Text>
+                <Text style={styles.prayerMeta}>{nextPrayer.city}</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.prayerLabel}>Prayer times</Text>
+                <Text style={styles.prayerName}>Set your location</Text>
+                <Text style={styles.prayerMeta}>Tap to choose your city</Text>
+              </>
+            )}
+          </View>
+          {nextPrayer && (
+            <View style={styles.countdownPill}>
+              <Text style={styles.countdownNum}>{nextPrayer.countdown}</Text>
+              <Text style={styles.countdownLabel}>to go</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {/* Daily Ayah */}
+        {ayah && (
+          <TouchableOpacity style={styles.ayahCard} activeOpacity={0.8}>
+            <View style={styles.ayahGlow} />
+            <View style={styles.ayahIcon}>
+              <Ionicons name="book-outline" size={20} color={COLORS.gold} />
+            </View>
+            <Text style={styles.ayahText}>"{ayah.text}"</Text>
+            <Text style={styles.ayahRef}>— {ayah.surah}</Text>
           </TouchableOpacity>
         )}
 
-        {/* Modules */}
-        <View style={styles.moduleSection}>
-          <Text style={[globalStyles.sectionTitle, { paddingHorizontal: 20, marginBottom: 16 }]}>
-            Explore Modules
-          </Text>
-          <FlatList
-            data={MODULES}
-            keyExtractor={i => i.id}
-            renderItem={renderModule}
-            numColumns={2}
-            scrollEnabled={false}
-            columnWrapperStyle={{ paddingHorizontal: 12, gap: 12 }}
-            ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-          />
+        {/* Salawat Banner */}
+        <TouchableOpacity style={styles.salawatBanner} onPress={addSalawat} activeOpacity={0.7}>
+          <Text style={styles.salawatBannerText}>{SALAWAT_TEXT}</Text>
+          <View style={styles.salawatCounter}>
+            <Text style={styles.salawatCounterNum}>{salawatCount}</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* Modules Grid */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Explore</Text>
         </View>
+        <View style={styles.grid}>
+          {modules.map((mod) => (
+            <TouchableOpacity
+              key={mod.id}
+              style={styles.moduleCard}
+              activeOpacity={0.75}
+              onPress={() => handleModulePress(mod)}
+              accessibilityRole="button"
+              accessibilityLabel={`${mod.label}. ${mod.sublabel}`}
+            >
+              {/* The icon plate carries the module's accent at low opacity,
+                  with the glyph at full strength. Every tile used to be the
+                  same white-on-grey, which gave the grid no scanability. */}
+              <View
+                style={[
+                  styles.moduleIconWrap,
+                  { backgroundColor: mod.accent + '1F', borderColor: mod.accent + '38' },
+                  mod.featured && styles.moduleIconFeatured,
+                  mod.featured && { borderColor: mod.accent + '80', shadowColor: mod.accent },
+                ]}
+              >
+                {/* Duas is the module people open most and had no visual
+                    priority in a flat grid of identical plates. It gets a
+                    filled glyph, a halo and a pair of small ornaments so the
+                    eye lands on it without a second row of chrome. */}
+                {mod.featured && (
+                  <View style={[styles.moduleHalo, { backgroundColor: mod.accent }]} />
+                )}
+                <Ionicons
+                  name={mod.featured ? 'heart' : mod.icon}
+                  size={mod.featured ? 26 : 23}
+                  color={mod.accent}
+                />
+                {mod.featured && (
+                  <>
+                    <Ionicons
+                      name="sparkles" size={10} color={mod.accent}
+                      style={styles.moduleSparkTop}
+                    />
+                    <Ionicons
+                      name="sparkles" size={7} color={mod.accent}
+                      style={styles.moduleSparkBottom}
+                    />
+                  </>
+                )}
+              </View>
+              <Text
+                style={[styles.moduleLabel, mod.featured && { color: mod.accent }]}
+                numberOfLines={1}
+              >
+                {mod.label}
+              </Text>
+              <Text style={styles.moduleSub} numberOfLines={1}>{mod.sublabel}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Bottom Spacer */}
+        <View style={{ height: 20 }} />
       </Animated.View>
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-function ModuleCard({ item, onPress }) {
-  const scale = useRef(new Animated.Value(1)).current;
-  const pressIn = () => Animated.spring(scale, { toValue: 0.95, useNativeDriver: true, speed: 40 }).start();
-  const pressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 20 }).start();
-
-  return (
-    <Animated.View style={{ flex: 1, transform: [{ scale }] }}>
-      <TouchableOpacity
-        activeOpacity={0.9}
-        onPress={onPress}
-        onPressIn={pressIn}
-        onPressOut={pressOut}
-        style={[styles.moduleCard, { borderBottomColor: item.color, borderBottomWidth: 3 }]}
-      >
-        <View style={[styles.moduleIcon, { backgroundColor: item.color + '18' }]}>
-          <Ionicons name={item.icon} size={26} color={item.color} />
-        </View>
-        <Text style={styles.moduleTitle}>{item.title}</Text>
-        <Text style={styles.moduleDesc}>{item.desc}</Text>
-        <View style={[globalStyles.row, { marginTop: 12, gap: 4 }]}>
-          <Text style={[styles.openLabel, { color: item.color }]}>OPEN</Text>
-          <Ionicons name="chevron-forward" size={13} color={item.color} />
-        </View>
-      </TouchableOpacity>
-    </Animated.View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: COLORS.bg },
   hero: {
-    padding: 24,
-    paddingBottom: 32,
-  },
-  greeting: {
-    color: COLORS.textPrimary,
-    fontSize: 28,
-    fontWeight: '900',
-    letterSpacing: -0.5,
-    marginBottom: 4,
-  },
-  welcomeText: {
-    color: COLORS.textSecondary,
-    fontSize: 15,
-    marginBottom: 14,
-  },
-  dateChip: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(212,175,55,0.1)',
-    borderRadius: 20,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.2)',
-  },
-  dateText: {
-    color: COLORS.gold,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    marginBottom: 12,
-  },
-  statCard: {
+    margin: 16, borderRadius: 24, overflow: 'hidden',
     backgroundColor: COLORS.glass,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.glassBorder,
-    padding: 16,
+    borderWidth: 1, borderColor: COLORS.glassBorder,
   },
-  statIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: 'rgba(212,175,55,0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  heroGlow: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255,0.06)',
   },
-  statLabel: {
-    color: COLORS.gold,
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 1.5,
+  heroContent: { padding: 24, paddingBottom: 16 },
+  heroTopRow: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', gap: 10,
   },
-  statValue: {
-    color: COLORS.textPrimary,
-    fontSize: 26,
-    fontWeight: '900',
+  greeting: { color: COLORS.textSecondary, fontSize: 14, fontWeight: '600' },
+  hijriChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: COLORS.gold + '14', borderColor: COLORS.gold + '30',
+    borderWidth: 1, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4,
   },
-  duaCard: {
-    marginHorizontal: 16,
-    marginBottom: 28,
-    backgroundColor: COLORS.glass,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.glassBorder,
-    padding: 20,
+  hijriChipText: { color: COLORS.gold, fontSize: 10.5, fontWeight: '700' },
+  userName: { color: COLORS.gold, fontSize: 28, fontWeight: '900', marginTop: 4 },
+  namePrompt: {
+    flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 6,
+    alignSelf: 'flex-start', borderRadius: 999, paddingVertical: 5,
+    paddingHorizontal: 12, borderWidth: 1, borderStyle: 'dashed',
+    borderColor: COLORS.gold + '55',
   },
-  arabicDua: {
-    textAlign: 'right',
-    writingDirection: 'rtl',
-    color: COLORS.gold,
-    fontSize: 20,
-    lineHeight: 36,
+  namePromptText: { color: COLORS.gold, fontSize: 17, fontWeight: '800' },
+  heroSub: { color: COLORS.textSecondary, fontSize: 13, marginTop: 6 },
+
+  lockNotice: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    marginHorizontal: 16, marginBottom: 14, padding: 14, borderRadius: 16,
+    backgroundColor: COLORS.amber + '12',
+    borderWidth: 1, borderColor: COLORS.amber + '38',
   },
-  moduleSection: {
-    paddingBottom: 16,
+  lockNoticeIcon: {
+    width: 38, height: 38, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.amber + '1F',
+  },
+  lockNoticeTitle: { color: COLORS.textPrimary, fontSize: 14, fontWeight: '800' },
+  lockNoticeBody: { color: COLORS.textSecondary, fontSize: 11.5, lineHeight: 17, marginTop: 2 },
+  lockNoticeBtn: {
+    width: 34, height: 34, borderRadius: 17,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.amber,
+  },
+  prayerCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    marginHorizontal: 16, marginBottom: 16, padding: 16, borderRadius: 20,
+    backgroundColor: COLORS.bgSecondary,
+    borderWidth: 1, borderColor: COLORS.glassBorder,
+  },
+  prayerIcon: {
+    width: 46, height: 46, borderRadius: 15, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  prayerLabel: {
+    color: COLORS.textSecondary, fontSize: 11, fontWeight: '700',
+    letterSpacing: 0.8, textTransform: 'uppercase',
+  },
+  prayerName: { color: COLORS.textPrimary, fontSize: 19, fontWeight: '800', marginTop: 3 },
+  prayerTime: { color: COLORS.cyan, fontSize: 16, fontWeight: '700' },
+  prayerMeta: { color: COLORS.textSecondary, fontSize: 12, marginTop: 2 },
+  countdownPill: {
+    alignItems: 'center', borderRadius: 14, paddingVertical: 8,
+    paddingHorizontal: 12, backgroundColor: COLORS.cyan + '14',
+    borderWidth: 1, borderColor: COLORS.cyan + '30',
+  },
+  countdownNum: { color: COLORS.cyan, fontSize: 15, fontWeight: '900' },
+  countdownLabel: { color: COLORS.textSecondary, fontSize: 9.5, marginTop: 1 },
+  quickStats: {
+    flexDirection: 'row', borderTopWidth: 1, borderTopColor: COLORS.glassBorder,
+    paddingVertical: 14, paddingHorizontal: 8,
+  },
+  statItem: { flex: 1, alignItems: 'center', gap: 4 },
+  statNum: { color: COLORS.textPrimary, fontSize: 16, fontWeight: '900' },
+  statLabel: { color: COLORS.textSecondary, fontSize: 10, fontWeight: '600' },
+  statDivider: { width: 1, backgroundColor: COLORS.glassBorder },
+  ayahCard: {
+    marginHorizontal: 16, marginBottom: 12, borderRadius: 20, padding: 20,
+    backgroundColor: COLORS.glass, borderWidth: 1, borderColor: COLORS.glassBorder,
+    overflow: 'hidden',
+  },
+  ayahGlow: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255, 255, 255,0.04)' },
+  ayahIcon: {
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255,0.1)',
+    alignItems: 'center', justifyContent: 'center', marginBottom: 10,
+  },
+  ayahText: {
+    color: COLORS.textPrimary, fontSize: 16, fontWeight: '600',
+    fontStyle: 'italic', lineHeight: 24,
+  },
+  ayahRef: { color: COLORS.gold, fontSize: 12, fontWeight: '700', marginTop: 8 },
+  salawatBanner: {
+    marginHorizontal: 16, marginBottom: 16, borderRadius: 16, padding: 14,
+    backgroundColor: 'rgba(255, 255, 255,0.08)',
+    borderWidth: 1, borderColor: 'rgba(255, 255, 255,0.25)',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
+  salawatBannerText: { color: COLORS.pink, fontSize: 13, fontWeight: '600', flex: 1, marginRight: 10 },
+  salawatCounter: {
+    backgroundColor: 'rgba(255, 255, 255,0.2)',
+    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6,
+    borderWidth: 1, borderColor: 'rgba(255, 255, 255,0.4)',
+  },
+  salawatCounterNum: { color: COLORS.pink, fontSize: 16, fontWeight: '900' },
+  sectionHeader: { paddingHorizontal: 16, marginBottom: 12 },
+  sectionTitle: { color: COLORS.gold, fontSize: 18, fontWeight: '900' },
+  grid: {
+    flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, gap: 0,
   },
   moduleCard: {
-    flex: 1,
-    backgroundColor: COLORS.glass,
-    borderRadius: 20,
+    width: '33.33%', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 6,
+  },
+  moduleIconWrap: {
+    width: 54, height: 54, borderRadius: 17,
+    alignItems: 'center', justifyContent: 'center',
     borderWidth: 1,
-    borderColor: COLORS.glassBorder,
-    padding: 16,
-    minHeight: 160,
   },
-  moduleIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
+  moduleIconFeatured: {
+    borderWidth: 1.5,
+    shadowOpacity: 0.5, shadowRadius: 12, shadowOffset: { width: 0, height: 0 },
+    elevation: 6,
   },
-  moduleTitle: {
-    color: COLORS.textPrimary,
-    fontSize: 15,
-    fontWeight: '800',
-    marginBottom: 4,
+  moduleHalo: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 17, opacity: 0.13,
   },
-  moduleDesc: {
-    color: COLORS.textSecondary,
-    fontSize: 12,
-    lineHeight: 16,
+  moduleSparkTop: { position: 'absolute', top: 5, right: 6, opacity: 0.95 },
+  moduleSparkBottom: { position: 'absolute', bottom: 6, left: 7, opacity: 0.6 },
+  moduleLabel: {
+    color: COLORS.textPrimary, fontSize: 12, fontWeight: '700',
+    marginTop: 9, textAlign: 'center', letterSpacing: 0.1,
   },
-  openLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1,
+  moduleSub: {
+    color: COLORS.textSecondary, fontSize: 10, marginTop: 2,
+    textAlign: 'center', opacity: 0.85,
   },
 });

@@ -31,3 +31,6 @@ ios
 *.njsproj
 *.sln
 *.sw?
+
+# Local dev database fallback (server/config/database.js)
+server/.data

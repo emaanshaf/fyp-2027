@@ -1,39 +1,39 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator, Platform, Linking } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
+import { createDrawerNavigator, DrawerContentScrollView } from '@react-navigation/drawer';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+import { auth, isFirebaseConfigured } from '../firebase/config';
+import { backend } from '../services/backend';
+import { syncService } from '../services/sync';
 
 import { COLORS, globalStyles } from '../theme';
-import LoginScreen from '../screens/LoginScreen';
-import HomeScreen from '../screens/HomeScreen';
-import QuranScreen from '../screens/QuranScreen';
-import HadithScreen from '../screens/HadithScreen';
-import DuasScreen from '../screens/DuasScreen';
-import PrayerTimesScreen from '../screens/PrayerTimesScreen';
-import ZakatScreen from '../screens/ZakatScreen';
-import TasbihScreen from '../screens/TasbihScreen';
-import RemindersScreen from '../screens/RemindersScreen';
-import BookmarksScreen from '../screens/BookmarksScreen';
-import GeneratorScreen from '../screens/GeneratorScreen';
-import AIChatScreen from '../screens/AIChatScreen';
-import SettingsScreen from '../screens/SettingsScreen';
+import { screenFor } from './screenRegistry';
+import LandingScreen, { LANDING_SEEN_KEY } from '../screens/LandingScreen';
+import { RoleProvider, useRole } from '../context/RoleContext';
+import {
+  MODULES, TAB_MODULES, DRAWER_MODULES, ROUTE_PATHS, SCREEN_TITLES,
+  hasAccess, buildLinkingConfig, accentFor,
+} from '../config/routes';
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
 const Tab = createBottomTabNavigator();
 
-const TAB_SCREENS = [
-  { name: 'Home', component: HomeScreen, icon: 'home-outline', activeIcon: 'home', label: 'Home' },
-  { name: 'Quran', component: QuranScreen, icon: 'book-outline', activeIcon: 'book', label: 'Quran' },
-  { name: 'Prayer', component: PrayerTimesScreen, icon: 'time-outline', activeIcon: 'time', label: 'Prayer' },
-  { name: 'Duas', component: DuasScreen, icon: 'heart-outline', activeIcon: 'heart', label: 'Duas' },
-];
-
 function BottomTabs() {
+  const userRole = useRole();
+  // Always show at least Home screen, filter others by role
+  const accessibleTabs = TAB_MODULES.filter(
+    s => s.name === 'Home' || hasAccess(userRole, s.name)
+  );
+  
+  // If no tabs accessible, show Home anyway
+  const tabsToRender = accessibleTabs.length > 0 ? accessibleTabs : [TAB_MODULES.find(s => s.name === 'Home')];
+  
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -49,44 +49,44 @@ function BottomTabs() {
         tabBarActiveTintColor: COLORS.gold,
         tabBarInactiveTintColor: COLORS.textSecondary,
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600', marginTop: 2 },
-        tabBarIcon: ({ focused, color, size }) => {
-          const screen = TAB_SCREENS.find(s => s.name === route.name);
-          const iconName = focused ? screen?.activeIcon : screen?.icon;
-          return <Ionicons name={iconName} size={22} color={color} />;
-        },
       })}
     >
-      {TAB_SCREENS.map(s => (
-        <Tab.Screen key={s.name} name={s.name} component={s.component} options={{ tabBarLabel: s.label }} />
+      {tabsToRender.map(s => (
+        <Tab.Screen
+          key={s.name}
+          name={s.name}
+          component={screenFor(s.name)}
+          options={{
+            tabBarLabel: s.title,
+            // The tab bar rendered labels only; icon names were already in the
+            // route table but were never wired up.
+            tabBarIcon: ({ color, size, focused }) => (
+              <Ionicons
+                name={focused ? s.icon.replace('-outline', '') : s.icon}
+                size={size ?? 22}
+                color={color}
+              />
+            ),
+            href: ROUTE_PATHS[s.name],
+          }}
+        />
       ))}
     </Tab.Navigator>
   );
 }
 
 function CustomDrawerContent(props) {
-  const { navigation } = props;
+  const { navigation, drawerContentOptions } = props;
+  const { userRole } = drawerContentOptions || {};
 
-  const handleLogout = async () => {
-    await AsyncStorage.removeItem('qitab_user_name');
-    navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-  };
 
-  const drawerItems = [
-    { name: 'Hadith', icon: 'shield-checkmark-outline', label: 'Authentic Hadith' },
-    { name: 'Zakat', icon: 'calculator-outline', label: 'Zakat & Ushr' },
-    { name: 'Tasbih', icon: 'radio-button-on-outline', label: 'Tasbih Counter' },
-    { name: 'Reminders', icon: 'notifications-outline', label: 'Reminders' },
-    { name: 'Generator', icon: 'grid-outline', label: 'Content Creator' },
-    { name: 'Bookmarks', icon: 'bookmark-outline', label: 'My Library' },
-    { name: 'AIChat', icon: 'chatbubbles-outline', label: 'Islamic AI' },
-    { name: 'Settings', icon: 'settings-outline', label: 'Settings' },
-  ];
+  const accessibleItems = DRAWER_MODULES.filter(item => hasAccess(userRole, item.name));
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bgSecondary }}>
       <View style={styles.drawerHeader}>
         <View style={styles.drawerLogoWrap}>
-          <Ionicons name="moon" size={28} color={COLORS.gold} />
+          <Ionicons name="book" size={26} color={COLORS.gold} />
         </View>
         <Text style={styles.drawerTitle}>Qitab-e-Noor</Text>
         <Text style={styles.drawerSubtitle}>Your Spiritual Companion</Text>
@@ -94,10 +94,12 @@ function CustomDrawerContent(props) {
 
       <DrawerContentScrollView {...props} contentContainerStyle={{ paddingTop: 0 }}>
         <TouchableOpacity
-          onPress={() => navigation.navigate('MainTabs')}
+          onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })}
           style={styles.drawerItem}
         >
-          <Ionicons name="home-outline" size={20} color={COLORS.textSecondary} />
+          <View style={[styles.drawerIconPlate, { backgroundColor: COLORS.gold + '1F' }]}>
+            <Ionicons name="home-outline" size={17} color={COLORS.gold} />
+          </View>
           <Text style={styles.drawerItemText}>Dashboard</Text>
         </TouchableOpacity>
 
@@ -105,22 +107,40 @@ function CustomDrawerContent(props) {
           <Text style={{ color: COLORS.gold, fontSize: 10, fontWeight: '800', letterSpacing: 2 }}>MODULES</Text>
         </View>
 
-        {drawerItems.map(item => (
-          <TouchableOpacity
-            key={item.name}
-            onPress={() => navigation.navigate(item.name)}
-            style={styles.drawerItem}
-          >
-            <Ionicons name={item.icon} size={20} color={COLORS.textSecondary} />
-            <Text style={styles.drawerItemText}>{item.label}</Text>
-          </TouchableOpacity>
-        ))}
+        {accessibleItems.map(item => {
+          // Each row carries its module's accent on a tinted plate, so the
+          // drawer can be scanned by colour instead of read line by line.
+          const accent = accentFor(COLORS, item.name);
+          return (
+            <TouchableOpacity
+              key={item.name}
+              onPress={() => navigation.navigate(item.name)}
+              style={styles.drawerItem}
+              accessibilityRole="button"
+              accessibilityLabel={item.title}
+            >
+              <View style={[styles.drawerIconPlate, { backgroundColor: accent + '1F' }]}>
+                <Ionicons name={item.icon} size={17} color={accent} />
+              </View>
+              <Text style={styles.drawerItemText}>{item.title}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </DrawerContentScrollView>
 
+      {/* Settings replaces the old Logout row: with no sign-in there is no
+          session to end, and resetting local data lives in Settings. */}
       <View style={styles.drawerFooter}>
-        <TouchableOpacity onPress={handleLogout} style={[styles.drawerItem, { marginBottom: 0 }]}>
-          <Ionicons name="log-out-outline" size={20} color={COLORS.red} />
-          <Text style={[styles.drawerItemText, { color: COLORS.red }]}>Logout</Text>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('Settings')}
+          style={[styles.drawerItem, { marginBottom: 0 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Settings"
+        >
+          <View style={[styles.drawerIconPlate, { backgroundColor: COLORS.blue + '1F' }]}>
+            <Ionicons name="settings-outline" size={17} color={COLORS.blue} />
+          </View>
+          <Text style={styles.drawerItemText}>Settings</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -128,9 +148,10 @@ function CustomDrawerContent(props) {
 }
 
 function MainDrawer() {
+  const userRole = useRole();
   return (
     <Drawer.Navigator
-      drawerContent={(props) => <CustomDrawerContent {...props} />}
+      drawerContent={(props) => <CustomDrawerContent {...props} drawerContentOptions={{ userRole }} />}
       screenOptions={{
         headerStyle: { backgroundColor: COLORS.bgSecondary },
         headerTintColor: COLORS.textPrimary,
@@ -144,75 +165,219 @@ function MainDrawer() {
       <Drawer.Screen
         name="MainTabs"
         component={BottomTabs}
+        initialParams={{ userRole }}
         options={{
           title: 'Qitab-e-Noor',
           drawerLabel: 'Dashboard',
           headerTitle: () => (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Ionicons name="moon" size={20} color={COLORS.gold} />
+              <Ionicons name="book" size={19} color={COLORS.gold} />
               <Text style={{ color: COLORS.gold, fontWeight: '800', fontSize: 18 }}>Qitab-e-Noor</Text>
             </View>
           ),
+          href: ROUTE_PATHS.Dashboard,
         }}
       />
-      <Drawer.Screen name="Hadith" component={HadithScreen} options={{ title: 'Authentic Hadith' }} />
-      <Drawer.Screen name="Zakat" component={ZakatScreen} options={{ title: 'Zakat & Ushr' }} />
-      <Drawer.Screen name="Tasbih" component={TasbihScreen} options={{ title: 'Tasbih Counter' }} />
-      <Drawer.Screen name="Reminders" component={RemindersScreen} options={{ title: 'Reminders' }} />
-      <Drawer.Screen name="Generator" component={GeneratorScreen} options={{ title: 'Content Creator' }} />
-      <Drawer.Screen name="Bookmarks" component={BookmarksScreen} options={{ title: 'My Library' }} />
-      <Drawer.Screen name="AIChat" component={AIChatScreen} options={{ title: 'Islamic AI Assistant' }} />
-      <Drawer.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
+      {MODULES.filter(m => !m.tab && hasAccess(userRole, m.name)).map(({ name, path }) => {
+        return (
+          <Drawer.Screen
+            key={name}
+            name={name}
+            component={screenFor(name)}
+            options={{ 
+              title: SCREEN_TITLES[name] || name,
+              href: `/${path}`,
+            }}
+          />
+        );
+      })}
+
+      {/* Catch-all. React Navigation resolves unmatched URLs here via the
+          `NotFound: '*'` entry in the linking config. */}
+      <Drawer.Screen
+        name="NotFound"
+        component={screenFor('NotFound')}
+        options={{ title: 'Not Found', drawerItemStyle: { display: 'none' } }}
+      />
     </Drawer.Navigator>
   );
 }
 
+// Generated from src/config/routes.js so URLs, permissions and drawer
+// entries cannot drift apart.
+const linking = buildLinkingConfig();
+
 export default function AppNavigator() {
   const [initialRoute, setInitialRoute] = useState(null);
+  const [userRole, setUserRole] = useState('user');
+  const [isReady, setIsReady] = useState(false);
+  // null until read from storage, so the landing page never flashes for a
+  // returning user and the app never flashes for a first-time one.
+  const [showLanding, setShowLanding] = useState(null);
+  // Route the landing page asked us to open once the navigator mounts.
+  const [landingTarget, setLandingTarget] = useState(null);
+  const navigationRef = useRef(null);
 
-  useEffect(() => {
-    AsyncStorage.getItem('qitab_user_name').then(name => {
-      setInitialRoute(name ? 'Main' : 'Login');
-    });
+  const handleDeepLink = useCallback(async (url) => {
+    if (!navigationRef.current || !url) return;
+    
+    try {
+      await navigationRef.current.navigate(url);
+    } catch (e) {
+      console.log('Deep link navigation failed:', e);
+    }
   }, []);
+
+  // There is no sign-in screen. A silent anonymous Firebase session gives each
+  // install a stable uid, so sync and cross-device restore keep working while
+  // the user is never asked for credentials. If Firebase is unconfigured or
+  // unreachable the app still opens — everything falls back to local storage.
+  useEffect(() => {
+    const initAuth = async () => {
+      const resolveRole = async () => {
+        try {
+          const me = await backend.getMe();
+          return me.user?.role || 'user';
+        } catch {
+          return 'user';
+        }
+      };
+
+      try {
+        if (!isFirebaseConfigured()) {
+          setUserRole(await resolveRole());
+          setInitialRoute('Main');
+          syncService.syncAll();
+          setIsReady(true);
+          return;
+        }
+
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+          if (!user) {
+            // No session yet: create an anonymous one. A failure here is not
+            // fatal — the app opens local-only rather than blocking on network.
+            try {
+              await signInAnonymously(auth);
+              return; // this listener fires again with the new user
+            } catch (e) {
+              console.warn('Anonymous sign-in unavailable, continuing offline:', e?.message);
+              setInitialRoute('Main');
+              setIsReady(true);
+              return;
+            }
+          }
+          setUserRole(await resolveRole());
+          setInitialRoute('Main');
+          syncService.syncAll();
+          setIsReady(true);
+        });
+        return unsubscribe;
+      } catch (e) {
+        console.error('Auth init error:', e);
+        setInitialRoute('Main');
+        setIsReady(true);
+      }
+    };
+
+    initAuth();
+
+    AsyncStorage.getItem(LANDING_SEEN_KEY).then(seen => setShowLanding(!seen));
+
+    if (Platform.OS !== 'web') {
+      Linking.addEventListener('url', ({ url }) => handleDeepLink(url));
+      return () => Linking.removeEventListener('url', ({ url }) => handleDeepLink(url));
+    }
+  }, [handleDeepLink]);
+
+  if (!isReady || showLanding === null) {
+    return (
+      <View style={{ flex: 1, backgroundColor: COLORS.bg, alignItems: 'center', justifyContent: 'center' }}>
+        <Ionicons name="book" size={46} color={COLORS.gold} />
+        <ActivityIndicator color={COLORS.gold} style={{ marginTop: 20 }} />
+        <Text style={{ color: COLORS.textSecondary, marginTop: 16, fontSize: 14 }}>Loading Qitab-e-Noor...</Text>
+      </View>
+    );
+  }
 
   if (!initialRoute) {
     return (
       <View style={{ flex: 1, backgroundColor: COLORS.bg, alignItems: 'center', justifyContent: 'center' }}>
-        <Ionicons name="moon" size={48} color={COLORS.gold} />
+        <Ionicons name="book" size={46} color={COLORS.gold} />
         <ActivityIndicator color={COLORS.gold} style={{ marginTop: 20 }} />
       </View>
     );
   }
 
+  if (showLanding) {
+    return (
+      <LandingScreen
+        onDone={route => {
+          if (route) setLandingTarget(route);
+          setShowLanding(false);
+        }}
+      />
+    );
+  }
+
   return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName={initialRoute} screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="Main" component={MainDrawer} />
+    <RoleProvider role={userRole}>
+    <NavigationContainer
+      ref={navigationRef}
+      linking={linking}
+      onReady={() => {
+        setIsReady(true);
+        if (landingTarget) {
+          navigationRef.current?.navigate(landingTarget);
+          setLandingTarget(null);
+        }
+      }}
+    >
+      <Stack.Navigator 
+        initialRouteName={initialRoute} 
+        screenOptions={{ 
+          headerShown: false,
+          gestureEnabled: true,
+        }}
+      >
+        {/* MainDrawer reads the role from RoleProvider rather than a prop.
+            It used to be an inline arrow, which is a new component identity on
+            every render — React Navigation unmounted and remounted the whole
+            drawer, losing every screen's state, each time auth state settled. */}
+        <Stack.Screen 
+          name="Main" 
+          component={MainDrawer}
+          options={{ 
+            headerShown: false,
+          }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
+    </RoleProvider>
   );
 }
 
 const styles = StyleSheet.create({
+  drawerIconPlate: {
+    width: 32, height: 32, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+  },
   drawerHeader: {
     padding: 24,
     paddingTop: 56,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.glassBorder,
-    backgroundColor: 'rgba(212,175,55,0.04)',
+    backgroundColor: COLORS.glass,
   },
   drawerLogoWrap: {
     width: 52,
     height: 52,
     borderRadius: 16,
-    backgroundColor: 'rgba(212,175,55,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.3)',
+    borderColor: 'rgba(255,255,255,0.15)',
   },
   drawerTitle: {
     color: COLORS.gold,

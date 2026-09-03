@@ -8,9 +8,13 @@ import { Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
 const hapticImpact = (style) => Platform.OS !== 'web' && Haptics.impactAsync(style);
 const hapticNotify = (type) => Platform.OS !== 'web' && Haptics.notificationAsync(type);
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getItem, setItem } from '../firebase/syncedStorage';
 import Svg, { Circle } from 'react-native-svg';
 import { COLORS, globalStyles } from '../theme';
+import { backend } from '../services/backend';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { usePreferences } from '../hooks/usePreferences';
+import storage from '../services/storage';
 
 const DHIKR_PRESETS = [
   { id: 1, arabic: 'سُبْحَانَ اللَّه', text: 'Subhan Allah', translation: 'Glory be to Allah', target: 33 },
@@ -53,41 +57,127 @@ export default function TasbihScreen() {
   const [history, setHistory] = useState([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [histOpen, setHistOpen] = useState(false);
+  const [prefs] = usePreferences();
   const sessionStart = useRef(Date.now());
+  const restored = useRef(false);
+
+  // The target comes from Settings unless the chosen dhikr prescribes its own
+  // (Subhanallah is traditionally 33, and that should not be overridden).
+  const target = preset.target || prefs.tasbihTarget;
 
   useEffect(() => {
-    AsyncStorage.getItem('qitab_tasbih_history').then(v => v && setHistory(JSON.parse(v)));
+    loadHistory();
   }, []);
 
+  const loadHistory = async () => {
+    try {
+      const hasToken = await AsyncStorage.getItem('qitab_auth_token');
+      if (hasToken) {
+        try {
+          const apiHistory = await backend.getTasbihHistory();
+          if (apiHistory?.length) {
+            setHistory(apiHistory.map(h => ({
+              id: h.id,
+              dhikr: h.dhikr,
+              totalCount: h.count,
+              target: h.target,
+              completed: h.completed,
+              date: new Date(h.created_at).toLocaleDateString('en-PK'),
+            })));
+            return;
+          }
+        } catch (e) { /* fall through to local */ }
+      }
+      getItem('qitab_tasbih_history').then(v => v && setHistory(JSON.parse(v)));
+    } catch (e) {
+      getItem('qitab_tasbih_history').then(v => v && setHistory(JSON.parse(v)));
+    }
+  };
+
+  // Restore an interrupted session. Counting dhikr is often done in one
+  // sitting across app switches, and losing the count at 96 of 100 is the
+  // single most annoying thing this screen could do.
+  useEffect(() => {
+    if (restored.current || !prefs.tasbihKeepCount) return;
+    restored.current = true;
+    storage.getJSON('tasbih_session').then(saved => {
+      if (saved && typeof saved.count === 'number') {
+        setCount(saved.count);
+        setLaps(saved.laps || 0);
+        const found = DHIKR_PRESETS.find(p => p.text === saved.dhikr);
+        if (found) setPreset(found);
+      }
+    });
+  }, [prefs.tasbihKeepCount]);
+
+  useEffect(() => {
+    if (!restored.current) return;
+    if (!prefs.tasbihKeepCount) {
+      storage.remove('tasbih_session');
+      return;
+    }
+    storage.setJSON('tasbih_session', { count, laps, dhikr: preset.text });
+  }, [count, laps, preset, prefs.tasbihKeepCount]);
+
   const tap = async () => {
-    await hapticImpact(Haptics.ImpactFeedbackStyle.Light);
+    if (prefs.tasbihHaptics) await hapticImpact(Haptics.ImpactFeedbackStyle.Light);
     const newCount = count + 1;
-    if (newCount >= preset.target) {
+    if (newCount >= target) {
       setCount(0);
       setLaps(l => l + 1);
+      // The completion buzz fires regardless of the per-count setting: it
+      // marks finishing a round, which is the thing worth feeling.
       await hapticNotify(Haptics.NotificationFeedbackType.Success);
     } else {
       setCount(newCount);
     }
   };
 
+  /** Step back one, for a miscount. */
+  const undo = async () => {
+    if (count === 0 && laps === 0) return;
+    if (count === 0) {
+      setLaps(l => l - 1);
+      setCount(target - 1);
+    } else {
+      setCount(c => c - 1);
+    }
+    if (prefs.tasbihHaptics) await hapticImpact(Haptics.ImpactFeedbackStyle.Light);
+  };
+
   const reset = async () => {
     if (count === 0 && laps === 0) return;
+    const totalCount = laps * target + count;
     const entry = {
       id: Date.now(),
       dhikr: preset.text,
       laps,
       lastCount: count,
-      totalCount: laps * preset.target + count,
+      totalCount,
       duration: Math.floor((Date.now() - sessionStart.current) / 60000),
       date: new Date().toLocaleDateString('en-PK'),
     };
     const next = [entry, ...history].slice(0, 15);
     setHistory(next);
-    await AsyncStorage.setItem('qitab_tasbih_history', JSON.stringify(next));
+    await setItem('qitab_tasbih_history', JSON.stringify(next));
+
+    // Also save to backend if logged in
+    const hasToken = await AsyncStorage.getItem('qitab_auth_token');
+    if (hasToken) {
+      try {
+        await backend.addTasbihSession({
+          dhikr: preset.text,
+          count: totalCount,
+          target,
+          completed: totalCount >= target,
+        });
+      } catch (e) { /* backend unavailable */ }
+    }
+
     setCount(0);
     setLaps(0);
     sessionStart.current = Date.now();
+    await storage.remove('tasbih_session');
     await hapticNotify(Haptics.NotificationFeedbackType.Warning);
   };
 
@@ -97,7 +187,7 @@ export default function TasbihScreen() {
     setPickerOpen(false);
   };
 
-  const totalCount = laps * preset.target + count;
+  const totalCount = laps * target + count;
 
   return (
     <SafeAreaView style={[globalStyles.screen, { alignItems: 'center' }]} edges={['bottom']}>
@@ -115,10 +205,10 @@ export default function TasbihScreen() {
 
         {/* Ring + Counter */}
         <View style={styles.ringWrap}>
-          <RingProgress count={count} target={preset.target} />
+          <RingProgress count={count} target={target} />
           <View style={styles.ringCenter}>
             <Text style={styles.countText}>{count}</Text>
-            <Text style={styles.targetText}>/ {preset.target}</Text>
+            <Text style={styles.targetText}>/ {target}</Text>
             {laps > 0 && (
               <View style={styles.lapBadge}>
                 <Text style={{ color: '#000', fontWeight: '900', fontSize: 12 }}>{laps}x</Text>
@@ -147,11 +237,35 @@ export default function TasbihScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* Reset */}
-        <TouchableOpacity onPress={reset} style={styles.resetBtn}>
-          <Ionicons name="refresh-outline" size={18} color={COLORS.textSecondary} />
-          <Text style={{ color: COLORS.textSecondary, fontWeight: '700', marginLeft: 6 }}>Reset Session</Text>
-        </TouchableOpacity>
+        {/* Undo / Reset. Undo matters because a miscount otherwise means
+            starting the whole round again. */}
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            onPress={undo}
+            style={styles.resetBtn}
+            disabled={count === 0 && laps === 0}
+            accessibilityLabel="Undo last count"
+          >
+            <Ionicons
+              name="arrow-undo-outline"
+              size={18}
+              color={count === 0 && laps === 0 ? COLORS.divider : COLORS.textSecondary}
+            />
+            <Text
+              style={{
+                color: count === 0 && laps === 0 ? COLORS.divider : COLORS.textSecondary,
+                fontWeight: '700', marginLeft: 6,
+              }}
+            >
+              Undo
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={reset} style={styles.resetBtn} accessibilityLabel="Reset session">
+            <Ionicons name="refresh-outline" size={18} color={COLORS.textSecondary} />
+            <Text style={{ color: COLORS.textSecondary, fontWeight: '700', marginLeft: 6 }}>Reset</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Virtue */}
         <View style={styles.virtueCard}>
@@ -176,7 +290,7 @@ export default function TasbihScreen() {
               <TouchableOpacity
                 key={p.id}
                 onPress={() => selectPreset(p)}
-                style={[styles.presetRow, preset.id === p.id && { borderColor: COLORS.gold, backgroundColor: 'rgba(212,175,55,0.06)' }]}
+                style={[styles.presetRow, preset.id === p.id && { borderColor: COLORS.gold, backgroundColor: 'rgba(255, 255, 255,0.06)' }]}
               >
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: preset.id === p.id ? COLORS.gold : COLORS.textPrimary, fontWeight: '700', fontSize: 15 }}>{p.text}</Text>
@@ -235,14 +349,15 @@ export default function TasbihScreen() {
 }
 
 const styles = StyleSheet.create({
+  actionRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
   dhikrBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(212,175,55,0.08)',
+    backgroundColor: 'rgba(255, 255, 255,0.08)',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.3)',
+    borderColor: 'rgba(255, 255, 255,0.3)',
     paddingHorizontal: 14,
     paddingVertical: 8,
     maxWidth: 200,
@@ -301,25 +416,22 @@ const styles = StyleSheet.create({
     width: 140,
     height: 140,
     borderRadius: 70,
-    backgroundColor: 'rgba(212,175,55,0.08)',
+    backgroundColor: 'rgba(255, 255, 255,0.08)',
     borderWidth: 2,
     borderColor: COLORS.gold,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: COLORS.gold,
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 0 },
+    boxShadow: `0 0 20px ${COLORS.gold}66`,
   },
   tapInner: {
     width: 110,
     height: 110,
     borderRadius: 55,
-    backgroundColor: 'rgba(212,175,55,0.12)',
+    backgroundColor: 'rgba(255, 255, 255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.4)',
+    borderColor: 'rgba(255, 255, 255,0.4)',
   },
   tapIcon: {
     fontSize: 52,
@@ -339,10 +451,10 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 24,
     padding: 18,
-    backgroundColor: 'rgba(212,175,55,0.05)',
+    backgroundColor: 'rgba(255, 255, 255,0.05)',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.15)',
+    borderColor: 'rgba(255, 255, 255,0.15)',
     width: '90%',
   },
   presetRow: {

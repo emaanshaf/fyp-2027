@@ -9,12 +9,31 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, globalStyles } from '../theme';
 import { getAIAnswer } from '../ai/assistant';
 import FormattedText from '../components/FormattedText';
+import ZakatBreakdown from '../components/ZakatBreakdown';
 
-const GOLD_PRICE_PKR = 25000;
-const SILVER_PRICE_PKR = 320;
 const GOLD_NISAB_GRAMS = 87.48;
 const SILVER_NISAB_GRAMS = 612.36;
 const ZAKAT_RATE = 0.025;
+
+const DEFAULT_GOLD_PRICE = 25000;
+const DEFAULT_SILVER_PRICE = 320;
+
+const fetchMetalPrices = async () => {
+  try {
+    const res = await fetch('https://api.metals.live/v1/spot');
+    const data = await res.json();
+    const gold = data.find(m => m.metal === 'gold');
+    const silver = data.find(m => m.metal === 'silver');
+    if (gold && silver) {
+      const usdToPkr = 278;
+      return {
+        gold: Math.round(gold.price * usdToPkr),
+        silver: Math.round(silver.price * usdToPkr),
+      };
+    }
+  } catch (e) {}
+  return { gold: DEFAULT_GOLD_PRICE, silver: DEFAULT_SILVER_PRICE };
+};
 
 const USHR_RULES = [
   { label: 'Rain-watered crops', value: 0.10, icon: 'rainy-outline' },
@@ -28,6 +47,8 @@ export default function ZakatScreen() {
   const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
   const [histModal, setHistModal] = useState(false);
+  const [metalPrices, setMetalPrices] = useState({ gold: DEFAULT_GOLD_PRICE, silver: DEFAULT_SILVER_PRICE });
+  const [pricesLoading, setPricesLoading] = useState(true);
   const [cropValue, setCropValue] = useState('');
   const [ushrRate, setUshrRate] = useState(0.10);
   const [aiQuery, setAiQuery] = useState('');
@@ -37,6 +58,10 @@ export default function ZakatScreen() {
 
   useEffect(() => {
     AsyncStorage.getItem('qitab_zakat_history').then(v => v && setHistory(JSON.parse(v)));
+    fetchMetalPrices().then(prices => {
+      setMetalPrices(prices);
+      setPricesLoading(false);
+    });
   }, []);
 
   const set = (key, val) => setValues(prev => ({ ...prev, [key]: val }));
@@ -46,10 +71,10 @@ export default function ZakatScreen() {
   const calculate = () => {
     const goldGrams = num('gold');
     const silverGrams = (num('silverTolas') * 11.664) + num('silver');
-    const goldValue = goldGrams * GOLD_PRICE_PKR;
-    const silverValue = silverGrams * SILVER_PRICE_PKR;
-    const goldNisab = GOLD_NISAB_GRAMS * GOLD_PRICE_PKR;
-    const silverNisab = SILVER_NISAB_GRAMS * SILVER_PRICE_PKR;
+    const goldValue = goldGrams * metalPrices.gold;
+    const silverValue = silverGrams * metalPrices.silver;
+    const goldNisab = GOLD_NISAB_GRAMS * metalPrices.gold;
+    const silverNisab = SILVER_NISAB_GRAMS * metalPrices.silver;
     const nisab = Math.min(goldNisab, silverNisab);
 
     const totalAssets = num('cash') + goldValue + silverValue + num('investments');
@@ -59,7 +84,17 @@ export default function ZakatScreen() {
     const zakatDue = netWealth >= nisab;
     const zakatAmount = zakatDue ? netWealth * ZAKAT_RATE : 0;
 
-    setResult({ totalAssets, totalLiabilities, netWealth, zakatDue, zakatAmount, nisab, goldValue, silverValue });
+    setResult({
+      totalAssets, totalLiabilities, netWealth, zakatDue, zakatAmount, nisab,
+      goldValue, silverValue,
+      // Per-category values, kept for the breakdown chart.
+      parts: {
+        cash: num('cash'),
+        gold: goldValue,
+        silver: silverValue,
+        investments: num('investments'),
+      },
+    });
   };
 
   const saveHistory = async () => {
@@ -117,6 +152,14 @@ export default function ZakatScreen() {
             {/* Input Fields */}
             <Text style={globalStyles.sectionTitle}>Enter Your Assets</Text>
 
+            {/* Live Metal Prices */}
+            <View style={styles.priceBanner}>
+              <Ionicons name="trending-up-outline" size={14} color={COLORS.emerald} />
+              <Text style={{ color: COLORS.textSecondary, fontSize: 11, marginLeft: 6 }}>
+                {pricesLoading ? 'Loading prices...' : `Live: Gold ${metalPrices.gold.toLocaleString()} PKR/g • Silver ${metalPrices.silver.toLocaleString()} PKR/g`}
+              </Text>
+            </View>
+
             {[
               ['cash', 'Cash & Savings (PKR)', 'cash-outline'],
               ['gold', 'Gold (grams)', 'ellipse-outline'],
@@ -142,7 +185,12 @@ export default function ZakatScreen() {
             ))}
 
             <View style={[globalStyles.row, { gap: 10, marginTop: 8 }]}>
-              <TouchableOpacity style={[globalStyles.btnPrimary, { flex: 1 }]} onPress={calculate}>
+              <TouchableOpacity
+                style={[globalStyles.btnPrimary, { flex: 1 }]}
+                onPress={calculate}
+                accessibilityRole="button"
+                accessibilityLabel="Calculate Zakat"
+              >
                 <Ionicons name="calculator-outline" size={18} color="#000" />
                 <Text style={globalStyles.btnPrimaryText}>Calculate Zakat</Text>
               </TouchableOpacity>
@@ -186,6 +234,10 @@ export default function ZakatScreen() {
                   </View>
                 )}
 
+                {result.parts ? (
+                  <ZakatBreakdown result={result} parts={result.parts} />
+                ) : null}
+
                 {result.zakatDue && (
                   <TouchableOpacity style={[globalStyles.btnPrimary, { marginTop: 16 }]} onPress={saveHistory}>
                     <Ionicons name="save-outline" size={18} color="#000" />
@@ -222,7 +274,7 @@ export default function ZakatScreen() {
               <TouchableOpacity
                 key={r.label}
                 onPress={() => setUshrRate(r.value)}
-                style={[styles.ushrOption, ushrRate === r.value && { borderColor: COLORS.emerald, backgroundColor: 'rgba(16,185,129,0.08)' }]}
+                style={[styles.ushrOption, ushrRate === r.value && { borderColor: COLORS.emerald, backgroundColor: 'rgba(255, 255, 255,0.08)' }]}
               >
                 <Ionicons name={r.icon} size={20} color={ushrRate === r.value ? COLORS.emerald : COLORS.textSecondary} />
                 <View style={{ flex: 1, marginLeft: 12 }}>
@@ -344,6 +396,16 @@ export default function ZakatScreen() {
 }
 
 const styles = StyleSheet.create({
+  priceBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255,0.08)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255,0.2)',
+    padding: 10,
+    marginBottom: 16,
+  },
   tabs: {
     flexDirection: 'row',
     margin: 12,
@@ -366,9 +428,9 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 14,
-    backgroundColor: 'rgba(212,175,55,0.08)',
+    backgroundColor: 'rgba(255, 255, 255,0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.3)',
+    borderColor: 'rgba(255, 255, 255,0.3)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -384,10 +446,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
     padding: 16,
-    backgroundColor: 'rgba(212,175,55,0.05)',
+    backgroundColor: 'rgba(255, 255, 255,0.05)',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.2)',
+    borderColor: 'rgba(255, 255, 255,0.2)',
   },
   zakatDueLabel: { color: COLORS.gold, fontSize: 11, fontWeight: '900', letterSpacing: 2 },
   zakatAmount: { color: COLORS.gold, fontSize: 38, fontWeight: '900', marginTop: 8 },
@@ -412,10 +474,10 @@ const styles = StyleSheet.create({
   },
   aiResponse: {
     marginTop: 20,
-    backgroundColor: 'rgba(212,175,55,0.05)',
+    backgroundColor: 'rgba(255, 255, 255,0.05)',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.2)',
+    borderColor: 'rgba(255, 255, 255,0.2)',
     padding: 18,
   },
   disclaimer: {

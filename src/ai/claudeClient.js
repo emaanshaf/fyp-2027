@@ -2,11 +2,36 @@
 // for the Islamic AI Assistant. Falls back to the offline knowledge base
 // (see islamicKnowledge.js) whenever this is unavailable.
 
-const ANTHROPIC_API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
+// Trimmed: an env var present but empty (EXPO_PUBLIC_ANTHROPIC_API_KEY= with
+// nothing after it) previously read as configured-but-broken. It now reads as
+// not configured, which is what it is.
+const ANTHROPIC_API_KEY = (process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY || '').trim();
 const MODEL = 'claude-sonnet-5';
 const API_URL = 'https://api.anthropic.com/v1/messages';
 
-export const isClaudeConfigured = () => !!ANTHROPIC_API_KEY;
+export const isClaudeConfigured = () => ANTHROPIC_API_KEY.length > 0;
+
+/**
+ * Why the live assistant is unavailable, for the UI to show. Silent
+ * degradation is what made this look "broken" rather than "offline".
+ */
+export function claudeStatus() {
+  if (!ANTHROPIC_API_KEY) {
+    return {
+      ok: false,
+      reason: 'no_key',
+      message: 'No Anthropic API key is set. Add EXPO_PUBLIC_ANTHROPIC_API_KEY to .env and restart the dev server.',
+    };
+  }
+  if (!ANTHROPIC_API_KEY.startsWith('sk-ant-')) {
+    return {
+      ok: false,
+      reason: 'malformed_key',
+      message: 'The configured API key does not look like an Anthropic key (expected it to start with "sk-ant-").',
+    };
+  }
+  return { ok: true, reason: 'ready', message: 'Connected to Claude.' };
+}
 
 const SYSTEM_PROMPT = `You are the Islamic Knowledge Assistant inside the Qitab-e-Noor app, a mobile companion for Quran, Hadith, Duas, Prayer Times, Zakat, and daily worship.
 
@@ -38,6 +63,9 @@ export async function askClaude(question, { signal, context } = {}) {
       'content-type': 'application/json',
       'x-api-key': ANTHROPIC_API_KEY,
       'anthropic-version': '2023-06-01',
+      // Required for the web build: without it the browser blocks the call as
+      // a CORS failure and the assistant silently drops to offline answers.
+      'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
       model: MODEL,

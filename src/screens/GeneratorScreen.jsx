@@ -17,7 +17,7 @@ const TEMPLATES = [
     placeholder: 'Enter the Arabic verse...',
     citePlaceholder: 'e.g. Surah Al-Baqarah 2:286',
     gradient: ['#1a0a00', '#3d1a00', '#1a0a00'],
-    accent: '#d4af37',
+    accent: '#ffffff',
   },
   {
     id: 'hadith',
@@ -26,7 +26,7 @@ const TEMPLATES = [
     placeholder: 'Enter hadith text...',
     citePlaceholder: 'e.g. Sahih Bukhari, Hadith 6412',
     gradient: ['#001a0a', '#003d1a', '#001a0a'],
-    accent: '#10b981',
+    accent: '#ffffff',
   },
   {
     id: 'dua',
@@ -35,7 +35,7 @@ const TEMPLATES = [
     placeholder: 'Enter the Arabic dua...',
     citePlaceholder: 'e.g. Fortress of the Muslim',
     gradient: ['#1a0015', '#3d0030', '#1a0015'],
-    accent: '#f43f5e',
+    accent: '#ff4444',
   },
   {
     id: 'reminder',
@@ -44,7 +44,7 @@ const TEMPLATES = [
     placeholder: 'Enter your reminder message...',
     citePlaceholder: 'e.g. Author or Source (optional)',
     gradient: ['#00101a', '#00253d', '#00101a'],
-    accent: '#3b82f6',
+    accent: '#ffffff',
   },
 ];
 
@@ -205,7 +205,7 @@ export default function GeneratorScreen() {
 
             {/* Citation */}
             {citation ? (
-              <Text style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', fontStyle: 'italic' }}>
+              <Text style={{ color: '#aaaaaa', fontSize: 13, textAlign: 'center', fontStyle: 'italic' }}>
                 — {citation}
               </Text>
             ) : null}

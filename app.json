@@ -5,12 +5,12 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#05070a"
+      "backgroundColor": "#000000"
     },
     "ios": {
       "supportsTablet": false,
@@ -19,7 +19,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#05070a"
+        "backgroundColor": "#000000"
       },
       "package": "com.qitabenoor.app",
       "permissions": [
@@ -30,6 +30,10 @@
         "android.permission.VIBRATE"
       ]
     },
+    "web": {
+      "bundler": "metro"
+    },
+    "scheme": "qitabe-noor",
     "plugins": [
       "expo-notifications",
       [
@@ -41,8 +45,21 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Qitab-e-Noor needs your location to calculate accurate Qibla direction and prayer times."
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
       ]
     ],
-    "assetBundlePatterns": ["**/*"]
+    "assetBundlePatterns": ["**/*"],
+    "extra": {
+      "router": {
+        "origin": "https://qitabe-noor.app"
+      }
+    }
   }
 }

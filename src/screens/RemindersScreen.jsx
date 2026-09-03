@@ -6,8 +6,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getItem, setItem } from '../firebase/syncedStorage';
 import { COLORS, globalStyles } from '../theme';
+import { backend } from '../services/backend';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 if (Platform.OS !== 'web') {
   Notifications.setNotificationHandler({
@@ -33,11 +35,11 @@ const requestPerms = async () => {
 };
 
 const PRAYER_REMINDERS = [
-  { id: 'fajr', name: 'Fajr', icon: 'partly-sunny-outline', color: '#60a5fa' },
-  { id: 'dhuhr', name: 'Dhuhr', icon: 'sunny', color: '#d4af37' },
-  { id: 'asr', name: 'Asr', icon: 'partly-sunny', color: '#f59e0b' },
-  { id: 'maghrib', name: 'Maghrib', icon: 'cloudy-night-outline', color: '#f43f5e' },
-  { id: 'isha', name: 'Isha', icon: 'moon-outline', color: '#8b5cf6' },
+  { id: 'fajr', name: 'Fajr', icon: 'partly-sunny-outline', color: '#ffffff' },
+  { id: 'dhuhr', name: 'Dhuhr', icon: 'sunny', color: '#ffffff' },
+  { id: 'asr', name: 'Asr', icon: 'partly-sunny', color: '#ffffff' },
+  { id: 'maghrib', name: 'Maghrib', icon: 'cloudy-night-outline', color: '#ff4444' },
+  { id: 'isha', name: 'Isha', icon: 'moon-outline', color: '#ffffff' },
 ];
 
 export default function RemindersScreen() {
@@ -51,9 +53,30 @@ export default function RemindersScreen() {
 
   useEffect(() => {
     checkPermission();
-    AsyncStorage.getItem('qitab_prayer_toggles').then(v => v && setPrayerToggles(JSON.parse(v)));
-    AsyncStorage.getItem('qitab_reminders').then(v => v && setReminders(JSON.parse(v)));
+    loadData();
   }, []);
+
+  const loadData = async () => {
+    try {
+      const hasToken = await AsyncStorage.getItem('qitab_auth_token');
+      if (hasToken) {
+        try {
+          const [apiToggles, apiReminders] = await Promise.all([
+            backend.getPrayerToggles(),
+            backend.getReminders(),
+          ]);
+          if (apiToggles?.toggles) setPrayerToggles(apiToggles.toggles);
+          if (apiReminders) setReminders(apiReminders);
+          return;
+        } catch (e) { /* fall through to local */ }
+      }
+      getItem('qitab_prayer_toggles').then(v => v && setPrayerToggles(JSON.parse(v)));
+      getItem('qitab_reminders').then(v => v && setReminders(JSON.parse(v)));
+    } catch (e) {
+      getItem('qitab_prayer_toggles').then(v => v && setPrayerToggles(JSON.parse(v)));
+      getItem('qitab_reminders').then(v => v && setReminders(JSON.parse(v)));
+    }
+  };
 
   const checkPermission = async () => {
     const { status } = await getPerms();
@@ -68,13 +91,49 @@ export default function RemindersScreen() {
   const togglePrayer = async (id, val) => {
     const next = { ...prayerToggles, [id]: val };
     setPrayerToggles(next);
-    await AsyncStorage.setItem('qitab_prayer_toggles', JSON.stringify(next));
+    await setItem('qitab_prayer_toggles', JSON.stringify(next));
+
+    // Also save to backend if logged in
+    const hasToken = await AsyncStorage.getItem('qitab_auth_token');
+    if (hasToken) {
+      try { await backend.updatePrayerToggles(next); } catch (e) { /* backend unavailable */ }
+    }
+
     if (val && permGranted) {
-      await scheduleNotif({
-        title: `🕌 Time for ${PRAYER_REMINDERS.find(p => p.id === id)?.name || id}`,
-        body: 'It is time for prayer. May Allah accept your salah.',
-        sound: true,
-      }, { seconds: 5 });
+      // Schedule notification at actual prayer time if we have timing data
+      try {
+        const timingsRaw = await AsyncStorage.getItem('qitab_home_timings');
+        if (timingsRaw) {
+          const timings = JSON.parse(timingsRaw);
+          const prayerTime = timings[PRAYER_REMINDERS.find(p => p.id === id)?.name];
+          if (prayerTime) {
+            const [h, m] = prayerTime.split(':');
+            const now = new Date();
+            const scheduled = new Date();
+            scheduled.setHours(parseInt(h), parseInt(m), 0, 0);
+            if (scheduled <= now) scheduled.setDate(scheduled.getDate() + 1);
+            const secondsUntil = Math.floor((scheduled - now) / 1000);
+            await scheduleNotif({
+              title: `🕌 Time for ${PRAYER_REMINDERS.find(p => p.id === id)?.name || id}`,
+              body: 'It is time for prayer. May Allah accept your salah.',
+              sound: true,
+            }, { seconds: Math.min(secondsUntil, 86400) });
+            return;
+          }
+        }
+        // Fallback: schedule a test notification in 60 seconds
+        await scheduleNotif({
+          title: `🕌 ${PRAYER_REMINDERS.find(p => p.id === id)?.name || id} reminder enabled`,
+          body: 'You will be notified at prayer time when prayer times are loaded.',
+          sound: true,
+        }, { seconds: 60 });
+      } catch (e) {
+        await scheduleNotif({
+          title: `🕌 ${PRAYER_REMINDERS.find(p => p.id === id)?.name || id} reminder enabled`,
+          body: 'You will be notified at prayer time.',
+          sound: true,
+        }, { seconds: 60 });
+      }
     }
   };
 
@@ -89,13 +148,59 @@ export default function RemindersScreen() {
     };
     const next = [...reminders, r];
     setReminders(next);
-    await AsyncStorage.setItem('qitab_reminders', JSON.stringify(next));
+    await setItem('qitab_reminders', JSON.stringify(next));
+
+    // Also save to backend if logged in
+    const hasToken = await AsyncStorage.getItem('qitab_auth_token');
+    if (hasToken) {
+      try {
+        await backend.addReminder({
+          title: r.title,
+          time: r.time,
+          description: r.message,
+          enabled: true,
+          type: 'custom',
+        });
+      } catch (e) { /* backend unavailable */ }
+    }
+
     if (permGranted) {
-      await scheduleNotif({
-        title: `🔔 ${r.title}`,
-        body: r.message,
-        sound: true,
-      }, { seconds: 10 });
+      // Parse the time string and schedule at that time today or tomorrow
+      try {
+        const timeMatch = newTime.trim().match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+        if (timeMatch) {
+          let hours = parseInt(timeMatch[1]);
+          const minutes = parseInt(timeMatch[2]);
+          const ampm = timeMatch[3]?.toUpperCase();
+          if (ampm === 'PM' && hours < 12) hours += 12;
+          if (ampm === 'AM' && hours === 12) hours = 0;
+          if (!ampm && hours < 12) hours += 12; // assume PM if no indicator and < 12
+
+          const now = new Date();
+          const scheduled = new Date();
+          scheduled.setHours(hours, minutes, 0, 0);
+          if (scheduled <= now) scheduled.setDate(scheduled.getDate() + 1);
+          const secondsUntil = Math.floor((scheduled - now) / 1000);
+          await scheduleNotif({
+            title: `🔔 ${r.title}`,
+            body: r.message,
+            sound: true,
+          }, { seconds: Math.min(secondsUntil, 86400) });
+        } else {
+          // Fallback: test notification in 60s
+          await scheduleNotif({
+            title: `🔔 ${r.title}`,
+            body: r.message,
+            sound: true,
+          }, { seconds: 60 });
+        }
+      } catch (e) {
+        await scheduleNotif({
+          title: `🔔 ${r.title}`,
+          body: r.message,
+          sound: true,
+        }, { seconds: 60 });
+      }
     }
     setNewTitle(''); setNewTime(''); setNewMsg('');
     setAddModal(false);
@@ -104,13 +209,13 @@ export default function RemindersScreen() {
   const deleteReminder = async (id) => {
     const next = reminders.filter(r => r.id !== id);
     setReminders(next);
-    await AsyncStorage.setItem('qitab_reminders', JSON.stringify(next));
+    await setItem('qitab_reminders', JSON.stringify(next));
   };
 
   const toggleCustom = async (id, val) => {
     const next = reminders.map(r => r.id === id ? { ...r, enabled: val } : r);
     setReminders(next);
-    await AsyncStorage.setItem('qitab_reminders', JSON.stringify(next));
+    await setItem('qitab_reminders', JSON.stringify(next));
   };
 
   return (
@@ -267,10 +372,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: 'rgba(245,158,11,0.08)',
+    backgroundColor: 'rgba(255, 255, 255,0.08)',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(245,158,11,0.3)',
+    borderColor: 'rgba(255, 255, 255,0.3)',
     marginBottom: 20,
   },
   reminderRow: {
@@ -322,9 +427,9 @@ const styles = StyleSheet.create({
   tipsCard: {
     marginTop: 20,
     padding: 18,
-    backgroundColor: 'rgba(16,185,129,0.05)',
+    backgroundColor: 'rgba(255, 255, 255,0.05)',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(16,185,129,0.2)',
+    borderColor: 'rgba(255, 255, 255,0.2)',
   },
 });

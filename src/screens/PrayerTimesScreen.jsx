@@ -10,13 +10,16 @@ import * as Location from 'expo-location';
 import { Magnetometer } from 'expo-sensors';
 import Svg, { Circle, Line, Polygon, G, Text as SvgText, Defs, RadialGradient, Stop, Path } from 'react-native-svg';
 import { COLORS, globalStyles } from '../theme';
+import {
+  FIQH_METHODS, DEFAULT_FIQH, fiqhByKey, fiqhQuery, fiqhCacheSuffix,
+} from '../data/prayerMethods';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const KAABA_LAT = 21.4225;
 const KAABA_LNG = 39.8262;
 const PRAYER_ORDER = ['Fajr', 'Sunrise', 'Dhuhr', 'Asr', 'Maghrib', 'Isha', 'Midnight'];
 const PRAYER_ICONS = { Fajr: 'partly-sunny-outline', Sunrise: 'sunny-outline', Dhuhr: 'sunny', Asr: 'partly-sunny', Maghrib: 'cloudy-night-outline', Isha: 'moon-outline', Midnight: 'moon' };
-const PRAYER_COLORS = { Fajr: '#60a5fa', Sunrise: '#f97316', Dhuhr: '#d4af37', Asr: '#f59e0b', Maghrib: '#f43f5e', Isha: '#8b5cf6', Midnight: '#94a3b8' };
+const PRAYER_COLORS = { Fajr: '#ffffff', Sunrise: '#ffffff', Dhuhr: '#ffffff', Asr: '#ffffff', Maghrib: '#ff4444', Isha: '#ffffff', Midnight: '#aaaaaa' };
 const DIRS = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -125,10 +128,10 @@ function LiveQiblaCompass({ qiblaAngle, heading, accuracy, distanceKm, location 
           </Defs>
 
           {/* Face background */}
-          <Circle cx={CX} cy={CY} r={R_FACE} fill="url(#bgGrad)" stroke="rgba(212,175,55,0.25)" strokeWidth={1.5} />
+          <Circle cx={CX} cy={CY} r={R_FACE} fill="url(#bgGrad)" stroke="rgba(255, 255, 255,0.25)" strokeWidth={1.5} />
 
           {/* Outer border ring */}
-          <Circle cx={CX} cy={CY} r={R_OUTER} fill="none" stroke="rgba(212,175,55,0.15)" strokeWidth={1} />
+          <Circle cx={CX} cy={CY} r={R_OUTER} fill="none" stroke="rgba(255, 255, 255,0.15)" strokeWidth={1} />
 
           {/* Degree ticks */}
           {Array.from({ length: 72 }, (_, i) => {
@@ -142,7 +145,7 @@ function LiveQiblaCompass({ qiblaAngle, heading, accuracy, distanceKm, location 
               <Line key={i}
                 x1={CX + inner * Math.cos(rad)} y1={CY + inner * Math.sin(rad)}
                 x2={CX + outer * Math.cos(rad)} y2={CY + outer * Math.sin(rad)}
-                stroke={isMajor ? 'rgba(212,175,55,0.7)' : isMinor ? 'rgba(212,175,55,0.3)' : 'rgba(255,255,255,0.08)'}
+                stroke={isMajor ? 'rgba(255, 255, 255,0.7)' : isMinor ? 'rgba(255, 255, 255,0.3)' : 'rgba(255,255,255,0.08)'}
                 strokeWidth={isMajor ? 2 : 1}
               />
             );
@@ -151,9 +154,9 @@ function LiveQiblaCompass({ qiblaAngle, heading, accuracy, distanceKm, location 
           {/* Cardinal labels */}
           {[
             ['N', 0,   COLORS.gold, '800', 15],
-            ['S', 180, '#f43f5e',   '700', 13],
-            ['E', 90,  '#94a3b8',   '700', 12],
-            ['W', 270, '#94a3b8',   '700', 12],
+            ['S', 180, '#ff4444',   '700', 13],
+            ['E', 90,  '#aaaaaa',   '700', 12],
+            ['W', 270, '#aaaaaa',   '700', 12],
           ].map(([label, angle, color, weight, size]) => {
             const rad = (angle - 90) * Math.PI / 180;
             const r = R_FACE - 26;
@@ -181,7 +184,7 @@ function LiveQiblaCompass({ qiblaAngle, heading, accuracy, distanceKm, location 
           })}
 
           {/* Center circle */}
-          <Circle cx={CX} cy={CY} r={R_INNER} fill="rgba(212,175,55,0.08)" stroke="rgba(212,175,55,0.3)" strokeWidth={1} />
+          <Circle cx={CX} cy={CY} r={R_INNER} fill="rgba(255, 255, 255,0.08)" stroke="rgba(255, 255, 255,0.3)" strokeWidth={1} />
           <Circle cx={CX} cy={CY} r={5} fill={COLORS.gold} />
         </Svg>
       </Animated.View>
@@ -193,7 +196,7 @@ function LiveQiblaCompass({ qiblaAngle, heading, accuracy, distanceKm, location 
           <Line
             x1={CX} y1={CY + R_INNER}
             x2={CX} y2={CY - R_FACE + 4}
-            stroke="rgba(212,175,55,0.12)" strokeWidth={10} strokeLinecap="round"
+            stroke="rgba(255, 255, 255,0.12)" strokeWidth={10} strokeLinecap="round"
           />
           {/* Main needle */}
           <Line
@@ -243,6 +246,7 @@ function LiveQiblaCompass({ qiblaAngle, heading, accuracy, distanceKm, location 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function PrayerTimesScreen() {
   const [timings, setTimings]   = useState(null);
+  const [fiqh, setFiqh]         = useState(DEFAULT_FIQH);
   const [loading, setLoading]   = useState(false);
   const [city, setCity]         = useState('Islamabad');
   const [country, setCountry]   = useState('Pakistan');
@@ -292,28 +296,44 @@ export default function PrayerTimesScreen() {
     try {
       const cachedCity    = await AsyncStorage.getItem('qitab_prayer_city');
       const cachedCountry = await AsyncStorage.getItem('qitab_prayer_country');
+      const savedFiqh     = await AsyncStorage.getItem('qitab_prayer_fiqh');
+      if (savedFiqh) setFiqh(savedFiqh);
       if (cachedCity)    setCity(cachedCity);
       if (cachedCountry) setCountry(cachedCountry);
-      await fetchTimings(cachedCity || 'Islamabad', cachedCountry || 'Pakistan');
+      await fetchTimings(
+        cachedCity || 'Islamabad',
+        cachedCountry || 'Pakistan',
+        (await AsyncStorage.getItem('qitab_prayer_fiqh')) || DEFAULT_FIQH
+      );
     } catch {} finally { setLoading(false); }
   };
 
-  const fetchTimings = async (c, co) => {
+  const fetchTimings = async (c, co, school = fiqh) => {
     try {
-      const cacheKey = `qitab_timings_${c}_${co}`;
-      const tsKey    = `qitab_timings_ts_${c}_${co}`;
+      // The cache is keyed by school as well as place: Hanafi and Ja'fari Asr
+      // are nearly an hour apart, so sharing one cache would show the wrong
+      // school's times after a switch.
+      const suffix   = fiqhCacheSuffix(school);
+      const cacheKey = `qitab_timings_${c}_${co}${suffix}`;
+      const tsKey    = `qitab_timings_ts_${c}_${co}${suffix}`;
       const cached   = await AsyncStorage.getItem(cacheKey);
       const ts       = await AsyncStorage.getItem(tsKey);
       if (cached && ts && Date.now() - parseInt(ts) < 3600000) {
         setTimings(JSON.parse(cached));
         return;
       }
-      const res  = await fetch(`https://api.aladhan.com/v1/timingsByCity?city=${encodeURIComponent(c)}&country=${encodeURIComponent(co)}&method=2`);
+      const res = await fetch(
+        `https://api.aladhan.com/v1/timingsByCity?city=${encodeURIComponent(c)}`
+        + `&country=${encodeURIComponent(co)}&${fiqhQuery(school)}`
+      );
       const data = await res.json();
       const t    = data.data.timings;
       setTimings(t);
       await AsyncStorage.setItem(cacheKey, JSON.stringify(t));
       await AsyncStorage.setItem(tsKey, Date.now().toString());
+      // The dashboard and the prayer lock read this unsuffixed key, so keep it
+      // pointing at whichever school the user is actually following.
+      await AsyncStorage.setItem(`qitab_timings_${c}_${co}`, JSON.stringify(t));
     } catch {}
   };
 
@@ -484,11 +504,43 @@ export default function PrayerTimesScreen() {
             </Text>
           )}
 
+          {/* School of fiqh. This is not cosmetic: the Hanafi Asr is nearly an
+              hour after the single-shadow reckoning, and the Ja'fari Maghrib
+              is about fifteen minutes after sunset. */}
+          <Text style={styles.fiqhHeading}>Calculation school</Text>
+          <View style={styles.fiqhRow}>
+            {FIQH_METHODS.map(m => (
+              <TouchableOpacity
+                key={m.key}
+                onPress={async () => {
+                  setFiqh(m.key);
+                  await AsyncStorage.setItem('qitab_prayer_fiqh', m.key);
+                  await fetchTimings(city, country, m.key);
+                }}
+                style={[styles.fiqhChip, fiqh === m.key && styles.fiqhChipActive]}
+                accessibilityRole="button"
+                accessibilityLabel={`${m.name} calculation`}
+              >
+                <Text style={[styles.fiqhArabic, fiqh === m.key && { color: COLORS.gold }]}>
+                  {m.arabic}
+                </Text>
+                <Text style={[styles.fiqhName, fiqh === m.key && { color: COLORS.gold }]}>
+                  {m.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
           <View style={styles.methodCard}>
             <Ionicons name="information-circle-outline" size={18} color={COLORS.textSecondary} />
-            <Text style={{ color: COLORS.textSecondary, fontSize: 12, flex: 1, lineHeight: 18 }}>
-              Using ISNA (Method 2) calculation. Tap "Change" to update your city and country.
-            </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: COLORS.textPrimary, fontSize: 12.5, fontWeight: '700' }}>
+                {fiqhByKey(fiqh).summary}
+              </Text>
+              <Text style={{ color: COLORS.textSecondary, fontSize: 11.5, lineHeight: 17, marginTop: 3 }}>
+                {fiqhByKey(fiqh).detail}
+              </Text>
+            </View>
           </View>
         </ScrollView>
       )}
@@ -663,8 +715,8 @@ export default function PrayerTimesScreen() {
 const styles = StyleSheet.create({
   locBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: 'rgba(212,175,55,0.08)', borderRadius: 12,
-    borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)',
+    backgroundColor: 'rgba(255, 255, 255,0.08)', borderRadius: 12,
+    borderWidth: 1, borderColor: 'rgba(255, 255, 255,0.3)',
     paddingHorizontal: 12, paddingVertical: 8,
   },
   tabs: {
@@ -691,6 +743,18 @@ const styles = StyleSheet.create({
     borderRadius: 8, borderWidth: 1,
   },
   nextBadgeText: { fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
+  fiqhHeading: {
+    color: COLORS.textPrimary, fontSize: 13, fontWeight: '800',
+    marginTop: 18, marginBottom: 8, paddingHorizontal: 4,
+  },
+  fiqhRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  fiqhChip: {
+    flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 12,
+    borderWidth: 1, borderColor: COLORS.glassBorder, backgroundColor: COLORS.bgSecondary,
+  },
+  fiqhChipActive: { borderColor: COLORS.gold, backgroundColor: COLORS.gold + '10' },
+  fiqhArabic: { color: COLORS.textSecondary, fontSize: 15, lineHeight: 26, writingDirection: 'rtl' },
+  fiqhName: { color: COLORS.textPrimary, fontSize: 12, fontWeight: '700', marginTop: 1 },
   methodCard: {
     flexDirection: 'row', gap: 10, padding: 14,
     backgroundColor: COLORS.glass, borderRadius: 14,
@@ -726,9 +790,9 @@ const styles = StyleSheet.create({
     width: SIZE + 20,
     height: SIZE + 20,
     borderRadius: (SIZE + 20) / 2,
-    backgroundColor: 'rgba(212,175,55,0.04)',
+    backgroundColor: 'rgba(255, 255, 255,0.04)',
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.1)',
+    borderColor: 'rgba(255, 255, 255,0.1)',
   },
   compassLayer: {
     position: 'absolute',
@@ -758,8 +822,8 @@ const styles = StyleSheet.create({
 
   howToCard: {
     marginHorizontal: 16, marginBottom: 12, padding: 18,
-    backgroundColor: 'rgba(212,175,55,0.05)', borderRadius: 18,
-    borderWidth: 1, borderColor: 'rgba(212,175,55,0.15)', width: '90%',
+    backgroundColor: 'rgba(255, 255, 255,0.05)', borderRadius: 18,
+    borderWidth: 1, borderColor: 'rgba(255, 255, 255,0.15)', width: '90%',
   },
   stepNum: {
     width: 22, height: 22, borderRadius: 11,
@@ -774,8 +838,8 @@ const styles = StyleSheet.create({
   },
   calibrationCard: {
     flexDirection: 'row', alignItems: 'flex-start', padding: 14,
-    backgroundColor: 'rgba(245,158,11,0.06)', borderRadius: 14,
-    borderWidth: 1, borderColor: 'rgba(245,158,11,0.2)',
+    backgroundColor: 'rgba(255, 255, 255,0.06)', borderRadius: 14,
+    borderWidth: 1, borderColor: 'rgba(255, 255, 255,0.2)',
     width: '90%', marginBottom: 24,
   },
   locationSheet: {

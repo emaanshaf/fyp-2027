@@ -9,7 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, globalStyles } from '../theme';
 import { KNOWLEDGE_BASE } from '../ai/islamicKnowledge';
 import { getAIAnswer } from '../ai/assistant';
-import { isClaudeConfigured } from '../ai/claudeClient';
+import { isClaudeConfigured, claudeStatus } from '../ai/claudeClient';
 import FormattedText from '../components/FormattedText';
 
 const SUGGESTED = [
@@ -145,7 +145,7 @@ export default function AIChatScreen() {
         keyboardVerticalOffset={90}
       >
         {/* Header */}
-        <LinearGradient colors={['rgba(212,175,55,0.08)', 'transparent']} style={styles.header}>
+        <LinearGradient colors={['rgba(255, 255, 255,0.08)', 'transparent']} style={styles.header}>
           <View style={styles.botInfo}>
             <View style={styles.botAvatarLg}>
               <Text style={{ fontSize: 26 }}>☾</Text>
@@ -180,8 +180,19 @@ export default function AIChatScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+
           </View>
         )}
+
+        {/* Says why the live assistant is not answering. It used to fall back
+            to offline answers with no indication at all, which reads as "the
+            AI is broken" rather than "the AI is not configured". */}
+        {!isClaudeConfigured() ? (
+          <View style={styles.aiNotice}>
+            <Ionicons name="information-circle-outline" size={15} color={COLORS.amber} />
+            <Text style={styles.aiNoticeText}>{claudeStatus().message}</Text>
+          </View>
+        ) : null}
 
         {/* Messages */}
         <FlatList
@@ -256,6 +267,13 @@ export default function AIChatScreen() {
 }
 
 const styles = StyleSheet.create({
+  aiNotice: {
+    flexDirection: 'row', gap: 8, alignItems: 'flex-start',
+    marginHorizontal: 16, marginTop: 10, padding: 11, borderRadius: 10,
+    backgroundColor: COLORS.amber + '12',
+    borderWidth: 1, borderColor: COLORS.amber + '30',
+  },
+  aiNoticeText: { color: COLORS.textSecondary, fontSize: 11.5, lineHeight: 17, flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -270,9 +288,9 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 16,
-    backgroundColor: 'rgba(212,175,55,0.1)',
+    backgroundColor: 'rgba(255, 255, 255,0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.3)',
+    borderColor: 'rgba(255, 255, 255,0.3)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -286,9 +304,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: 'rgba(212,175,55,0.08)',
+    backgroundColor: 'rgba(255, 255, 255,0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.3)',
+    borderColor: 'rgba(255, 255, 255,0.3)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -305,8 +323,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.3)',
-    backgroundColor: 'rgba(212,175,55,0.05)',
+    borderColor: 'rgba(255, 255, 255,0.3)',
+    backgroundColor: 'rgba(255, 255, 255,0.05)',
   },
   msgRow: {
     flexDirection: 'row',
@@ -318,9 +336,9 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 10,
-    backgroundColor: 'rgba(212,175,55,0.1)',
+    backgroundColor: 'rgba(255, 255, 255,0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.3)',
+    borderColor: 'rgba(255, 255, 255,0.3)',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -384,8 +402,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.3)',
-    backgroundColor: 'rgba(212,175,55,0.05)',
+    borderColor: 'rgba(255, 255, 255,0.3)',
+    backgroundColor: 'rgba(255, 255, 255,0.05)',
   },
   inputBar: {
     flexDirection: 'row',

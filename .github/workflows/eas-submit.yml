@@ -1,0 +1,65 @@
+# Release build (and optional store submission) for Qitab-e-Noor.
+#
+# Manual only — there is no push or schedule trigger. A store release should
+# be a deliberate act, and `production` builds consume EAS build minutes and
+# increment the remote version counter.
+#
+# Before this can succeed you need an EXPO_TOKEN repository secret and store
+# credentials registered with EAS. See the release checklist in the PR/summary
+# that introduced this file.
+
+name: EAS Build & Submit
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "EAS build profile"
+        type: choice
+        required: true
+        default: preview
+        options:
+          - preview
+          - production
+      submit:
+        description: "Submit the build to the App Store / Play Store"
+        type: boolean
+        required: true
+        default: false
+
+# Two release builds racing each other would fight over the remote version
+# counter, so let an in-flight run finish rather than cancelling it.
+concurrency:
+  group: eas-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ inputs.profile }}${{ inputs.submit && ' + submit' || '' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set up EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build for iOS and Android
+        run: eas build --platform all --non-interactive --profile ${{ inputs.profile }} --wait
+
+      - name: Submit to the stores
+        if: ${{ inputs.submit }}
+        run: eas submit --platform all --non-interactive --latest

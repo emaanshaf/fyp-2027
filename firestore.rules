@@ -1,0 +1,37 @@
+rules_version = '2';
+
+// Qitab-e-Noor Firestore rules.
+//
+// Model: every piece of user data lives under /users/{uid}. A signed-in user
+// may read and write their own subtree and nothing else. Everything outside
+// that subtree is denied by the final catch-all, so adding a new collection
+// never accidentally opens it up.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // The user's own profile document.
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+
+      // Subcollections (bookmarks, notes, favourites, tasbih history,
+      // reminders, learning progress). The previous rules matched only the
+      // parent document, so any move to subcollections would have been
+      // silently denied.
+      match /{document=**} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    // Deny everything else explicitly. This is Firestore's default, but
+    // stating it means a future `allow read: if true` added by mistake at a
+    // broader path stands out in review.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

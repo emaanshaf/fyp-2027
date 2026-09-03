@@ -1,88 +1,15 @@
-import { StyleSheet } from 'react-native';
+// Main theme exports
+import { defaultTheme } from '../config/themes';
 
-export const COLORS = {
-  bg: '#05070a',
-  bgSecondary: '#0a0e14',
-  bgCard: '#0f1318',
-  gold: '#d4af37',
-  goldLight: '#f1d279',
-  emerald: '#10b981',
-  textPrimary: '#f8fafc',
-  textSecondary: '#94a3b8',
-  glass: 'rgba(255,255,255,0.04)',
-  glassBorder: 'rgba(255,255,255,0.1)',
-  red: '#ef4444',
-  blue: '#3b82f6',
-  purple: '#8b5cf6',
-  pink: '#ec4899',
-  cyan: '#06b6d4',
-  amber: '#f59e0b',
-};
+// Static theme values (non-hook, for class components and StyleSheet)
+export const COLORS = defaultTheme.colors;
+export const SHADOW = defaultTheme.shadows;
+export const COMPONENTS = defaultTheme.components;
 
-export const FONTS = {
-  black: '900',
-  bold: '800',
-  semibold: '700',
-  medium: '500',
-  regular: '400',
-};
-
-export const globalStyles = StyleSheet.create({
+export const globalStyles = {
   screen: {
     flex: 1,
-    backgroundColor: COLORS.bg,
-  },
-  card: {
-    backgroundColor: COLORS.glass,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.glassBorder,
-    padding: 16,
-  },
-  cardLg: {
-    backgroundColor: COLORS.glass,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: COLORS.glassBorder,
-    padding: 24,
-  },
-  btnPrimary: {
-    backgroundColor: COLORS.gold,
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 8,
-  },
-  btnPrimaryText: {
-    color: '#000',
-    fontWeight: FONTS.bold,
-    fontSize: 16,
-  },
-  sectionTitle: {
-    color: COLORS.textPrimary,
-    fontSize: 24,
-    fontWeight: FONTS.black,
-    letterSpacing: -0.5,
-  },
-  label: {
-    color: COLORS.textSecondary,
-    fontSize: 11,
-    fontWeight: FONTS.bold,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-  },
-  input: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: COLORS.glassBorder,
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    color: COLORS.textPrimary,
-    fontSize: 16,
+    backgroundColor: defaultTheme.colors.bg,
   },
   row: {
     flexDirection: 'row',
@@ -90,36 +17,85 @@ export const globalStyles = StyleSheet.create({
   },
   spaceBetween: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
   },
   center: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  arabicText: {
-    fontFamily: undefined,
-    writingDirection: 'rtl',
-    textAlign: 'right',
-    color: COLORS.gold,
-    lineHeight: 48,
-  },
-  chip: {
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    backgroundColor: 'rgba(212,175,55,0.12)',
-    borderRadius: 20,
-  },
-  chipText: {
-    color: COLORS.gold,
-    fontSize: 11,
-    fontWeight: FONTS.bold,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
   divider: {
     height: 1,
-    backgroundColor: COLORS.glassBorder,
-    marginVertical: 16,
+    backgroundColor: defaultTheme.colors.divider,
+    marginVertical: 8,
   },
-});
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: defaultTheme.colors.textPrimary,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: defaultTheme.colors.textSecondary,
+  },
+  input: {
+    backgroundColor: defaultTheme.colors.bgSecondary,
+    borderRadius: defaultTheme.borderRadius.md,
+    padding: 12,
+    color: defaultTheme.colors.textPrimary,
+    borderWidth: 1,
+    borderColor: defaultTheme.colors.glassBorder,
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: defaultTheme.borderRadius.full,
+    backgroundColor: defaultTheme.colors.bgSecondary,
+  },
+  chipText: {
+    fontSize: 13,
+    color: defaultTheme.colors.textSecondary,
+  },
+  btnPrimary: {
+    backgroundColor: defaultTheme.buttons.primary.backgroundColor,
+    borderRadius: defaultTheme.borderRadius.md,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnPrimaryText: {
+    color: defaultTheme.buttons.primary.textColor,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+};
+
+export { ThemeProvider, useTheme } from '../context/ThemeContext';
+export {
+  useColors,
+  useSpacing,
+  useTypography,
+  useBorderRadius,
+  useShadows,
+  useButtons,
+  useNavigation,
+  useScreens,
+  useComponents,
+  useThemeValue,
+  useThemeName,
+  useSetTheme,
+  useAvailableThemes,
+} from '../hooks/useTheme';
+export {
+  flattenTokens,
+  createThemeStylesheet,
+  mergeTheme,
+  getThemeValue,
+  responsiveSpacing,
+  generateCSSVariables,
+  applyThemeToRoot,
+  createThemedStyle,
+} from '../utils/themeUtils';
+export { themes, themeNames, defaultTheme, lightTheme, highContrastTheme } from '../config/themes';
