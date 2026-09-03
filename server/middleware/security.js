@@ -1,5 +1,6 @@
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 
 // Helmet - sets secure HTTP headers
 const securityHeaders = helmet({
@@ -34,10 +35,30 @@ const writeLimiter = rateLimit({
   message: { error: 'Too many write requests, please try again later' },
 });
 
+// Rate limiter - AI endpoints (20 requests per 15 min)
+//
+// Tighter than writeLimiter because every call spends real money at the
+// Anthropic API. Keyed per authenticated user rather than per IP, so one
+// user on a shared or carrier-NAT address cannot exhaust everyone's budget.
+const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.userId || ipKeyGenerator(req),
+  message: { error: 'Too many AI requests, please try again in a few minutes' },
+});
+
 // Fields that must be passed through byte-for-byte. Rewriting a password
 // silently changes the credential — a user whose password contains '<' would
 // register one value and then be unable to log in with it.
-const RAW_FIELDS = new Set(['password', 'newPassword', 'currentPassword', 'confirmPassword']);
+const RAW_FIELDS = new Set([
+  'password', 'newPassword', 'currentPassword', 'confirmPassword',
+  // A prompt is not markup. Stripping '<...>' from a question silently
+  // rewrites what the user asked and defends nothing — it is never rendered
+  // as HTML, it is sent to the model as text.
+  'question',
+]);
 
 // Sanitize input - strip all HTML tags and dangerous patterns
 function sanitizeInput(req, res, next) {
@@ -93,6 +114,7 @@ module.exports = {
   generalLimiter,
   authLimiter,
   writeLimiter,
+  aiLimiter,
   sanitizeInput,
   requestSizeCheck,
   securityLogger,

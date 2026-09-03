@@ -16,6 +16,7 @@ const reminderRoutes = require('./routes/reminders');
 const tasbihRoutes = require('./routes/tasbih');
 const settingsRoutes = require('./routes/settings');
 const moduleRoutes = require('./routes/modules');
+const aiRoutes = require('./routes/ai');
 
 const app = express();
 
@@ -67,6 +68,9 @@ app.use('/api/reminders', writeLimiter, reminderRoutes);
 app.use('/api/tasbih', writeLimiter, tasbihRoutes);
 app.use('/api/settings', writeLimiter, settingsRoutes);
 app.use('/api/modules', moduleRoutes);
+// The AI router applies its own auth and limiter per endpoint: /ai/status is
+// public so the app can explain an offline assistant without a login.
+app.use('/api/ai', aiRoutes);
 
 // 404 handler
 app.use((req, res) => {

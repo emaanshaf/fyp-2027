@@ -57,12 +57,40 @@ function resolveCorsOrigin() {
   ];
 }
 
+// The Anthropic key lives here and only here. It must never be exposed to the
+// app bundle: anything named EXPO_PUBLIC_* is compiled into the shipped
+// JavaScript, so a key set there is readable by anyone who installs the app.
+// The server is optional-by-design — without a key the app still answers from
+// its bundled offline knowledge base, so a missing key is not fatal.
+function resolveAnthropic() {
+  const apiKey = (process.env.ANTHROPIC_API_KEY || '').trim();
+
+  if (!apiKey) {
+    console.warn(
+      '[WARN] ANTHROPIC_API_KEY not set — /api/ai/chat will report the live ' +
+      'assistant as unconfigured and clients will fall back to offline answers.'
+    );
+  } else if (!apiKey.startsWith('sk-ant-')) {
+    console.warn(
+      '[WARN] ANTHROPIC_API_KEY does not look like an Anthropic key ' +
+      '(expected it to start with "sk-ant-").'
+    );
+  }
+
+  return {
+    apiKey,
+    model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5',
+    maxTokens: parseInt(process.env.ANTHROPIC_MAX_TOKENS || '700'),
+  };
+}
+
 module.exports = {
   isProduction,
   port: parseInt(process.env.PORT || '3001'),
   jwtSecret: resolveJwtSecret(),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '30d',
   corsOrigin: resolveCorsOrigin(),
+  anthropic: resolveAnthropic(),
   db: {
     host: process.env.DB_HOST || 'localhost',
     port: parseInt(process.env.DB_PORT || '5432'),

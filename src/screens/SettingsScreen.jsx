@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { COLORS, globalStyles } from '../theme';
-import { isClaudeConfigured } from '../ai/claudeClient';
+import { claudeStatus, refreshClaudeStatus } from '../ai/claudeClient';
 import { KNOWLEDGE_BASE } from '../ai/islamicKnowledge';
 import { auth, isFirebaseConfigured } from '../firebase/config';
 import { useThemeName, useSetTheme, useAvailableThemes } from '../hooks/useTheme';
@@ -34,8 +34,17 @@ export default function SettingsScreen({ navigation }) {
   const [storage, setStorage] = useState(null);
   const [online, setOnline] = useState(isOnline());
   const [prefs, setPrefs] = usePreferences();
-  const claudeOn = isClaudeConfigured();
+  const [claudeState, setClaudeState] = useState(claudeStatus());
+  const claudeOn = claudeState.ok;
   const firebaseUser = isFirebaseConfigured() ? auth.currentUser : null;
+
+  // The key lives on the server now, so whether live AI is available has to
+  // be asked for rather than read from the bundle.
+  useEffect(() => {
+    let active = true;
+    refreshClaudeStatus().then(s => { if (active) setClaudeState(s); });
+    return () => { active = false; };
+  }, []);
 
   const currentTheme = useThemeName();
   const setTheme = useSetTheme();
@@ -256,7 +265,7 @@ export default function SettingsScreen({ navigation }) {
           <Text style={{ color: COLORS.textSecondary, fontSize: 13, lineHeight: 20 }}>
             {claudeOn
               ? `Questions are answered live by Anthropic's Claude model, with the ${KNOWLEDGE_BASE.length}-topic offline knowledge base as a backup if the connection fails.`
-              : `No live AI is configured — this is not a custom-trained model, just a pretrained model you can optionally connect to. Right now, answers come only from the built-in ${KNOWLEDGE_BASE.length}-topic offline knowledge base. Add an API key in .env (see README) to enable live answers.`}
+              : `${claudeState.message} This is not a custom-trained model, just a pretrained model the server can optionally connect to. Answers currently come from the built-in ${KNOWLEDGE_BASE.length}-topic offline knowledge base.`}
           </Text>
         </View>
 

@@ -9,7 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, globalStyles } from '../theme';
 import { KNOWLEDGE_BASE } from '../ai/islamicKnowledge';
 import { getAIAnswer } from '../ai/assistant';
-import { isClaudeConfigured, claudeStatus } from '../ai/claudeClient';
+import { claudeStatus, refreshClaudeStatus } from '../ai/claudeClient';
 import FormattedText from '../components/FormattedText';
 
 const SUGGESTED = [
@@ -40,8 +40,18 @@ export default function AIChatScreen() {
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
   const [showTopics, setShowTopics] = useState(false);
+  // Whether the live assistant is reachable is now a property of the server,
+  // not of a bundled key, so it has to be asked for and kept in state — a
+  // module-level value would never re-render the header when it changed.
+  const [liveStatus, setLiveStatus] = useState(claudeStatus());
   const flatRef = useRef(null);
   const dotAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    let active = true;
+    refreshClaudeStatus().then(s => { if (active) setLiveStatus(s); });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (typing) {
@@ -155,7 +165,7 @@ export default function AIChatScreen() {
               <View style={[globalStyles.row, { gap: 6 }]}>
                 <View style={styles.onlineDot} />
                 <Text style={{ color: COLORS.emerald, fontSize: 12 }}>
-                  {isClaudeConfigured() ? 'Online AI' : 'Offline mode'} • {KNOWLEDGE_BASE.length} topics
+                  {liveStatus.ok ? 'Online AI' : 'Offline mode'} • {KNOWLEDGE_BASE.length} topics
                 </Text>
               </View>
             </View>
@@ -187,10 +197,10 @@ export default function AIChatScreen() {
         {/* Says why the live assistant is not answering. It used to fall back
             to offline answers with no indication at all, which reads as "the
             AI is broken" rather than "the AI is not configured". */}
-        {!isClaudeConfigured() ? (
+        {!liveStatus.ok ? (
           <View style={styles.aiNotice}>
             <Ionicons name="information-circle-outline" size={15} color={COLORS.amber} />
-            <Text style={styles.aiNoticeText}>{claudeStatus().message}</Text>
+            <Text style={styles.aiNoticeText}>{liveStatus.message}</Text>
           </View>
         ) : null}
 
