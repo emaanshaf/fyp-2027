@@ -51,6 +51,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # A release build is the worst place to discover a broken test. EAS
+      # minutes are consumed whether or not the code works, and a production
+      # build also increments the remote version counter, so a failure here is
+      # cheaper than one three steps later.
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test -- --ci
+
       # Both of these fail deep inside the EAS CLI with errors that do not name
       # the real cause, so check them here where the message can be useful.
       - name: Preflight
@@ -117,6 +127,18 @@ jobs:
 
             if getent hosts "$api_host" > /dev/null 2>&1; then
               echo "  $api_host resolves."
+
+              # Resolving is necessary but not sufficient: the host can exist
+              # and still be a parked page, an expired deploy, or an API whose
+              # AI route answers anonymous callers. A production build is
+              # permanent, so check the backend properly before baking the URL
+              # into it.
+              if [ "${{ inputs.profile }}" = "production" ]; then
+                if ! node scripts/verify-deployment.js "$api_url"; then
+                  echo "::error::The production backend at $api_url failed"                     "verification (see the report above). Fix the deployment before"                     "shipping a build that points at it."
+                  fail=1
+                fi
+              fi
             elif [ "${{ inputs.profile }}" = "production" ]; then
               echo "::error::$api_host does not resolve in DNS, so this production"                 "build would ship pointing at a backend that does not exist."                 "Register and deploy the host, or change EXPO_PUBLIC_API_URL in"                 "eas.json to one that is live."
               fail=1
