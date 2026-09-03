@@ -1,3 +1,10 @@
+// Screen suites render whole React Native trees and take 8-15s each under
+// parallel load, well past jest's 5s default. This lives here rather than as
+// `testTimeout` in the config because Jest 29 silently ignores that key inside
+// a `projects` entry — it warns, the tests keep timing out, and the config
+// looks correct.
+jest.setTimeout(20000);
+
 // Test environment shims.
 //
 // The learning engine and cache both persist through AsyncStorage, so tests
