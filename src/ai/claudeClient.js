@@ -26,9 +26,33 @@ const STATUS_BY_REASON = {
   no_auth: 'Sign in to use the live assistant. Offline answers are still available.',
   upstream_rate_limit: 'The assistant is busy right now. Showing an offline answer instead.',
   rate_limited: 'You have made a lot of assistant requests recently. Showing an offline answer instead.',
+  timeout: 'The assistant took too long to answer. Showing an offline answer instead.',
+  upstream_error: 'The live assistant is unavailable right now. Showing an offline answer instead.',
+  empty_response: 'The assistant returned nothing. Showing an offline answer instead.',
   refusal: 'The assistant declined to answer that question.',
   offline: 'No connection to the Qitab-e-Noor server. Answers come from the offline knowledge base.',
 };
+
+/**
+ * Classify a failed request. backend.request attaches the API's machine-readable
+ * `reason` and the HTTP status to the error, so this reads those rather than
+ * matching on message text — rewording a server message must not change what
+ * the app does.
+ */
+function reasonFor(error) {
+  if (error?.reason) return error.reason;
+
+  switch (error?.status) {
+    case 401:
+      return 'no_auth';
+    // The API's own limiter answers 429 with no reason; an upstream limit from
+    // Anthropic carries reason 'upstream_rate_limit' and is handled above.
+    case 429:
+      return 'rate_limited';
+    default:
+      return 'upstream_error';
+  }
+}
 
 const setStatus = (ok, reason) => {
   lastStatus = {
@@ -77,29 +101,7 @@ export async function askClaude(question, { signal, context } = {}) {
       signal,
     });
   } catch (e) {
-    const message = e?.message || 'request failed';
-
-    // backend.request throws the server's `error` string, so the machine-readable
-    // `reason` is not on it. Map the cases the UI needs to distinguish.
-    if (message === 'Backend server not available') {
-      setStatus(false, 'offline');
-    } else if (message === 'No token provided' || message === 'Token expired'
-      || message === 'Invalid token' || message === 'Authentication failed') {
-      setStatus(false, 'no_auth');
-    } else if (message.startsWith('The live assistant is not configured')) {
-      setStatus(false, 'no_key');
-    } else if (message.startsWith('The live assistant is misconfigured')) {
-      setStatus(false, 'bad_key');
-    } else if (message.startsWith('Too many AI requests')) {
-      setStatus(false, 'rate_limited');
-    } else if (message.startsWith('The assistant is busy')) {
-      setStatus(false, 'upstream_rate_limit');
-    } else if (message.startsWith('The assistant declined')) {
-      setStatus(false, 'refusal');
-    } else {
-      setStatus(false, 'upstream_error');
-    }
-
+    setStatus(false, reasonFor(e));
     throw e;
   }
 

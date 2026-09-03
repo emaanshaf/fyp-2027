@@ -30,25 +30,48 @@ class BackendService {
       ...options.headers,
     };
 
+    let response;
     try {
-      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      response = await fetch(`${this.baseUrl}${endpoint}`, {
         ...options,
         headers,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Request failed');
-      }
-
-      return data;
     } catch (error) {
-      if (error.message === 'Network request failed') {
-        throw new Error('Backend server not available');
+      // Only a transport failure reaches here. Previously this catch also
+      // wrapped the parsing and status checks below, so a caller could not
+      // tell "the network is down" from "the server said no".
+      if (error.name === 'AbortError') {
+        const aborted = new Error('Request timed out');
+        aborted.reason = 'timeout';
+        throw aborted;
       }
-      throw error;
+      const offline = new Error('Backend server not available');
+      offline.reason = 'offline';
+      throw offline;
     }
+
+    // A proxy or platform error page in front of the API answers with HTML,
+    // which used to surface to the caller as a JSON syntax error naming a
+    // character position — true, and useless.
+    let data = null;
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
+
+    if (!response.ok) {
+      // The API sends a machine-readable `reason` alongside the human-readable
+      // `error`. Throwing only the message forced callers to match on the
+      // prose, so rewording a server message silently changed app behaviour.
+      const failure = new Error(data?.error || `Request failed (HTTP ${response.status})`);
+      failure.status = response.status;
+      failure.reason = data?.reason || null;
+      failure.data = data;
+      throw failure;
+    }
+
+    return data;
   }
 
   // Auth
