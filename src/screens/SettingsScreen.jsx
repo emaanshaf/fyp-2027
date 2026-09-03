@@ -7,11 +7,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
-import { COLORS, globalStyles } from '../theme';
 import { claudeStatus, refreshClaudeStatus } from '../ai/claudeClient';
 import { KNOWLEDGE_BASE } from '../ai/islamicKnowledge';
 import { auth, isFirebaseConfigured } from '../firebase/config';
-import { useThemeName, useSetTheme, useAvailableThemes } from '../hooks/useTheme';
+import {
+  useThemeName, useSetTheme, useColors, useGlobalStyles, useThemedStyles,
+} from '../hooks/useTheme';
 import { backend } from '../services/backend';
 import { cacheStats, clearAllCaches, isOnline, onConnectivityChange } from '../services/cache';
 import { usePreferences } from '../hooks/usePreferences';
@@ -34,6 +35,13 @@ export default function SettingsScreen({ navigation }) {
   const [storage, setStorage] = useState(null);
   const [online, setOnline] = useState(isOnline());
   const [prefs, setPrefs] = usePreferences();
+  // Shadow the frozen module-level imports with the active theme. Everything
+  // below this line already says COLORS/globalStyles/styles, so switching
+  // themes now repaints the screen without touching those call sites.
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+
   const [claudeState, setClaudeState] = useState(claudeStatus());
   const claudeOn = claudeState.ok;
   const firebaseUser = isFirebaseConfigured() ? auth.currentUser : null;
@@ -544,6 +552,11 @@ export default function SettingsScreen({ navigation }) {
 /** A labelled switch. Disabled rows dim rather than disappear, so the
  *  dependency on the master notification toggle stays visible. */
 function ToggleRow({ label, hint, value, onChange, disabled }) {
+  // Its own component, so it needs its own subscription to the theme rather
+  // than the module-level bindings it used to close over.
+  const COLORS = useColors();
+  const styles = useThemedStyles(makeStyles);
+
   return (
     <View style={[styles.toggleRow, disabled && { opacity: 0.45 }]}>
       <View style={{ flex: 1, paddingRight: 12 }}>
@@ -562,7 +575,10 @@ function ToggleRow({ label, hint, value, onChange, disabled }) {
   );
 }
 
-const styles = StyleSheet.create({
+// A factory, not a frozen StyleSheet: built from whichever theme is active and
+// rebuilt when it changes. The parameter is named COLORS so the rules below
+// read exactly as they did when they closed over the frozen import.
+const makeStyles = (COLORS) => ({
   prefLabel: {
     color: COLORS.textSecondary, fontSize: 12, fontWeight: '700',
     textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10,
