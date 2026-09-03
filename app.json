@@ -30,15 +30,14 @@
         "android.permission.VIBRATE"
       ]
     },
-    "web": {
-      "bundler": "metro"
-    },
     "scheme": "qitabe-noor",
     "plugins": [
       "expo-notifications",
       [
         "expo-av",
-        { "microphonePermission": false }
+        {
+          "microphonePermission": false
+        }
       ],
       [
         "expo-location",
@@ -55,11 +54,17 @@
         }
       ]
     ],
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "extra": {
       "router": {
         "origin": "https://qitabe-noor.app"
       }
-    }
+    },
+    "platforms": [
+      "ios",
+      "android"
+    ]
   }
 }
