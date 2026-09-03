@@ -12,6 +12,13 @@ dist
 web-build
 *.local
 .env
+# .env only covered the exact filename, so .env.local, .env.production and any
+# hand-made backup were untracked-but-committable — one `git add -A` from
+# putting JWT_SECRET and the database password in the history.
+.env.*
+!.env.example
+# The development file-backed store holds real local accounts.
+server/.data/
 
 # Expo
 .expo
