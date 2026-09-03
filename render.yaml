@@ -1,0 +1,76 @@
+# Render blueprint for the Qitab-e-Noor API.
+#
+# Render builds server/Dockerfile on its own machines, so this deploys without
+# a working Docker install locally.
+#
+# To use it: Render dashboard -> New -> Blueprint -> pick this repo. Render
+# reads this file, creates the database and the web service, and wires
+# DATABASE_URL between them.
+#
+# Two variables are deliberately NOT in this file, because committing them
+# would put secrets in the repo. Render will prompt for both at deploy time
+# (that is what `sync: false` means):
+#
+#   CORS_ORIGIN       - the app's real origins, comma-separated. The server
+#                       refuses to boot in production on a wildcard.
+#   ANTHROPIC_API_KEY - enables the live AI. Without it the app still works
+#                       from its offline knowledge base.
+#
+# After the first deploy, run the schema migration once against the new
+# database, from the service's Shell tab:
+#
+#   npm run migrate
+#
+# It exits non-zero if it cannot reach Postgres, so a silent no-op is not a
+# possible outcome.
+
+services:
+  - type: web
+    name: qitabe-noor-api
+    runtime: docker
+
+    # The API is a self-contained project inside this repo: its Dockerfile
+    # expects server/ as the build context, not the repo root.
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+
+    # Free is enough to prove the deployment. It sleeps after 15 minutes of
+    # inactivity, so the first request after a idle period takes ~30s to wake
+    # — fine for testing, not for the store release. Move to `starter` before
+    # real users arrive.
+    plan: free
+    region: oregon
+
+    # Render polls this until it returns 200 before routing traffic. The server
+    # does not start listening until it has a database, so a failed connection
+    # shows up here as a failed deploy rather than a running-but-broken service.
+    healthCheckPath: /api/health
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # Injected from the database below — never typed by hand.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: qitabe-noor-db
+          property: connectionString
+
+      # Render generates a strong value on first deploy and keeps it stable
+      # across future ones. Regenerating it invalidates every session, which
+      # is the correct behaviour but is not something to trigger by accident.
+      - key: JWT_SECRET
+        generateValue: true
+
+      # Prompted for at deploy time; see the note at the top of this file.
+      - key: CORS_ORIGIN
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+databases:
+  - name: qitabe-noor-db
+    databaseName: qitabe_noor
+    user: qitabe_noor
+    plan: free
+    region: oregon
