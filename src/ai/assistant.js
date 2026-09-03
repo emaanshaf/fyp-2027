@@ -19,11 +19,14 @@ export async function getAIAnswer(question) {
   let liveError = null;
 
   if (isClaudeConfigured()) {
+    const controller = new AbortController();
+    // Cleared in `finally`, not after the await. Clearing it only on the happy
+    // path leaked a live 15s timer — and its AbortController — on every failed
+    // call, which is currently every call, because no key is configured yet.
+    const timer = setTimeout(() => controller.abort(), CLAUDE_TIMEOUT_MS);
+
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), CLAUDE_TIMEOUT_MS);
       const text = await askClaude(q, { signal: controller.signal, context: retrieved });
-      clearTimeout(timer);
       const references = [...new Set(retrieved.flatMap(e => e.references || []))];
       return {
         text,
@@ -36,6 +39,8 @@ export async function getAIAnswer(question) {
       // but keep the reason so the UI can say why instead of pretending the
       // offline answer came from the live assistant.
       liveError = e?.message || 'request failed';
+    } finally {
+      clearTimeout(timer);
     }
   }
 
