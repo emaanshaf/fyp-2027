@@ -47,14 +47,23 @@ function resolveCorsOrigin() {
     process.exit(1);
   }
 
-  // Expo web, Metro, and the Android emulator's host alias.
-  return [
-    'http://localhost:8081',
-    'http://localhost:8099',
-    'http://localhost:19006',
-    'http://127.0.0.1:8081',
-    'http://10.0.2.2:8081',
-  ];
+  // Development: allow any loopback origin, whatever port it is on.
+  //
+  // A fixed list was wrong in practice. Expo's web dev server binds whichever
+  // port happens to be free — 8081 usually, but 8095, 19006 or anything else
+  // once one is taken — so the app loaded, every API call failed preflight,
+  // and the browser blamed CORS while the allowlist looked perfectly sensible.
+  //
+  // Development only: production still requires CORS_ORIGIN to name real
+  // origins and refuses to boot without it.
+  const LOOPBACK = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|10\.0\.2\.2)(:\d+)?$/;
+  const devOrigin = (origin, callback) => {
+    // No Origin header at all: curl, a health check, a same-origin request.
+    if (!origin) return callback(null, true);
+    return callback(null, LOOPBACK.test(origin));
+  };
+  devOrigin.description = 'any localhost / 127.0.0.1 / 10.0.2.2 port (development)';
+  return devOrigin;
 }
 
 // The Anthropic key lives here and only here. It must never be exposed to the

@@ -91,7 +91,10 @@ dbReady.then(() => {
     console.log(`Qitabe Noor API running on http://localhost:${port}`);
     console.log(`  security : helmet, rate limiting, input sanitisation`);
     console.log(`  auth     : JWT + bcrypt, RBAC (admin/moderator/user)`);
-    console.log(`  cors     : ${Array.isArray(corsOrigin) ? corsOrigin.join(', ') : corsOrigin}`);
+    const corsLabel = Array.isArray(corsOrigin)
+      ? corsOrigin.join(', ')
+      : (corsOrigin.description || String(corsOrigin));
+    console.log(`  cors     : ${corsLabel}`);
   });
 });
 
@@ -99,7 +102,10 @@ dbReady.then(() => {
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
     console.log(`\n${signal} received, shutting down.`);
-    server.close(() => process.exit(0));
+    // `server` is only assigned once the database probe resolves, so a signal
+    // arriving during startup would otherwise throw on undefined.
+    if (server) return server.close(() => process.exit(0));
+    process.exit(0);
   });
 }
 
