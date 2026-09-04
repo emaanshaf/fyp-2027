@@ -256,11 +256,11 @@ export default function BookmarksScreen() {
             onPress={() => setActiveTab(t.id)}
             style={[styles.tab, activeTab === t.id && styles.tabActive]}
           >
-            <Ionicons name={t.icon} size={14} color={activeTab === t.id ? '#000' : COLORS.textSecondary} />
-            <Text style={[styles.tabText, activeTab === t.id && { color: '#000' }]}>{t.label}</Text>
+            <Ionicons name={t.icon} size={14} color={activeTab === t.id ? '#fff' : COLORS.textSecondary} />
+            <Text style={[styles.tabText, activeTab === t.id && { color: '#fff' }]}>{t.label}</Text>
             {counts[t.id] > 0 && (
-              <View style={[styles.badge, activeTab === t.id && { backgroundColor: 'rgba(0,0,0,0.2)' }]}>
-                <Text style={[styles.badgeText, activeTab === t.id && { color: '#000' }]}>{counts[t.id]}</Text>
+              <View style={[styles.badge, activeTab === t.id && { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                <Text style={[styles.badgeText, activeTab === t.id && { color: '#fff' }]}>{counts[t.id]}</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 10,
   },
-  tabActive: { backgroundColor: COLORS.gold },
+  tabActive: { backgroundColor: COLORS.primary },
   tabText: { color: COLORS.textSecondary, fontWeight: '700', fontSize: 10 },
   badge: {
     backgroundColor: 'rgba(255,255,255,0.1)',
@@ -400,7 +400,7 @@ const styles = StyleSheet.create({
   typeIcon: {
     width: 30,
     height: 30,
-    borderRadius: 9,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
   },

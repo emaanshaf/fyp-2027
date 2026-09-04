@@ -189,13 +189,13 @@ export default function HadithVerificationScreen() {
         <View style={styles.modeRow}>
           <TouchableOpacity onPress={() => setSearchMode('keyword')}
             style={[styles.modeBtn, searchMode === 'keyword' && styles.modeActive]}>
-            <Ionicons name="search" size={14} color={searchMode === 'keyword' ? '#000' : COLORS.textSecondary} />
-            <Text style={[styles.modeText, searchMode === 'keyword' && { color: '#000' }]}>Search Text</Text>
+            <Ionicons name="search" size={14} color={searchMode === 'keyword' ? '#fff' : COLORS.textSecondary} />
+            <Text style={[styles.modeText, searchMode === 'keyword' && { color: '#fff' }]}>Search Text</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => setSearchMode('number')}
             style={[styles.modeBtn, searchMode === 'number' && styles.modeActive]}>
-            <Ionicons name="hash" size={14} color={searchMode === 'number' ? '#000' : COLORS.textSecondary} />
-            <Text style={[styles.modeText, searchMode === 'number' && { color: '#000' }]}>By Number</Text>
+            <Ionicons name="hash" size={14} color={searchMode === 'number' ? '#fff' : COLORS.textSecondary} />
+            <Text style={[styles.modeText, searchMode === 'number' && { color: '#fff' }]}>By Number</Text>
           </TouchableOpacity>
         </View>
 
@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10, borderRadius: 12, backgroundColor: COLORS.glass,
     borderWidth: 1, borderColor: COLORS.glassBorder,
   },
-  modeActive: { backgroundColor: COLORS.gold, borderColor: COLORS.gold },
+  modeActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   modeText: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '700' },
   collChip: {
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 10,
   },
   searchBtn: {
-    width: 44, height: 44, borderRadius: 14, backgroundColor: COLORS.gold,
+    width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.gold,
     alignItems: 'center', justifyContent: 'center',
   },
   errorCard: {

@@ -11,7 +11,7 @@ import { moduleByName, accentFor, hasAccess } from '../config/routes';
 import { useRole } from '../context/RoleContext';
 import { usePrayerLock } from '../context/PrayerLockContext';
 import { formatHijri, resolveHijriDate } from '../utils/hijri';
-import { getNextPrayer } from '../utils/nextPrayer';
+import { getNextPrayer, getTodayTimings } from '../utils/nextPrayer';
 
 // The dashboard grid, drawn from the shared route table so labels, icons,
 // accents and permissions cannot drift from the drawer and navigator.
@@ -68,6 +68,16 @@ const DAILY_AYAH = [
 
 const SALAWAT_TEXT = 'Allahumma salli ala Muhammad wa aali Muhammad';
 
+// Islam 360's dashboard puts all five prayers in one strip rather than only
+// the next one, so the whole day's schedule is visible at a glance.
+const PRAYER_ICONS = {
+  Fajr: 'partly-sunny-outline',
+  Dhuhr: 'sunny-outline',
+  Asr: 'sunny',
+  Maghrib: 'moon-outline',
+  Isha: 'moon',
+};
+
 export default function HomeScreen({ navigation }) {
   const role = useRole();
   const { enabled: lockEnabled, pendingPrayer, delayMin, confirmPrayed } = usePrayerLock();
@@ -77,6 +87,7 @@ export default function HomeScreen({ navigation }) {
   const [prayerCount, setPrayerCount] = useState(0);
   const [salawatCount, setSalawatCount] = useState(0);
   const [nextPrayer, setNextPrayer] = useState(null);
+  const [todayTimings, setTodayTimings] = useState(null);
   const [streak, setStreak] = useState(0);
   const [hijriDate, setHijriDate] = useState(null);
   const hijri = hijriDate ? formatHijri(hijriDate) : formatHijri();
@@ -97,7 +108,10 @@ export default function HomeScreen({ navigation }) {
   // shows whole minutes, so a per-second timer would just burn battery.
   useEffect(() => {
     let alive = true;
-    const tick = () => getNextPrayer().then(p => { if (alive) setNextPrayer(p); });
+    const tick = () => {
+      getNextPrayer().then(p => { if (alive) setNextPrayer(p); });
+      getTodayTimings().then(t => { if (alive) setTodayTimings(t); });
+    };
     tick();
     const id = setInterval(tick, 60000);
     return () => { alive = false; clearInterval(id); };
@@ -161,36 +175,46 @@ export default function HomeScreen({ navigation }) {
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 100 }}>
       <Animated.View style={{ opacity: fadeAnim }}>
 
-        {/* Hero Header */}
+        {/* Hero Header — solid emerald banner with location/date up top and
+            the greeting below, the way Islam 360 opens its dashboard rather
+            than the glass card this used to be. */}
         <View style={styles.hero}>
-          <View style={styles.heroGlow} />
+          <View style={styles.heroPattern} pointerEvents="none">
+            <Ionicons name="moon" size={120} color="rgba(255,255,255,0.06)" style={styles.heroPatternMoon} />
+          </View>
           <View style={styles.heroContent}>
             <View style={styles.heroTopRow}>
-              <Text style={styles.greeting}>{getGreeting()}</Text>
-              {/* The Hijri date is the single most-asked-for piece of ambient
-                  information in an Islamic app, and it was buried in the
-                  calendar module. */}
+              <View style={styles.locationRow}>
+                <Ionicons name="location" size={13} color="rgba(255,255,255,0.85)" />
+                <Text style={styles.locationText}>
+                  {todayTimings?.city || nextPrayer?.city || 'Set location'}
+                </Text>
+              </View>
               <View style={styles.hijriChip}>
                 <Ionicons name="moon-outline" size={11} color={COLORS.gold} />
                 <Text style={styles.hijriChipText}>{hijri}</Text>
               </View>
             </View>
 
-            {userName ? (
-              <Text style={styles.userName}>{userName}</Text>
-            ) : (
-              <TouchableOpacity
-                onPress={() => navigateTo('Settings')}
-                activeOpacity={0.7}
-                style={styles.namePrompt}
-                accessibilityRole="button"
-                accessibilityLabel="Add your name"
-              >
-                <Text style={styles.namePromptText}>Add your name</Text>
-                <Ionicons name="arrow-forward" size={15} color={COLORS.gold} />
-              </TouchableOpacity>
-            )}
-            <Text style={styles.heroSub}>What would you like to explore today?</Text>
+            <View style={styles.heroGreetingRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.greeting}>{getGreeting()}</Text>
+                {userName ? (
+                  <Text style={styles.userName}>{userName}</Text>
+                ) : (
+                  <TouchableOpacity
+                    onPress={() => navigateTo('Settings')}
+                    activeOpacity={0.7}
+                    style={styles.namePrompt}
+                    accessibilityRole="button"
+                    accessibilityLabel="Add your name"
+                  >
+                    <Text style={styles.namePromptText}>Add your name</Text>
+                    <Ionicons name="arrow-forward" size={13} color="#fff" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
           </View>
 
           {/* Quick Stats */}
@@ -202,24 +226,55 @@ export default function HomeScreen({ navigation }) {
               accessibilityRole="button"
               accessibilityLabel={`${prayerCount} of 5 prayers logged today`}
             >
-              <Ionicons name="checkmark-done" size={16} color={COLORS.blue} />
+              <Ionicons name="checkmark-done" size={16} color="#fff" />
               <Text style={styles.statNum}>{prayerCount}/5</Text>
               <Text style={styles.statLabel}>Today</Text>
             </TouchableOpacity>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Ionicons name="flame" size={16} color={COLORS.amber} />
+              <Ionicons name="flame" size={16} color={COLORS.gold} />
               <Text style={styles.statNum}>{streak}</Text>
               <Text style={styles.statLabel}>Day streak</Text>
             </View>
             <View style={styles.statDivider} />
             <TouchableOpacity style={styles.statItem} onPress={addSalawat} activeOpacity={0.7}>
-              <Ionicons name="heart" size={16} color={COLORS.pink} />
+              <Ionicons name="heart" size={16} color="#fff" />
               <Text style={styles.statNum}>{salawatCount}</Text>
               <Text style={styles.statLabel}>Salawat</Text>
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Prayer strip — all five prayers at once with the next one picked
+            out, the signature Islam 360 dashboard element. Only the next-
+            prayer countdown card below it exists without cached timings. */}
+        {todayTimings && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.prayerStrip}
+            contentContainerStyle={styles.prayerStripContent}
+          >
+            {todayTimings.prayers.map(p => (
+              <View
+                key={p.name}
+                style={[styles.prayerPill, p.isNext && styles.prayerPillActive]}
+              >
+                <Ionicons
+                  name={PRAYER_ICONS[p.name] || 'time-outline'}
+                  size={16}
+                  color={p.isNext ? '#fff' : COLORS.primaryTint}
+                />
+                <Text style={[styles.prayerPillName, p.isNext && styles.prayerPillNameActive]}>
+                  {p.name}
+                </Text>
+                <Text style={[styles.prayerPillTime, p.isNext && styles.prayerPillTimeActive]}>
+                  {p.time}
+                </Text>
+              </View>
+            ))}
+          </ScrollView>
+        )}
 
         {/* The reminder that precedes the lock. It states the deadline rather
             than appearing without warning when the app locks. */}
@@ -262,9 +317,9 @@ export default function HomeScreen({ navigation }) {
             : 'Set your prayer location'}
         >
           <View style={[styles.prayerIcon, {
-            backgroundColor: COLORS.cyan + '1F', borderColor: COLORS.cyan + '38',
+            backgroundColor: COLORS.primary + '1F', borderColor: COLORS.primary + '38',
           }]}>
-            <Ionicons name="time" size={22} color={COLORS.cyan} />
+            <Ionicons name="time" size={22} color={COLORS.primaryTint} />
           </View>
           <View style={{ flex: 1 }}>
             {nextPrayer ? (
@@ -273,7 +328,8 @@ export default function HomeScreen({ navigation }) {
                   Next prayer{nextPrayer.tomorrow ? ' · tomorrow' : ''}
                 </Text>
                 <Text style={styles.prayerName}>
-                  {nextPrayer.name} <Text style={styles.prayerTime}>{nextPrayer.time}</Text>
+                  {nextPrayer.name}{' '}
+                  <Text style={[styles.prayerTime, { color: COLORS.primaryTint }]}>{nextPrayer.time}</Text>
                 </Text>
                 <Text style={styles.prayerMeta}>{nextPrayer.city}</Text>
               </>
@@ -286,8 +342,10 @@ export default function HomeScreen({ navigation }) {
             )}
           </View>
           {nextPrayer && (
-            <View style={styles.countdownPill}>
-              <Text style={styles.countdownNum}>{nextPrayer.countdown}</Text>
+            <View style={[styles.countdownPill, {
+              backgroundColor: COLORS.primary + '14', borderColor: COLORS.primary + '30',
+            }]}>
+              <Text style={[styles.countdownNum, { color: COLORS.primaryTint }]}>{nextPrayer.countdown}</Text>
               <Text style={styles.countdownLabel}>to go</Text>
             </View>
           )}
@@ -365,11 +423,10 @@ export default function HomeScreen({ navigation }) {
               </View>
               <Text
                 style={[styles.moduleLabel, mod.featured && { color: mod.accent }]}
-                numberOfLines={1}
+                numberOfLines={2}
               >
                 {mod.label}
               </Text>
-              <Text style={styles.moduleSub} numberOfLines={1}>{mod.sublabel}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -383,36 +440,39 @@ export default function HomeScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
+  // Solid emerald banner, not a glass card — this is the Islam 360 signature:
+  // location + Hijri date pinned to the top, greeting below, stats along the
+  // bottom edge, all on one brand-coloured surface.
   hero: {
-    margin: 16, borderRadius: 24, overflow: 'hidden',
-    backgroundColor: COLORS.glass,
-    borderWidth: 1, borderColor: COLORS.glassBorder,
+    margin: 16, marginBottom: 12, borderRadius: 24, overflow: 'hidden',
+    backgroundColor: COLORS.primary,
   },
-  heroGlow: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255,0.06)',
-  },
-  heroContent: { padding: 24, paddingBottom: 16 },
+  heroPattern: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },
+  heroPatternMoon: { position: 'absolute', top: -30, right: -30 },
+  heroContent: { padding: 20, paddingBottom: 18 },
   heroTopRow: {
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between', gap: 10,
   },
-  greeting: { color: COLORS.textSecondary, fontSize: 14, fontWeight: '600' },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  locationText: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '700' },
+  greeting: { color: 'rgba(255,255,255,0.75)', fontSize: 14, fontWeight: '600' },
   hijriChip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: COLORS.gold + '14', borderColor: COLORS.gold + '30',
+    backgroundColor: 'rgba(0,0,0,0.18)', borderColor: COLORS.gold + '55',
     borderWidth: 1, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4,
   },
   hijriChipText: { color: COLORS.gold, fontSize: 10.5, fontWeight: '700' },
-  userName: { color: COLORS.gold, fontSize: 28, fontWeight: '900', marginTop: 4 },
+  heroGreetingRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 14 },
+  userName: { color: '#fff', fontSize: 26, fontWeight: '900', marginTop: 2 },
   namePrompt: {
     flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 6,
     alignSelf: 'flex-start', borderRadius: 999, paddingVertical: 5,
     paddingHorizontal: 12, borderWidth: 1, borderStyle: 'dashed',
-    borderColor: COLORS.gold + '55',
+    borderColor: 'rgba(255,255,255,0.5)',
   },
-  namePromptText: { color: COLORS.gold, fontSize: 17, fontWeight: '800' },
-  heroSub: { color: COLORS.textSecondary, fontSize: 13, marginTop: 6 },
+  namePromptText: { color: '#fff', fontSize: 17, fontWeight: '800' },
+  heroSub: { color: 'rgba(255,255,255,0.75)', fontSize: 13, marginTop: 6 },
 
   lockNotice: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -456,13 +516,25 @@ const styles = StyleSheet.create({
   countdownNum: { color: COLORS.cyan, fontSize: 15, fontWeight: '900' },
   countdownLabel: { color: COLORS.textSecondary, fontSize: 9.5, marginTop: 1 },
   quickStats: {
-    flexDirection: 'row', borderTopWidth: 1, borderTopColor: COLORS.glassBorder,
+    flexDirection: 'row', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.14)',
     paddingVertical: 14, paddingHorizontal: 8,
   },
   statItem: { flex: 1, alignItems: 'center', gap: 4 },
-  statNum: { color: COLORS.textPrimary, fontSize: 16, fontWeight: '900' },
-  statLabel: { color: COLORS.textSecondary, fontSize: 10, fontWeight: '600' },
-  statDivider: { width: 1, backgroundColor: COLORS.glassBorder },
+  statNum: { color: '#fff', fontSize: 16, fontWeight: '900' },
+  statLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: '600' },
+  statDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.14)' },
+  prayerStrip: { marginBottom: 14 },
+  prayerStripContent: { paddingHorizontal: 16, gap: 10 },
+  prayerPill: {
+    alignItems: 'center', justifyContent: 'center', gap: 3,
+    width: 74, paddingVertical: 12, borderRadius: 16,
+    backgroundColor: COLORS.bgSecondary, borderWidth: 1, borderColor: COLORS.glassBorder,
+  },
+  prayerPillActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  prayerPillName: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '700' },
+  prayerPillNameActive: { color: 'rgba(255,255,255,0.85)' },
+  prayerPillTime: { color: COLORS.textPrimary, fontSize: 12, fontWeight: '800' },
+  prayerPillTimeActive: { color: '#fff' },
   ayahCard: {
     marginHorizontal: 16, marginBottom: 12, borderRadius: 20, padding: 20,
     backgroundColor: COLORS.glass, borderWidth: 1, borderColor: COLORS.glassBorder,
@@ -494,14 +566,16 @@ const styles = StyleSheet.create({
   salawatCounterNum: { color: COLORS.pink, fontSize: 16, fontWeight: '900' },
   sectionHeader: { paddingHorizontal: 16, marginBottom: 12 },
   sectionTitle: { color: COLORS.gold, fontSize: 18, fontWeight: '900' },
+  // Four per row of circular plates — Islam 360's grid, rather than the
+  // three-per-row rounded squares this used to be.
   grid: {
-    flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, gap: 0,
+    flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 8, gap: 0,
   },
   moduleCard: {
-    width: '33.33%', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 6,
+    width: '25%', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 4,
   },
   moduleIconWrap: {
-    width: 54, height: 54, borderRadius: 17,
+    width: 56, height: 56, borderRadius: 28,
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1,
   },
@@ -512,16 +586,12 @@ const styles = StyleSheet.create({
   },
   moduleHalo: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 17, opacity: 0.13,
+    borderRadius: 28, opacity: 0.13,
   },
   moduleSparkTop: { position: 'absolute', top: 5, right: 6, opacity: 0.95 },
   moduleSparkBottom: { position: 'absolute', bottom: 6, left: 7, opacity: 0.6 },
   moduleLabel: {
-    color: COLORS.textPrimary, fontSize: 12, fontWeight: '700',
-    marginTop: 9, textAlign: 'center', letterSpacing: 0.1,
-  },
-  moduleSub: {
-    color: COLORS.textSecondary, fontSize: 10, marginTop: 2,
-    textAlign: 'center', opacity: 0.85,
+    color: COLORS.textPrimary, fontSize: 11, fontWeight: '700',
+    lineHeight: 14, marginTop: 8, textAlign: 'center', letterSpacing: 0.1,
   },
 });

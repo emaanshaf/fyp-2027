@@ -64,7 +64,7 @@ export default function ReflectionJournalScreen() {
         ListHeaderComponent={() => (
           <View>
             <View style={styles.headerCard}>
-              <Ionicons name="journal" size={32} color={COLORS.gold} />
+              <Ionicons name="journal" size={32} color="#fff" />
               <Text style={styles.headerTitle}>Reflection Journal</Text>
               <Text style={styles.headerSub}>Connect with the Quran through personal reflections</Text>
             </View>
@@ -152,10 +152,10 @@ export default function ReflectionJournalScreen() {
 const styles = StyleSheet.create({
   headerCard: {
     padding: 24, borderRadius: 24, alignItems: 'center', marginBottom: 16,
-    backgroundColor: COLORS.glass, borderWidth: 1, borderColor: COLORS.gold + '30',
+    backgroundColor: COLORS.primary,
   },
-  headerTitle: { color: COLORS.gold, fontSize: 20, fontWeight: '900', marginTop: 12 },
-  headerSub: { color: COLORS.textSecondary, fontSize: 13, marginTop: 4, textAlign: 'center' },
+  headerTitle: { color: '#fff', fontSize: 20, fontWeight: '900', marginTop: 12 },
+  headerSub: { color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 4, textAlign: 'center' },
   addBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     padding: 14, borderRadius: 14, backgroundColor: COLORS.glass,

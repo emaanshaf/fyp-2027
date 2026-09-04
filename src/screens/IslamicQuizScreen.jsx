@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, marginBottom: 10,
     borderRadius: 18, backgroundColor: COLORS.glass, borderWidth: 1, borderColor: COLORS.glassBorder,
   },
-  catIcon: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  catIcon: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
   catName: { color: COLORS.textPrimary, fontSize: 16, fontWeight: '800' },
   catInfo: { color: COLORS.textSecondary, fontSize: 12, marginTop: 2 },
   quizHeader: {

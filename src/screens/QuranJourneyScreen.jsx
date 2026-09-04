@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
     margin: 16, padding: 24, borderRadius: 24, alignItems: 'center',
     backgroundColor: COLORS.glass, borderWidth: 1, borderColor: COLORS.glassBorder,
   },
-  levelIcon: { width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  levelIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   levelName: { color: COLORS.gold, fontSize: 22, fontWeight: '900' },
   levelDesc: { color: COLORS.textSecondary, fontSize: 13, marginTop: 4 },
   progressBar: {

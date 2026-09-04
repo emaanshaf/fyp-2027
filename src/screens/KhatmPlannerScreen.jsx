@@ -68,7 +68,7 @@ export default function KhatmPlannerScreen() {
       <SafeAreaView style={globalStyles.screen} edges={['bottom']}>
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
           <View style={styles.headerCard}>
-            <Ionicons name="book" size={32} color={COLORS.gold} />
+            <Ionicons name="book" size={32} color="#fff" />
             <Text style={styles.headerTitle}>Khatm Planner</Text>
             <Text style={styles.headerSub}>Plan your complete Quran reading journey</Text>
           </View>
@@ -160,15 +160,15 @@ export default function KhatmPlannerScreen() {
 const styles = StyleSheet.create({
   headerCard: {
     padding: 24, borderRadius: 24, alignItems: 'center', marginBottom: 20,
-    backgroundColor: COLORS.glass, borderWidth: 1, borderColor: COLORS.gold + '30',
+    backgroundColor: COLORS.primary, borderWidth: 1, borderColor: COLORS.primary,
   },
-  headerTitle: { color: COLORS.gold, fontSize: 20, fontWeight: '900', marginTop: 12 },
-  headerSub: { color: COLORS.textSecondary, fontSize: 13, marginTop: 4, textAlign: 'center' },
+  headerTitle: { color: '#fff', fontSize: 20, fontWeight: '900', marginTop: 12 },
+  headerSub: { color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 4, textAlign: 'center' },
   planCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, marginBottom: 10,
     borderRadius: 18, backgroundColor: COLORS.glass, borderWidth: 1, borderColor: COLORS.glassBorder,
   },
-  planIcon: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  planIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   planLabel: { color: COLORS.textPrimary, fontSize: 16, fontWeight: '800' },
   planDesc: { color: COLORS.textSecondary, fontSize: 12, marginTop: 2 },
   progressCard: {

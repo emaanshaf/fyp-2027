@@ -365,7 +365,7 @@ const styles = StyleSheet.create({
   iconBtn: {
     width: 44,
     height: 44,
-    borderRadius: 14,
+    borderRadius: 22,
     backgroundColor: COLORS.glass,
     borderWidth: 1,
     borderColor: COLORS.glassBorder,

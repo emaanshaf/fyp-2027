@@ -71,9 +71,9 @@ export default function LearnWorshipScreen() {
             >
               <Ionicons
                 name={t.icon} size={15}
-                color={tab === t.key ? '#000' : COLORS.textSecondary}
+                color={tab === t.key ? '#fff' : COLORS.textSecondary}
               />
-              <Text style={[styles.tabText, tab === t.key && { color: '#000' }]}>
+              <Text style={[styles.tabText, tab === t.key && { color: '#fff' }]}>
                 {t.label}
               </Text>
             </TouchableOpacity>
@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
     gap: 6, paddingVertical: 10, borderRadius: 12,
     borderWidth: 1, borderColor: COLORS.glassBorder,
   },
-  tabActive: { backgroundColor: COLORS.gold, borderColor: COLORS.gold },
+  tabActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   tabText: { color: COLORS.textSecondary, fontSize: 12.5, fontWeight: '700' },
 
   schools: { flexDirection: 'row', gap: 10, marginBottom: 16 },

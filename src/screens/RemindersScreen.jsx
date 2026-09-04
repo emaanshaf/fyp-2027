@@ -391,7 +391,7 @@ const styles = StyleSheet.create({
   prayerIcon: {
     width: 44,
     height: 44,
-    borderRadius: 13,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },

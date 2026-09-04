@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
   templateIcon: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },

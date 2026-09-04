@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginBottom: 8,
     borderRadius: 16, backgroundColor: COLORS.glass, borderWidth: 1, borderColor: COLORS.glassBorder,
   },
-  recIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  recIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   recTitle: { color: COLORS.textPrimary, fontSize: 14, fontWeight: '700' },
   recDetail: { color: COLORS.textSecondary, fontSize: 11, marginTop: 2 },
 

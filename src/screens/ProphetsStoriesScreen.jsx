@@ -20,7 +20,7 @@ export default function ProphetsStoriesScreen() {
         contentContainerStyle={{ padding: 12, paddingBottom: 32 }}
         ListHeaderComponent={() => (
           <View style={styles.headerCard}>
-            <Ionicons name="people" size={32} color={COLORS.gold} />
+            <Ionicons name="people" size={32} color="#fff" />
             <Text style={styles.headerTitle}>Stories of the Prophets</Text>
             <Text style={styles.headerSub}>{PROPHETS.length} prophets mentioned in the Quran</Text>
           </View>
@@ -55,16 +55,16 @@ export default function ProphetsStoriesScreen() {
 const styles = StyleSheet.create({
   headerCard: {
     padding: 24, borderRadius: 24, alignItems: 'center', marginBottom: 16,
-    backgroundColor: COLORS.glass, borderWidth: 1, borderColor: COLORS.gold + '30',
+    backgroundColor: COLORS.primary, borderWidth: 1, borderColor: COLORS.primary,
   },
-  headerTitle: { color: COLORS.gold, fontSize: 20, fontWeight: '900', marginTop: 12 },
-  headerSub: { color: COLORS.textSecondary, fontSize: 13, marginTop: 4 },
+  headerTitle: { color: '#fff', fontSize: 20, fontWeight: '900', marginTop: 12 },
+  headerSub: { color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 4 },
   prophetCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, marginBottom: 8,
     borderRadius: 18, backgroundColor: COLORS.glass, borderWidth: 1, borderColor: COLORS.glassBorder,
     flexWrap: 'wrap',
   },
-  prophetIcon: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  prophetIcon: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
   prophetName: { color: COLORS.textPrimary, fontSize: 16, fontWeight: '800' },
   prophetTitle: { color: COLORS.textSecondary, fontSize: 12, marginTop: 2 },
   prophetDetail: { width: '100%', marginTop: 12 },

@@ -174,12 +174,12 @@ function GoalItem({ goal }) {
 const styles = StyleSheet.create({
   headerCard: {
     margin: 16, borderRadius: 24, padding: 28, alignItems: 'center', overflow: 'hidden',
-    backgroundColor: COLORS.glass, borderWidth: 1, borderColor: COLORS.gold + '30',
+    backgroundColor: COLORS.primary,
   },
   headerGlow: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255, 255, 255,0.05)' },
   headerEmoji: { fontSize: 48 },
-  headerTitle: { color: COLORS.gold, fontSize: 24, fontWeight: '900', marginTop: 12 },
-  headerSub: { color: COLORS.textSecondary, fontSize: 13, marginTop: 4 },
+  headerTitle: { color: '#fff', fontSize: 24, fontWeight: '900', marginTop: 12 },
+  headerSub: { color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 4 },
   fastCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14, margin: 16, padding: 20,
     borderRadius: 20, backgroundColor: COLORS.glass, borderWidth: 1, borderColor: COLORS.glassBorder,

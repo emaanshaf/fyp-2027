@@ -558,22 +558,22 @@ export default function QuranScreen() {
     <SafeAreaView style={globalStyles.screen} edges={['bottom']}>
       <View style={styles.readerHeader}>
         <TouchableOpacity onPress={() => { setActiveChapter(null); soundRef.current?.stopAsync(); setIsPlaying(false); setCurrentVerseAudio(null); }}>
-          <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
+          <Ionicons name="arrow-back" size={22} color="#fff" />
         </TouchableOpacity>
         <View style={{ flex: 1, marginHorizontal: 12 }}>
-          <Text style={{ color: COLORS.textPrimary, fontWeight: '800', fontSize: 16 }}>{activeChapter.name_simple}</Text>
-          <Text style={{ color: COLORS.textSecondary, fontSize: 12 }}>
+          <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>{activeChapter.name_simple}</Text>
+          <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12 }}>
             {activeChapter.translated_name?.name} • {activeChapter.verses_count} verses • {translationLabel}
           </Text>
         </View>
         <TouchableOpacity onPress={() => setShowSettings(true)} style={{ marginRight: 8 }}>
-          <Ionicons name="settings-outline" size={20} color={COLORS.textSecondary} />
+          <Ionicons name="settings-outline" size={20} color="rgba(255,255,255,0.85)" />
         </TouchableOpacity>
         <TouchableOpacity
           onPress={toggleAudio}
-          style={[styles.playBtn, { backgroundColor: isPlaying ? 'rgba(255, 255, 255,0.15)' : COLORS.gold }]}
+          style={[styles.playBtn, { backgroundColor: isPlaying ? 'rgba(255,255,255,0.16)' : '#fff' }]}
         >
-          <Ionicons name={isPlaying ? 'pause' : 'play'} size={16} color={isPlaying ? COLORS.gold : '#000'} />
+          <Ionicons name={isPlaying ? 'pause' : 'play'} size={16} color={isPlaying ? '#fff' : COLORS.primary} />
         </TouchableOpacity>
       </View>
 
@@ -784,7 +784,7 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, color: COLORS.textPrimary, fontSize: 14 },
   settingsBtn: {
-    width: 40, height: 40, borderRadius: 12,
+    width: 40, height: 40, borderRadius: 20,
     backgroundColor: 'rgba(255, 255, 255,0.08)',
     borderWidth: 1, borderColor: 'rgba(255, 255, 255,0.3)',
     alignItems: 'center', justifyContent: 'center',
@@ -826,8 +826,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: COLORS.glassBorder,
-    backgroundColor: COLORS.bgSecondary,
+    backgroundColor: COLORS.primary,
+    borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
   },
   playBtn: {
     width: 36, height: 36, borderRadius: 18,

@@ -616,7 +616,7 @@ const makeStyles = (COLORS) => ({
     padding: 16,
   },
   avatar: {
-    width: 40, height: 40, borderRadius: 12,
+    width: 40, height: 40, borderRadius: 20,
     backgroundColor: 'rgba(255, 255, 255,0.1)',
     alignItems: 'center', justifyContent: 'center',
   },

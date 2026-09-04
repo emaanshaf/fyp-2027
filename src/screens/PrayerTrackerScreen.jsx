@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255,0.06)',
   },
   prayerIconWrap: {
-    width: 48, height: 48, borderRadius: 14,
+    width: 48, height: 48, borderRadius: 24,
     alignItems: 'center', justifyContent: 'center', borderWidth: 1,
   },
   prayerName: { color: COLORS.textPrimary, fontSize: 17, fontWeight: '800' },

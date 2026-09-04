@@ -366,36 +366,37 @@ export default function AppNavigator() {
 }
 
 const styles = StyleSheet.create({
+  // Circular plates, matching the dashboard's Islam-360-style module grid
+  // rather than the rounded squares this used to be.
   drawerIconPlate: {
-    width: 32, height: 32, borderRadius: 10,
+    width: 34, height: 34, borderRadius: 17,
     alignItems: 'center', justifyContent: 'center',
   },
+  // Solid emerald banner, the same treatment as the dashboard hero.
   drawerHeader: {
     padding: 24,
     paddingTop: 56,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.glassBorder,
-    backgroundColor: COLORS.glass,
+    backgroundColor: COLORS.primary,
   },
   drawerLogoWrap: {
     width: 52,
     height: 52,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 26,
+    backgroundColor: 'rgba(255,255,255,0.14)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
+    borderColor: 'rgba(255,255,255,0.25)',
   },
   drawerTitle: {
-    color: COLORS.gold,
+    color: '#fff',
     fontSize: 20,
     fontWeight: '800',
     letterSpacing: -0.5,
   },
   drawerSubtitle: {
-    color: COLORS.textSecondary,
+    color: 'rgba(255,255,255,0.75)',
     fontSize: 13,
     marginTop: 2,
   },

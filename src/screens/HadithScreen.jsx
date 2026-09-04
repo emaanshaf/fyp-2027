@@ -133,14 +133,14 @@ export default function HadithScreen() {
   // Hadith list view
   return (
     <SafeAreaView style={globalStyles.screen} edges={['bottom']}>
-      {/* Header */}
+      {/* Header — solid emerald banner, matching the dashboard hero. */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => { setSelectedCollection(null); setHadiths([]); setSearch(''); }}>
-          <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
+          <Ionicons name="arrow-back" size={22} color="#fff" />
         </TouchableOpacity>
         <View style={{ flex: 1, marginHorizontal: 12 }}>
-          <Text style={{ color: COLORS.textPrimary, fontWeight: '800', fontSize: 16 }}>{meta?.name}</Text>
-          <Text style={{ color: COLORS.textSecondary, fontSize: 12 }}>{meta?.author} • {meta?.total.toLocaleString()} hadiths</Text>
+          <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>{meta?.name}</Text>
+          <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12 }}>{meta?.author} • {meta?.total.toLocaleString()} hadiths</Text>
         </View>
         <View style={[styles.gradeBadge, { backgroundColor: meta?.color + '20' }]}>
           <Text style={{ color: meta?.color, fontSize: 11, fontWeight: '800' }}>{meta?.grade}</Text>
@@ -231,15 +231,15 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   collectionIcon: {
-    width: 52, height: 52, borderRadius: 14,
+    width: 52, height: 52, borderRadius: 26,
     alignItems: 'center', justifyContent: 'center',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: COLORS.glassBorder,
-    backgroundColor: COLORS.bgSecondary,
+    backgroundColor: COLORS.primary,
+    borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
   },
   gradeBadge: {
     paddingHorizontal: 10, paddingVertical: 4,

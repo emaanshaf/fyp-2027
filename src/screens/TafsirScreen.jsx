@@ -223,7 +223,7 @@ export default function TafsirScreen({ navigation }) {
     <SafeAreaView style={globalStyles.screen} edges={['bottom']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => { setSelectedSurah(null); setVerses([]); }}>
-          <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
+          <Ionicons name="arrow-back" size={22} color="#fff" />
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={styles.headerTitle}>{selectedSurah.name_arabic || ''} {selectedSurah.name_simple}</Text>
@@ -242,7 +242,7 @@ export default function TafsirScreen({ navigation }) {
             accessibilityRole="button"
             accessibilityLabel={`Read translation in ${t.name}`}
           >
-            <Text style={[styles.langChipText, language === key && { color: '#000' }]}>
+            <Text style={[styles.langChipText, language === key && { color: '#fff' }]}>
               {t.native}
             </Text>
           </TouchableOpacity>
@@ -405,7 +405,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.glassBorder, borderRadius: 999,
     paddingHorizontal: 11, paddingVertical: 5,
   },
-  langChipActive: { backgroundColor: COLORS.gold, borderColor: COLORS.gold },
+  langChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   langChipText: { color: COLORS.textSecondary, fontSize: 11.5, fontWeight: '700' },
   translationBy: {
     color: COLORS.textSecondary, fontSize: 10.5, marginTop: 5, opacity: 0.8,
@@ -460,10 +460,11 @@ const styles = StyleSheet.create({
   surahInfo: { color: COLORS.textSecondary, fontSize: 12, marginTop: 2 },
   header: {
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: COLORS.glassBorder, backgroundColor: COLORS.bgSecondary,
+    backgroundColor: COLORS.primary,
+    borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
   },
-  headerTitle: { color: COLORS.gold, fontSize: 18, fontWeight: '800' },
-  headerSub: { color: COLORS.textSecondary, fontSize: 12, marginTop: 2 },
+  headerTitle: { color: '#fff', fontSize: 18, fontWeight: '800' },
+  headerSub: { color: 'rgba(255,255,255,0.85)', fontSize: 12, marginTop: 2 },
   tafsirPicker: {
     flexDirection: 'row', gap: 8, padding: 12, paddingBottom: 6,
   },

@@ -154,24 +154,24 @@ export default function AIChatScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={90}
       >
-        {/* Header */}
-        <LinearGradient colors={['rgba(255, 255, 255,0.08)', 'transparent']} style={styles.header}>
+        {/* Header — solid emerald banner, matching the dashboard hero. */}
+        <LinearGradient colors={[COLORS.primary, COLORS.primary]} style={styles.header}>
           <View style={styles.botInfo}>
             <View style={styles.botAvatarLg}>
               <Text style={{ fontSize: 26 }}>☾</Text>
             </View>
             <View>
-              <Text style={{ color: COLORS.textPrimary, fontWeight: '900', fontSize: 17 }}>Islamic AI Assistant</Text>
+              <Text style={{ color: '#fff', fontWeight: '900', fontSize: 17 }}>Islamic AI Assistant</Text>
               <View style={[globalStyles.row, { gap: 6 }]}>
                 <View style={styles.onlineDot} />
-                <Text style={{ color: COLORS.emerald, fontSize: 12 }}>
+                <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12 }}>
                   {liveStatus.ok ? 'Online AI' : 'Offline mode'} • {KNOWLEDGE_BASE.length} topics
                 </Text>
               </View>
             </View>
           </View>
           <TouchableOpacity onPress={() => setShowTopics(v => !v)} style={styles.topicsBtn}>
-            <Ionicons name={showTopics ? 'close' : 'list'} size={18} color={COLORS.gold} />
+            <Ionicons name={showTopics ? 'close' : 'list'} size={18} color="#fff" />
           </TouchableOpacity>
         </LinearGradient>
 
@@ -290,15 +290,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 16,
     paddingTop: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.glassBorder,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
   botInfo: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   botAvatarLg: {
     width: 50,
     height: 50,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255,0.1)',
+    borderRadius: 25,
+    backgroundColor: 'rgba(255, 255, 255,0.16)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255,0.3)',
     alignItems: 'center',
@@ -308,13 +308,13 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: COLORS.emerald,
+    backgroundColor: '#fff',
   },
   topicsBtn: {
     width: 40,
     height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255,0.08)',
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255,0.16)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255,0.3)',
     alignItems: 'center',
@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
   botAvatar: {
     width: 34,
     height: 34,
-    borderRadius: 10,
+    borderRadius: 17,
     backgroundColor: 'rgba(255, 255, 255,0.1)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255,0.3)',
@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
   sendBtn: {
     width: 46,
     height: 46,
-    borderRadius: 14,
+    borderRadius: 23,
     backgroundColor: COLORS.gold,
     alignItems: 'center',
     justifyContent: 'center',

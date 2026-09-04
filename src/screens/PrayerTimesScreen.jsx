@@ -430,21 +430,21 @@ export default function PrayerTimesScreen() {
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={globalStyles.screen} edges={['bottom']}>
-      {/* Header */}
-      <View style={[globalStyles.spaceBetween, { padding: 16, paddingTop: 8 }]}>
+      {/* Header — solid emerald banner, matching the dashboard hero. */}
+      <View style={styles.header}>
         <View>
-          <Text style={{ color: COLORS.textPrimary, fontWeight: '900', fontSize: 20 }}>Prayer Times</Text>
+          <Text style={styles.headerTitle}>Prayer Times</Text>
           <View style={globalStyles.row}>
-            <Ionicons name="location-outline" size={13} color={COLORS.gold} />
-            <Text style={{ color: COLORS.textSecondary, fontSize: 13, marginLeft: 4 }}>{city}, {country}</Text>
+            <Ionicons name="location-outline" size={13} color="rgba(255,255,255,0.85)" />
+            <Text style={styles.headerLocation}>{city}, {country}</Text>
           </View>
         </View>
         <TouchableOpacity
           onPress={() => { setTempCity(city); setTempCountry(country); setModal(true); }}
           style={styles.locBtn}
         >
-          <Ionicons name="location" size={16} color={COLORS.gold} />
-          <Text style={{ color: COLORS.gold, fontWeight: '700', fontSize: 13 }}>Change</Text>
+          <Ionicons name="location" size={16} color="#fff" />
+          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Change</Text>
         </TouchableOpacity>
       </View>
 
@@ -459,8 +459,8 @@ export default function PrayerTimesScreen() {
             onPress={() => setTab(k)}
             style={[styles.tab, tab === k && styles.tabActive]}
           >
-            <Ionicons name={icon} size={16} color={tab === k ? '#000' : COLORS.textSecondary} />
-            <Text style={[styles.tabText, tab === k && { color: '#000' }]}>{label}</Text>
+            <Ionicons name={icon} size={16} color={tab === k ? '#fff' : COLORS.textSecondary} />
+            <Text style={[styles.tabText, tab === k && { color: '#fff' }]}>{label}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -713,9 +713,17 @@ export default function PrayerTimesScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
+  header: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    padding: 16, paddingTop: 8, marginBottom: 4,
+    backgroundColor: COLORS.primary,
+    borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
+  },
+  headerTitle: { color: '#fff', fontWeight: '900', fontSize: 20 },
+  headerLocation: { color: 'rgba(255,255,255,0.85)', fontSize: 13, marginLeft: 4 },
   locBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: 'rgba(255, 255, 255,0.08)', borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255,0.16)', borderRadius: 12,
     borderWidth: 1, borderColor: 'rgba(255, 255, 255,0.3)',
     paddingHorizontal: 12, paddingVertical: 8,
   },
@@ -728,14 +736,14 @@ const styles = StyleSheet.create({
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 6, paddingVertical: 10, borderRadius: 10,
   },
-  tabActive:  { backgroundColor: COLORS.gold },
+  tabActive:  { backgroundColor: COLORS.primary },
   tabText:    { color: COLORS.textSecondary, fontWeight: '700', fontSize: 13 },
   prayerRow: {
     flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14,
     marginBottom: 10, backgroundColor: COLORS.glass,
     borderRadius: 16, borderWidth: 1, borderColor: COLORS.glassBorder,
   },
-  prayerIcon: { width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  prayerIcon: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
   prayerName: { color: COLORS.textPrimary, fontWeight: '800', fontSize: 15 },
   prayerTime: { color: COLORS.textPrimary, fontWeight: '900', fontSize: 16 },
   nextBadge: {

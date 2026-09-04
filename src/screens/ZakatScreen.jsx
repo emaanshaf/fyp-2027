@@ -141,7 +141,7 @@ export default function ZakatScreen() {
             onPress={() => setTab(k)}
             style={[styles.tab, tab === k && styles.tabActive]}
           >
-            <Text style={[styles.tabText, tab === k && { color: '#000' }]}>{label}</Text>
+            <Text style={[styles.tabText, tab === k && { color: '#fff' }]}>{label}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -422,12 +422,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
   },
-  tabActive: { backgroundColor: COLORS.gold },
+  tabActive: { backgroundColor: COLORS.primary },
   tabText: { color: COLORS.textSecondary, fontWeight: '700', fontSize: 12 },
   histBtn: {
     width: 52,
     height: 52,
-    borderRadius: 14,
+    borderRadius: 26,
     backgroundColor: 'rgba(255, 255, 255,0.08)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255,0.3)',

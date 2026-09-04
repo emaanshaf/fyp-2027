@@ -5,10 +5,17 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { Audio } from 'expo-av';
 import { COLORS, globalStyles } from '../theme';
 import * as Speech from 'expo-speech';
 import { ASMA_UL_HUSNA } from '../data/names';
 
+// Real recitation, not device TTS: one mp3 per name (1.mp3 .. 99.mp3),
+// matching ASMA_UL_HUSNA's id field exactly. Source: soachishti/Asma-ul-Husna
+// (BSD-style licence, redistribution permitted), streamed from GitHub's raw
+// CDN rather than bundled — 99 files would otherwise bloat the app binary.
+const NAME_AUDIO_BASE = 'https://raw.githubusercontent.com/soachishti/Asma-ul-Husna/master/audio';
+const nameAudioUrl = (id) => `${NAME_AUDIO_BASE}/${id}.mp3`;
 
 export default function NamesOfAllahScreen() {
   const [selected, setSelected] = useState(null);
@@ -23,6 +30,7 @@ export default function NamesOfAllahScreen() {
   // Set when the user stops playback, so an in-flight utterance's onDone does
   // not advance the sequence after the user has asked it to stop.
   const cancelledRef = useRef(false);
+  const soundRef = useRef(null);
 
   /** Speaks one string and resolves when the device finishes or fails. */
   const speak = (text, locale) =>
@@ -37,9 +45,38 @@ export default function NamesOfAllahScreen() {
       });
     });
 
+  /**
+   * Plays the real recitation for one name. Falls back to the device Arabic
+   * voice on any failure (no network, CDN hiccup) so "Listen" still does
+   * something rather than silently doing nothing.
+   */
+  const playRecitation = (item) =>
+    new Promise(resolve => {
+      Audio.Sound.createAsync({ uri: nameAudioUrl(item.id) }, { shouldPlay: true })
+        .then(({ sound }) => {
+          soundRef.current = sound;
+          sound.setOnPlaybackStatusUpdate(st => {
+            if (st.didJustFinish || st.error) {
+              sound.unloadAsync().catch(() => {});
+              if (soundRef.current === sound) soundRef.current = null;
+              resolve();
+            }
+          });
+        })
+        .catch(async () => {
+          soundRef.current = null;
+          await speak(item.arabic, 'ar-SA');
+          resolve();
+        });
+    });
+
   const stopSpeech = useCallback(() => {
     cancelledRef.current = true;
     try { Speech.stop(); } catch { /* nothing was speaking */ }
+    if (soundRef.current) {
+      soundRef.current.unloadAsync().catch(() => {});
+      soundRef.current = null;
+    }
     setSpeakingId(null);
     setPlayingAll(false);
   }, []);
@@ -49,22 +86,16 @@ export default function NamesOfAllahScreen() {
   useEffect(() => stopSpeech, [stopSpeech]);
 
   /**
-   * Recites one name: the Arabic in an Arabic voice, then its meaning in
-   * English. Device text-to-speech, so it works with no network. If no Arabic
-   * voice is installed the device falls back to its default — imperfect, but
-   * better than a control that does nothing.
+   * Recites one name: the real Arabic recitation, then its meaning in
+   * English if asked for. Falls back to device text-to-speech only if the
+   * recitation audio can't be reached (see playRecitation).
    */
   const playName = async (item) => {
     if (speakingId === item.id) { stopSpeech(); return; }
     stopSpeech();
     cancelledRef.current = false;
     setSpeakingId(item.id);
-    // The name itself is what is being recited. The Arabic is spoken first in
-    // an Arabic voice, then the transliteration, and only then the meaning —
-    // previously the meaning dominated, which is a translation, not dhikr.
-    await speak(item.arabic, 'ar-SA');
-    if (cancelledRef.current) return;
-    await speak(item.name, 'ar-SA');
+    await playRecitation(item);
     if (cancelledRef.current) return;
     if (withMeaning) await speak(item.meaning, 'en-US');
     if (!cancelledRef.current) setSpeakingId(null);
@@ -83,9 +114,7 @@ export default function NamesOfAllahScreen() {
       listRef.current?.scrollToIndex({
         index: Math.floor((item.id - 1) / 3), animated: true, viewPosition: 0.4,
       });
-      await speak(item.arabic, 'ar-SA');
-      if (cancelledRef.current) break;
-      await speak(item.name, 'ar-SA');
+      await playRecitation(item);
       if (cancelledRef.current) break;
       if (withMeaning) await speak(item.meaning, 'en-US');
     }
@@ -126,7 +155,7 @@ export default function NamesOfAllahScreen() {
             <Ionicons
               name={playingAll ? 'stop' : 'play'}
               size={13}
-              color={playingAll ? '#000' : COLORS.gold}
+              color={playingAll ? '#000' : '#fff'}
             />
             <Text style={[styles.playAllText, playingAll && { color: '#000' }]}>
               {playingAll ? 'Stop' : 'Play all'}
@@ -141,7 +170,7 @@ export default function NamesOfAllahScreen() {
             <Ionicons
               name={withMeaning ? 'language' : 'language-outline'}
               size={13}
-              color={withMeaning ? '#000' : COLORS.textSecondary}
+              color={withMeaning ? '#000' : 'rgba(255,255,255,0.85)'}
             />
             <Text style={[styles.meaningBtnText, withMeaning && { color: '#000' }]}>
               Meaning
@@ -250,17 +279,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.glassBorder,
-    backgroundColor: COLORS.bgSecondary,
+    backgroundColor: COLORS.primary,
+    borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
   },
-  headerTitle: { color: COLORS.gold, fontSize: 22, fontWeight: '900' },
-  headerSub: { color: COLORS.textSecondary, fontSize: 13, marginTop: 2 },
+  headerTitle: { color: '#fff', fontSize: 22, fontWeight: '900' },
+  headerSub: { color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 2 },
   countBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: 'rgba(255, 68, 68,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.16)',
     borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4,
-    borderWidth: 1, borderColor: 'rgba(255, 68, 68,0.3)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
   },
   countText: { color: COLORS.red, fontWeight: '800', fontSize: 12 },
   detailCard: {
@@ -286,18 +314,18 @@ const styles = StyleSheet.create({
   },
   meaningBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    borderWidth: 1, borderColor: COLORS.glassBorder,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)', backgroundColor: 'rgba(255,255,255,0.16)',
     borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6,
   },
   meaningBtnActive: { backgroundColor: COLORS.cyan, borderColor: COLORS.cyan },
-  meaningBtnText: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '700' },
+  meaningBtnText: { color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: '700' },
   playAllBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    borderWidth: 1, borderColor: COLORS.gold + '66',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)', backgroundColor: 'rgba(255,255,255,0.16)',
     borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6,
   },
-  playAllBtnActive: { backgroundColor: COLORS.gold, borderColor: COLORS.gold },
-  playAllText: { color: COLORS.gold, fontSize: 12, fontWeight: '700' },
+  playAllBtnActive: { backgroundColor: '#fff', borderColor: '#fff' },
+  playAllText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   tilePlay: { position: 'absolute', bottom: 6, right: 6 },
   nameCardSpeaking: { borderColor: COLORS.emerald, borderWidth: 1.5 },
   nameCardActive: { borderColor: COLORS.gold, backgroundColor: 'rgba(255, 255, 255,0.08)' },

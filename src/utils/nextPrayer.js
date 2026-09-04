@@ -80,4 +80,47 @@ export async function getNextPrayer(now = new Date()) {
   };
 }
 
+/**
+ * All five prayers for today, each flagged as past/current/upcoming relative
+ * to `now`, for a Islam-360-style prayer strip. Reads the same cache as
+ * getNextPrayer() — never a second network caller.
+ *
+ * @returns {Promise<null | { city: string, prayers: Array<{
+ *   name: string, time: string, mins: number, isNext: boolean
+ * }> }>} null when nothing is cached yet.
+ */
+export async function getTodayTimings(now = new Date()) {
+  const city = (await AsyncStorage.getItem('qitab_prayer_city')) || DEFAULT_CITY;
+  const country = (await AsyncStorage.getItem('qitab_prayer_country')) || DEFAULT_COUNTRY;
+
+  const raw = await AsyncStorage.getItem(`qitab_timings_${city}_${country}`);
+  if (!raw) return null;
+
+  let timings;
+  try {
+    timings = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const schedule = PRAYER_ORDER
+    .map(name => ({ name, time: timings[name], mins: toMinutes(timings[name]) }))
+    .filter(p => p.mins !== null);
+  if (!schedule.length) return null;
+
+  const upcoming = schedule.find(p => p.mins > nowMins);
+  const nextName = (upcoming || schedule[0]).name;
+
+  return {
+    city,
+    prayers: schedule.map(p => ({
+      name: p.name,
+      time: to12Hour(p.time),
+      mins: p.mins,
+      isNext: p.name === nextName,
+    })),
+  };
+}
+
 export default getNextPrayer;

@@ -17,7 +17,7 @@ export default function SeerahScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
         {/* Header */}
         <View style={styles.headerCard}>
-          <Ionicons name="person" size={32} color={COLORS.gold} />
+          <Ionicons name="person" size={32} color="#fff" />
           <Text style={styles.headerTitle}>Seerah of Prophet Muhammad ﷺ</Text>
           <Text style={styles.headerSub}>
             {EVENTS.length} events across {SEERAH_PERIODS.length} periods of his life
@@ -81,10 +81,10 @@ const styles = StyleSheet.create({
   },
   headerCard: {
     margin: 16, padding: 24, borderRadius: 24, alignItems: 'center',
-    backgroundColor: COLORS.glass, borderWidth: 1, borderColor: COLORS.gold + '30',
+    backgroundColor: COLORS.primary,
   },
-  headerTitle: { color: COLORS.gold, fontSize: 20, fontWeight: '900', marginTop: 12, textAlign: 'center' },
-  headerSub: { color: COLORS.textSecondary, fontSize: 13, marginTop: 4, textAlign: 'center' },
+  headerTitle: { color: '#fff', fontSize: 20, fontWeight: '900', marginTop: 12, textAlign: 'center' },
+  headerSub: { color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 4, textAlign: 'center' },
   sectionTitle: { color: COLORS.gold, fontSize: 17, fontWeight: '800', marginBottom: 12 },
   eventCard: {
     flexDirection: 'row', gap: 14, marginBottom: 4,

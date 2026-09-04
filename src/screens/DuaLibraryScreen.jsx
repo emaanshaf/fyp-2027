@@ -226,7 +226,7 @@ export default function DuaLibraryScreen() {
     <SafeAreaView style={globalStyles.screen} edges={['bottom']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => setSelectedCat(null)}>
-          <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
+          <Ionicons name="arrow-back" size={22} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{cat?.name}</Text>
       </View>
@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, marginBottom: 8,
     backgroundColor: COLORS.glass, borderRadius: 16, borderWidth: 1, borderColor: COLORS.glassBorder,
   },
-  catIcon: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  catIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   catName: { color: COLORS.textPrimary, fontSize: 15, fontWeight: '800' },
   catInfo: { color: COLORS.textSecondary, fontSize: 11, marginTop: 2 },
   catProgress: { height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.06)', marginTop: 6, overflow: 'hidden' },
@@ -284,9 +284,10 @@ const styles = StyleSheet.create({
   personalTrans: { color: COLORS.textSecondary, fontSize: 12, marginTop: 4 },
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: COLORS.glassBorder, backgroundColor: COLORS.bgSecondary,
+    backgroundColor: COLORS.primary,
+    borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
   },
-  headerTitle: { color: COLORS.gold, fontSize: 18, fontWeight: '800' },
+  headerTitle: { color: '#fff', fontSize: 18, fontWeight: '800' },
   duaCard: {
     padding: 18, marginBottom: 10, borderRadius: 18, backgroundColor: COLORS.glass,
     borderWidth: 1, borderColor: COLORS.glassBorder,

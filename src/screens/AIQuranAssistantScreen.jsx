@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10,
   },
   sendBtn: {
-    width: 42, height: 42, borderRadius: 14, backgroundColor: COLORS.gold,
+    width: 42, height: 42, borderRadius: 21, backgroundColor: COLORS.gold,
     alignItems: 'center', justifyContent: 'center',
   },
 });
