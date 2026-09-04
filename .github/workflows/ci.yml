@@ -1,0 +1,139 @@
+# Continuous integration.
+#
+# Runs on every push and pull request. Deliberately needs no secrets: this is
+# the check that has to work on day one, before EXPO_TOKEN exists, before the
+# domain is registered, before anyone has an Apple or Google account. The
+# release workflow (eas-submit.yml) stays manual and is the only thing that
+# spends EAS build minutes.
+
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+# A new push to the same branch makes the in-flight run obsolete.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install app dependencies
+        run: npm ci
+
+      - name: Install API dependencies
+        working-directory: server
+        run: npm ci
+
+      # Errors fail the build; warnings do not. There are ~150 pre-existing
+      # warnings, and making them fatal would fail every run on debt that has
+      # nothing to do with the change under test. Tighten this deliberately,
+      # not by surprise.
+      - name: Lint
+        run: npm run lint
+
+      # Covers both jest projects: the Expo app and the Express API.
+      - name: Test
+        run: npm test -- --ci
+
+  bundle:
+    name: Bundle for ${{ matrix.platform }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [android, ios]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The unit tests import modules individually and mock freely, so they do
+      # not prove the app assembles. Exporting the bundle runs every module
+      # through the real Metro graph and catches the failures that only show up
+      # at launch: an unresolved import, a native module missing from the
+      # dependency list, a Babel plugin that moved between SDK versions.
+      - name: Export ${{ matrix.platform }} bundle
+        run: npx expo export --platform ${{ matrix.platform }} --output-dir dist-${{ matrix.platform }}
+
+      - name: Check the bundle is not empty
+        run: |
+          bytes=$(find dist-${{ matrix.platform }} -name '*.hbc' -o -name '*.js' \
+            | xargs --no-run-if-empty stat -c%s | awk '{s+=$1} END {print s+0}')
+          echo "bundle bytes: $bytes"
+          if [ "$bytes" -lt 1000000 ]; then
+            echo "::error::The ${{ matrix.platform }} bundle is only $bytes bytes."               "Something went wrong with the export."
+            exit 1
+          fi
+
+  api:
+    name: API boots and answers
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd server && npm ci
+
+      # Starting the server catches what unit tests cannot: a broken require
+      # chain, a config value that throws on load, a route that fails to mount.
+      # Development mode, so it runs on the file-backed store without Postgres.
+      - name: Start the API
+        run: |
+          node server/server.js &
+          echo $! > /tmp/api.pid
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:3001/api/health > /dev/null; then
+              echo "API up after ${i}s"; exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::The API did not answer /api/health within 30s."
+          exit 1
+
+      # The same script used to verify a real deployment, pointed at the
+      # instance this job just started.
+      - name: Verify the API
+        run: npm run verify:deploy -- http://127.0.0.1:3001/api
+
+      - name: Stop the API
+        if: always()
+        run: kill "$(cat /tmp/api.pid)" 2>/dev/null || true

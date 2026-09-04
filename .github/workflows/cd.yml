@@ -1,0 +1,138 @@
+# Continuous delivery.
+#
+# Two triggers, deliberately different in consequence:
+#
+#   push to main   -> an internal preview build, so main is always installable
+#   tag v*         -> a production build, and a store submission
+#
+# A store release is tied to a tag rather than to a branch on purpose: it makes
+# releasing an explicit, reviewable act with a name attached, and it means a
+# merge to main can never put something in front of users by accident.
+#
+# Everything here needs the EXPO_TOKEN repository secret. Without it the jobs
+# skip rather than fail, so this file is harmless until you are ready.
+
+name: CD
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+# Release builds increment a remote version counter, so two must never run at
+# once. Unlike CI, an in-flight run is allowed to finish.
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: Should this run
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - name: Check for EXPO_TOKEN
+        id: check
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -n "$EXPO_TOKEN" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::EXPO_TOKEN is not set, so delivery is skipped."               "Add it under Settings -> Secrets and variables -> Actions to enable"               "automatic builds."
+          fi
+
+  deliver:
+    name: ${{ startsWith(github.ref, 'refs/tags/v') && 'Production build and submit' || 'Preview build' }}
+    needs: gate
+    if: needs.gate.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd server && npm ci
+
+      # CI runs these too, but CD can be triggered on a commit CI has not
+      # finished checking, and a build costs real minutes. Cheaper to repeat
+      # them than to discover a failure after the build.
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test -- --ci
+
+      - name: Decide the profile
+        id: profile
+        run: |
+          if [ "${{ startsWith(github.ref, 'refs/tags/v') }}" = "true" ]; then
+            echo "name=production" >> "$GITHUB_OUTPUT"
+            echo "submit=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=preview" >> "$GITHUB_OUTPUT"
+            echo "submit=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # A production build bakes EXPO_PUBLIC_API_URL in permanently, so the
+      # backend it points at is checked before the build, not after. Preview
+      # builds only warn: pointing one at a backend that is not live yet is a
+      # legitimate thing to do.
+      - name: Verify the production backend
+        if: steps.profile.outputs.name == 'production'
+        run: |
+          api_url=$(node -e "
+            const j = require('./eas.json');
+            const resolve = (name, seen = new Set()) => {
+              if (!name || seen.has(name)) return {};
+              seen.add(name);
+              const p = j.build?.[name] || {};
+              return { ...resolve(p.extends, seen), ...(p.env || {}) };
+            };
+            process.stdout.write(resolve('production').EXPO_PUBLIC_API_URL || '');
+          ")
+          if [ -z "$api_url" ]; then
+            echo "::error::production has no EXPO_PUBLIC_API_URL in eas.json."
+            exit 1
+          fi
+          npm run verify:deploy -- "$api_url"
+
+      - name: Set up EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build
+        run: |
+          eas build --platform all --non-interactive --wait             --profile ${{ steps.profile.outputs.name }}
+
+      # Only ever reached from a tag. The first release of each app has to be
+      # uploaded to the stores by hand — Play rejects API submissions until a
+      # build exists in the console — so this will fail until that is done once.
+      - name: Submit to the stores
+        if: steps.profile.outputs.submit == 'true'
+        run: eas submit --platform all --non-interactive --latest
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### ${{ steps.profile.outputs.name }} build"
+            echo ""
+            echo "- ref: \`${{ github.ref_name }}\`"
+            echo "- commit: \`${{ github.sha }}\`"
+            echo "- submitted: ${{ steps.profile.outputs.submit }}"
+          } >> "$GITHUB_STEP_SUMMARY"
