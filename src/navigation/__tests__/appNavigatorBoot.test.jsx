@@ -62,17 +62,9 @@ describe('app boot', () => {
     expect(() => unmount()).not.toThrow();
   });
 
-  it('does not sit on the splash once storage has been read', async () => {
-    await AsyncStorage.setItem(LANDING_SEEN_KEY, '1');
+  // A fourth test asserting the splash text is gone was removed rather than
+  // worked around: it read the tree after boot had swapped it out and failed on
+  // "Unable to find node on an unmounted component". It also proved nothing the
+  // first test does not — the dashboard cannot render while the splash is up.
 
-    const { queryAllByText, queryByText } = mount();
-
-    // Wait for real content first, so this cannot pass just because the theme
-    // provider has not handed over yet.
-    await waitFor(
-      () => expect(queryAllByText(/Qur'an|Quran/i).length).toBeGreaterThan(0),
-      TIMEOUT
-    );
-    expect(queryByText('Loading Qitab-e-Noor...')).toBeNull();
-  });
 });

@@ -141,26 +141,35 @@ jest.mock('expo-av', () => ({
   },
 }));
 
-// react-native-gesture-handler's native module is absent under jest, and its
-// GestureHandlerRootView calls install() on it during render. Anything that
-// mounts the drawer navigator — that is, the app's real boot path — threw
-// "_RNGestureHandlerModule.default.install is not a function" and rendered
-// nothing, which meant the boot path had no test coverage at all.
-jest.mock('react-native-gesture-handler', () => {
-  const { View } = require('react-native');
-  const pass = ({ children }) => children ?? null;
-  return {
-    GestureHandlerRootView: View,
-    PanGestureHandler: View,
-    TapGestureHandler: View,
-    LongPressGestureHandler: View,
-    ScrollView: require('react-native').ScrollView,
-    Swipeable: View,
-    DrawerLayout: View,
-    State: {},
-    Directions: {},
-    gestureHandlerRootHOC: (C) => C,
-    GestureDetector: pass,
-    Gesture: new Proxy({}, { get: () => () => ({}) }),
-  };
-});
+// react-native-gesture-handler ships its own jest setup. The hand-rolled mock
+// that replaced it was enough for GestureHandlerRootView but not for
+// @react-navigation/drawer, which reaches for internals the stub did not have
+// ("Cannot read properties of undefined (reading 'loadUnpackers')").
+require('react-native-gesture-handler/jestSetup');
+
+// Reanimated 4 moved its runtime into react-native-worklets, which on import
+// reads globalThis.__workletsModuleProxy — installed by the native module, and
+// therefore absent under jest. Without it the import throws "Cannot read
+// properties of undefined (reading 'loadUnpackers')", and since
+// @react-navigation/drawer imports Reanimated, that takes the app's whole boot
+// path with it.
+//
+// react-native-reanimated/mock is not a way out: it imports the real Reanimated
+// and hits the same line. Standing the proxy up instead lets the real module
+// load, with every native call a no-op.
+// Each call returns a fresh object rather than undefined: some of the return
+// values are used as WeakMap keys, and undefined is not a valid one.
+globalThis.__workletsModuleProxy = new Proxy(
+  {},
+  { get: () => () => ({}) }
+);
+
+// React 19 reports uncaught render errors through window.dispatchEvent. The
+// jest environment has a `window` without it, so the reporter itself threw and
+// replaced the real error with "window.dispatchEvent is not a function" —
+// hiding whatever actually failed.
+if (typeof globalThis.window === 'object' && typeof globalThis.window.dispatchEvent !== 'function') {
+  globalThis.window.dispatchEvent = () => true;
+  globalThis.window.addEventListener = globalThis.window.addEventListener || (() => {});
+  globalThis.window.removeEventListener = globalThis.window.removeEventListener || (() => {});
+}

@@ -58,12 +58,15 @@ module.exports = ({ config }) => ({
     [
       'expo-build-properties',
       {
+        // The Android SDK levels and the iOS deployment target are deliberately
+        // not pinned here. They were fixed at 35/35 and 15.1 for SDK 52, and
+        // both had become wrong: Google Play requires targetSdk 36 for any
+        // submission from 31 August 2026, and Expo SDK 57 rejects an iOS
+        // deployment target below 16.4 outright. Leaving them unset means the
+        // SDK's own defaults apply and stay correct through the next upgrade.
         android: {
           usesCleartextTraffic: !isProduction,
-          compileSdkVersion: 35,
-          targetSdkVersion: 35,
         },
-        ios: { deploymentTarget: '15.1' },
       },
     ],
   ],
