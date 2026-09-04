@@ -7,24 +7,31 @@
 // one city and never responded to turning the phone.
 //
 // This version:
-//   - reads the real GPS position, with permission handling and a manual
-//     fallback when permission is refused;
-//   - subscribes to expo-location's heading stream, which reports TRUE north
-//     (declination already applied by the OS) rather than magnetic north;
-//   - degrades honestly where there is no compass (most browsers), showing the
-//     bearing as a number and a cardinal point instead of a dial that lies.
+//   - reads the real GPS position via useUserLocation, with permission
+//     handling, an explicit accuracy check, and a manual retry;
+//   - reads the device compass via useDeviceHeading, which prefers TRUE
+//     north (declination already applied by the OS) over magnetic, and
+//     smooths the raw sensor stream so the needle doesn't jitter or sweep
+//     the long way round the 0/360 seam — see that hook for the detailed
+//     true-vs-magnetic-north note;
+//   - degrades honestly where there is no compass (most browsers), showing
+//     the bearing as a number and a cardinal point instead of a dial that
+//     lies;
+//   - warns rather than pretends when either GPS or compass accuracy is
+//     poor, using platform-aware thresholds (see compassAccuracyLevel).
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Animated, Platform,
+  View, Text, TouchableOpacity, StyleSheet, Animated,
   ActivityIndicator, Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Line, Path, G, Text as SvgText } from 'react-native-svg';
-import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
 import { COLORS, globalStyles } from '../theme';
+import { useUserLocation } from '../hooks/useUserLocation';
+import { useDeviceHeading } from '../hooks/useDeviceHeading';
 import {
   qiblaBearing, distanceToKaaba, relativeAngle, compassPoint, alignment,
 } from '../utils/qibla';
@@ -97,68 +104,31 @@ function Dial({ heading, bearing, aligned }) {
 }
 
 export default function QiblaFinderScreen() {
-  const [coords, setCoords] = useState(null);
-  const [heading, setHeading] = useState(null);   // null = no compass available
-  const [accuracy, setAccuracy] = useState(null);
-  const [status, setStatus] = useState('locating'); // locating | ready | denied | error
-  const [message, setMessage] = useState(null);
+  const {
+    latitude, longitude, accuracy: gpsAccuracy, loading: locLoading,
+    error: locError, permissionStatus, isAccuracyPoor: isGpsAccuracyPoor, refresh: locate,
+  } = useUserLocation();
+  const {
+    heading, isTrueNorth, accuracyLevel: compassAccuracyLevel, available: compassAvailable,
+  } = useDeviceHeading();
 
   const wasAligned = useRef(false);
   const pulse = useRef(new Animated.Value(0)).current;
 
-  const bearing = coords ? qiblaBearing(coords.latitude, coords.longitude) : null;
-  const distance = coords ? distanceToKaaba(coords.latitude, coords.longitude) : null;
+  const hasFix = latitude !== null && longitude !== null;
+  const bearing = hasFix ? qiblaBearing(latitude, longitude) : null;
+  const distance = hasFix ? distanceToKaaba(latitude, longitude) : null;
+  // No compass reading yet, or none on this device: `heading` stays null and
+  // the UI falls back to a numeric bearing rather than a needle that lies.
   const offset = bearing !== null && heading !== null ? relativeAngle(bearing, heading) : null;
   const align = offset !== null ? alignment(offset) : null;
   const isAligned = align?.state === 'aligned';
 
-  const locate = useCallback(async () => {
-    setStatus('locating');
-    setMessage(null);
-    try {
-      const { status: perm } = await Location.requestForegroundPermissionsAsync();
-      if (perm !== 'granted') {
-        setStatus('denied');
-        setMessage('Location permission is needed to work out the Qibla from where you are.');
-        return;
-      }
-      const pos = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      setCoords(pos.coords);
-      setStatus('ready');
-    } catch (e) {
-      setStatus('error');
-      setMessage(e?.message || 'Could not read your location.');
-    }
-  }, []);
-
-  useEffect(() => { locate(); }, [locate]);
-
-  // Heading stream. `trueHeading` is corrected for magnetic declination by the
-  // OS; `magHeading` is the raw magnetic reading and is only used when the
-  // device cannot supply a true heading (trueHeading is -1 then).
-  useEffect(() => {
-    let sub = null;
-    let cancelled = false;
-
-    (async () => {
-      try {
-        sub = await Location.watchHeadingAsync(h => {
-          if (cancelled) return;
-          const deg = h.trueHeading >= 0 ? h.trueHeading : h.magHeading;
-          if (typeof deg === 'number' && deg >= 0) setHeading(deg);
-          if (typeof h.accuracy === 'number') setAccuracy(h.accuracy);
-        });
-      } catch {
-        // No compass (most browsers, some tablets). The bearing is still
-        // shown numerically — see the no-compass note below.
-        if (!cancelled) setHeading(null);
-      }
-    })();
-
-    return () => { cancelled = true; sub?.remove?.(); };
-  }, []);
+  // Do not calculate/show a Qibla direction until a valid location exists.
+  const status = locLoading ? 'locating'
+    : !hasFix && permissionStatus === 'denied' ? 'denied'
+    : !hasFix ? 'error'
+    : 'ready';
 
   // A short buzz the moment the user lines up, so the phone can be held at
   // prayer height without watching the screen.
@@ -195,7 +165,7 @@ export default function QiblaFinderScreen() {
           <Text style={styles.errTitle}>
             {status === 'denied' ? 'Location permission needed' : 'Could not find you'}
           </Text>
-          <Text style={styles.muted}>{message}</Text>
+          <Text style={styles.muted}>{locError}</Text>
           <TouchableOpacity
             onPress={locate}
             style={styles.retryBtn}
@@ -234,7 +204,7 @@ export default function QiblaFinderScreen() {
         </Animated.View>
 
         {/* Guidance */}
-        {heading === null ? (
+        {!compassAvailable ? (
           <View style={styles.noCompass}>
             <Ionicons name="information-circle-outline" size={16} color={COLORS.amber} />
             <Text style={styles.noCompassText}>
@@ -242,6 +212,11 @@ export default function QiblaFinderScreen() {
               are facing. The Qibla is {Math.round(bearing)}°
               {' '}({compassPoint(bearing)}) from true north.
             </Text>
+          </View>
+        ) : heading === null ? (
+          <View style={styles.noCompass}>
+            <ActivityIndicator color={COLORS.amber} size="small" />
+            <Text style={styles.noCompassText}>Reading the compass…</Text>
           </View>
         ) : (
           <View style={[styles.status, isAligned && { borderColor: COLORS.emerald }]}>
@@ -278,20 +253,49 @@ export default function QiblaFinderScreen() {
         </View>
 
         <Text style={styles.coords}>
-          {coords.latitude.toFixed(4)}°, {coords.longitude.toFixed(4)}°
-          {coords.accuracy ? `  ·  ±${Math.round(coords.accuracy)} m` : ''}
+          {latitude.toFixed(4)}°, {longitude.toFixed(4)}°
+          {gpsAccuracy ? `  ·  location accuracy ±${Math.round(gpsAccuracy)} m` : ''}
+          {compassAvailable && heading !== null
+            ? `  ·  ${isTrueNorth ? 'true' : 'magnetic'} north` : ''}
         </Text>
 
-        {/* Calibration matters more than the app admits on most devices. */}
-        {heading !== null && accuracy !== null && accuracy < 2 ? (
+        {/* GPS accuracy: the bearing itself is only as good as the fix it was
+            computed from. A loose fix is disclosed rather than presented as
+            precise. */}
+        {isGpsAccuracyPoor ? (
           <View style={styles.calibrate}>
-            <Ionicons name="sync-outline" size={14} color={COLORS.amber} />
+            <Ionicons name="location-outline" size={14} color={COLORS.amber} />
             <Text style={styles.calibrateText}>
-              Compass accuracy is low. Move the phone in a figure-of-eight, away
-              from metal and electronics.
+              Location accuracy is low (±{Math.round(gpsAccuracy)} m). Move
+              somewhere with a clearer view of the sky, or update your
+              location once the fix improves.
             </Text>
           </View>
         ) : null}
+
+        {/* Compass calibration. Low/unknown accuracy is disclosed rather than
+            silently trusted — a magnetometer can be thrown off by objects the
+            user is holding the phone near without realising it. */}
+        {compassAvailable && heading !== null && compassAccuracyLevel !== 'high' ? (
+          <View style={styles.calibrate}>
+            <Ionicons name="sync-outline" size={14} color={COLORS.amber} />
+            <Text style={styles.calibrateText}>
+              {compassAccuracyLevel === 'unknown'
+                ? "This device didn't report a compass accuracy — treat the direction as approximate. "
+                : 'Compass accuracy is low. '}
+              Move the phone in a figure-eight to calibrate, and keep it away
+              from magnets, metal, speakers, laptops, car interiors, and
+              magnetic phone cases — any of these can throw off the reading.
+              {!isTrueNorth
+                ? ' This device could not correct for magnetic declination, so the heading is relative to magnetic north, not true north — it may be off by several degrees from what the Qibla bearing assumes.'
+                : ''}
+            </Text>
+          </View>
+        ) : null}
+
+        {/* Calibration reduces error; it does not eliminate it — a phone
+            magnetometer is not a survey instrument, so this is never framed
+            as a guarantee even once accuracy reads "high". */}
 
         <TouchableOpacity
           onPress={locate}

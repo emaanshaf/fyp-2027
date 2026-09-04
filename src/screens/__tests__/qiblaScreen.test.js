@@ -77,4 +77,61 @@ describe('QiblaFinderScreen', () => {
     mount();
     await waitFor(() => expect(screen.getByText(/No compass on this device/)).toBeTruthy());
   });
+
+  it('warns when the GPS fix is loose instead of presenting it as precise', async () => {
+    Location.getCurrentPositionAsync.mockResolvedValue({
+      coords: { latitude: 51.5074, longitude: -0.1278, accuracy: 250 },
+    });
+    mount();
+    await waitFor(() => expect(screen.getByText(/Location accuracy is low/)).toBeTruthy());
+  });
+
+  it('does not warn about GPS accuracy on a tight fix', async () => {
+    Location.getCurrentPositionAsync.mockResolvedValue({
+      coords: { latitude: 51.5074, longitude: -0.1278, accuracy: 8 },
+    });
+    mount();
+    await waitFor(() => expect(screen.getAllByText(/119°/).length).toBeGreaterThan(0));
+    expect(screen.queryByText(/Location accuracy is low/)).toBeNull();
+  });
+
+  it('warns about compass calibration on a poor heading accuracy reading', async () => {
+    // jest-expo's default RN Platform is iOS, where the accuracy field is
+    // degrees of deviation and a large number means a poor fix.
+    Location.getCurrentPositionAsync.mockResolvedValue({
+      coords: { latitude: 51.5074, longitude: -0.1278 },
+    });
+    Location.watchHeadingAsync.mockImplementation(cb => {
+      cb({ trueHeading: 0, magHeading: 0, accuracy: 30 });
+      return Promise.resolve({ remove: jest.fn() });
+    });
+    mount();
+    await waitFor(() => expect(screen.getByText(/Compass accuracy is low/)).toBeTruthy());
+    expect(screen.getByText(/figure-eight/)).toBeTruthy();
+  });
+
+  it('does not warn about calibration on a high-accuracy heading', async () => {
+    Location.getCurrentPositionAsync.mockResolvedValue({
+      coords: { latitude: 51.5074, longitude: -0.1278 },
+    });
+    // The default beforeEach mock already reports accuracy: 3, which is
+    // "high" under both the iOS-degrees and Android-category readings.
+    mount();
+    await waitFor(() => expect(screen.getAllByText(/119°/).length).toBeGreaterThan(0));
+    expect(screen.queryByText(/Compass accuracy is low/)).toBeNull();
+  });
+
+  it('flags a magnetic-only heading as not corrected to true north', async () => {
+    Location.getCurrentPositionAsync.mockResolvedValue({
+      coords: { latitude: 51.5074, longitude: -0.1278 },
+    });
+    // trueHeading of -1 is expo-location's "not available" sentinel; only
+    // magHeading is valid.
+    Location.watchHeadingAsync.mockImplementation(cb => {
+      cb({ trueHeading: -1, magHeading: 10, accuracy: 30 });
+      return Promise.resolve({ remove: jest.fn() });
+    });
+    mount();
+    await waitFor(() => expect(screen.getByText(/could not correct for magnetic declination/)).toBeTruthy());
+  });
 });
