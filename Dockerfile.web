@@ -1,0 +1,44 @@
+# Container image for the Qitab-e-Noor web build.
+#
+# Same Expo/React Native codebase as the mobile app — react-native-web and
+# app.json's "web" platform entry are already in place, so this just exports
+# the web bundle and serves it as static files. Build context is the repo
+# root (the app and the web build share one package.json):
+#
+#   docker build -f Dockerfile.web -t qitabe-noor-web .
+#   docker run --rm -p 8080:8080 qitabe-noor-web
+#
+# EXPO_PUBLIC_* values are baked in at build time (Metro inlines them into the
+# bundle), so the API URL the web build talks to must be set as a build arg,
+# not a run-time env var.
+
+FROM node:20-alpine AS build
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+
+ARG EXPO_PUBLIC_API_URL=http://localhost:3001/api
+ENV EXPO_PUBLIC_API_URL=$EXPO_PUBLIC_API_URL
+
+RUN npx expo export --platform web --output-dir dist
+
+FROM node:20-alpine
+WORKDIR /app
+
+# `serve` is a small static file server — no need for a full nginx image.
+RUN npm install -g serve@14
+
+COPY --from=build /app/dist ./dist
+
+RUN chown -R node:node /app
+USER node
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "require('http').get('http://127.0.0.1:8080',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+
+CMD ["serve", "-s", "dist", "-l", "8080"]

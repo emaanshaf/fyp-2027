@@ -1,0 +1,29 @@
+# node_modules is reinstalled inside the image by `npm ci`. Copying the
+# host's would both bloat the context and ship binaries built for the wrong
+# platform.
+node_modules
+server/node_modules
+
+# Build output and native project dirs — the web build regenerates dist/, and
+# android/ios are irrelevant to a web or API image.
+dist
+web-build
+android
+ios
+.expo
+.expo-shared
+
+# Secrets. Containers take their configuration from the environment.
+.env
+.env.*
+!.env.example
+
+server/.data
+
+# Nothing here affects the built image.
+.git
+.github
+docs
+*.md
+npm-debug.log*
+.DS_Store
