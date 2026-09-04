@@ -19,6 +19,35 @@ export const lightTheme = {
     bg: '#FBFAF7',
     bgSecondary: '#F2F0EA',
     bgCard: '#FFFFFF',
+    // --- Semantic roles -----------------------------------------------------
+    // Same role names as the dark theme, so a component written against
+    // `primary` works in both without a conditional.
+    //
+    // On ivory the emerald can be deep: it carries the brand at full strength
+    // and clears AA against the background, so primaryTint is the same value.
+    primary: '#046C4E',
+    primaryPressed: '#03583F',
+    primaryTint: '#046C4E',
+    onPrimary: '#FFFFFF',
+
+    // Darker than the dark theme's gold: brass on ivory needs to descend a
+    // long way before it is readable rather than merely visible.
+    accent: '#8A6410',
+    accentMuted: 'rgba(138, 100, 16, 0.12)',
+
+    surface: '#F2F0EA',
+    surfaceRaised: '#FFFFFF',
+    border: 'rgba(22, 32, 46, 0.10)',
+    borderStrong: 'rgba(22, 32, 46, 0.20)',
+    textMuted: '#6B7A8C',
+
+    success: '#047857',
+    warning: '#92610A',
+    danger: '#B42318',
+    info: '#1D4ED8',
+
+    scrim: 'rgba(22, 32, 46, 0.45)',
+
     cardBackground: '#FFFFFF',
 
     // The same hues as the dark theme, dropped to 600-700 so they keep
@@ -52,9 +81,10 @@ export const lightTheme = {
   },
   buttons: {
     primary: {
-      backgroundColor: '#9A6F14',
+      // Deep emerald, matching the dark theme. Gold is reserved for emphasis.
+      backgroundColor: '#046C4E',
       textColor: '#FFFFFF',
-      borderColor: '#9A6F14',
+      borderColor: '#046C4E',
       borderWidth: 0,
       pressedOpacity: 0.85,
       disabledOpacity: 0.4,

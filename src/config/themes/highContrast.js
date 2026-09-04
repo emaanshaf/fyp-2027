@@ -17,6 +17,31 @@ export const highContrastTheme = {
     bg: '#000000',
     bgSecondary: '#141414',
     bgCard: '#0A0A0A',
+    // --- Semantic roles -----------------------------------------------------
+    // High contrast trades subtlety for legibility on purpose: surfaces are
+    // near-black, borders are solid white rather than translucent, and every
+    // role is pushed to the edge of its hue.
+    primary: '#00E676',
+    primaryPressed: '#00C853',
+    primaryTint: '#00E676',
+    onPrimary: '#000000',
+
+    accent: '#FFD400',
+    accentMuted: 'rgba(255, 212, 0, 0.22)',
+
+    surface: '#141414',
+    surfaceRaised: '#0A0A0A',
+    border: '#FFFFFF',
+    borderStrong: '#FFFFFF',
+    textMuted: '#D4D4D4',
+
+    success: '#00E676',
+    warning: '#FFD400',
+    danger: '#FF5252',
+    info: '#40C4FF',
+
+    scrim: 'rgba(0, 0, 0, 0.85)',
+
     cardBackground: '#0A0A0A',
 
     // Pure, maximally separated hues — chosen so they remain distinct under

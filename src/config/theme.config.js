@@ -14,7 +14,16 @@ export const baseTypography = {
     regular: 'System',
     medium: 'System',
     bold: 'System',
-    arabic: 'Jameel Noori Naskh',
+    // Quranic Arabic and Urdu are set apart from the Latin stack on purpose:
+    // the system font renders Arabic legibly but not beautifully, and it makes
+    // no distinction between Uthmani script and running Urdu text.
+    //
+    // Every entry falls back to the system font, so an unbundled face degrades
+    // to something readable rather than to a row of boxes. Bundling a real
+    // Uthmani face is a follow-up; the token is the thing screens depend on.
+    quran: 'KFGQPC Uthmanic Script HAFS, Scheherazade New, System',
+    arabic: 'Scheherazade New, Jameel Noori Naskh, System',
+    urdu: 'Jameel Noori Naskh, Noto Nastaliq Urdu, System',
   },
   fontSize: {
     xs: 10,
@@ -41,6 +50,26 @@ export const baseTypography = {
     tight: -0.5,
     normal: 0,
     wide: 1,
+  },
+
+  // Arabic scripts need more vertical room than Latin at the same point size:
+  // the diacritics in Uthmani script sit above and below the baseline, and at
+  // normal line height they collide. These are the sizes the Quran reader
+  // steps through, so a font-size control moves between named steps rather
+  // than nudging an arbitrary number.
+  quran: {
+    sizes: [22, 26, 30, 34, 40],
+    defaultSizeIndex: 1,
+    lineHeightRatio: 2.0,
+  },
+  translation: {
+    sizes: [14, 15, 16, 18, 20],
+    defaultSizeIndex: 1,
+    lineHeightRatio: 1.6,
+  },
+  urdu: {
+    // Nastaliq descends far below the baseline and needs more room again.
+    lineHeightRatio: 2.2,
   },
 };
 
