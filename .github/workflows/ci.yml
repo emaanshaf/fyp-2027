@@ -137,3 +137,84 @@ jobs:
       - name: Stop the API
         if: always()
         run: kill "$(cat /tmp/api.pid)" 2>/dev/null || true
+
+  docker:
+    name: API image builds and runs
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # The image sets NODE_ENV=production, and production refuses to start
+    # without a reachable database rather than falling back to the file store.
+    # So the smoke test needs a real Postgres — which also exercises the
+    # DATABASE_URL and TLS handling that the fallback path never touches.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: ci
+          POSTGRES_USER: ci
+          POSTGRES_DB: qitabe_noor
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Builds without pushing. Runs on pull requests and on branches where no
+      # registry credentials should be in play, and it is the only thing that
+      # proves server/Dockerfile still builds — otherwise a broken Dockerfile
+      # is not discovered until someone is trying to cut a release.
+      - name: Build the API image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./server
+          file: ./server/Dockerfile
+          push: false
+          load: true
+          tags: qitabe-noor-api:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create the schema
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/qitabe_noor
+          PGSSLMODE: disable
+        run: |
+          cd server && npm ci && npm run migrate
+
+      # Building cleanly and starting cleanly are different things. Run it the
+      # way a host would, in production mode, and wait for the health endpoint.
+      - name: Run the image and check it serves
+        run: |
+          docker run -d --name api-ci --network host             -e NODE_ENV=production             -e PORT=3001             -e DATABASE_URL=postgresql://ci:ci@localhost:5432/qitabe_noor             -e PGSSLMODE=disable             -e JWT_SECRET=ci-only-secret-that-is-at-least-32-characters-long             -e CORS_ORIGIN=https://example.test             qitabe-noor-api:ci
+
+          for i in $(seq 1 40); do
+            if curl -sf http://127.0.0.1:3001/api/health > /dev/null; then
+              echo "container healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::The container never answered /api/health. Logs:"
+          docker logs api-ci
+          exit 1
+
+      # The same script used to verify a real deployment, against the container.
+      - name: Verify the running container
+        run: npm ci && npm run verify:deploy -- http://127.0.0.1:3001/api
+
+      - name: Container logs
+        if: always()
+        run: docker logs api-ci 2>&1 | tail -30 || true
+
+      - name: Stop the container
+        if: always()
+        run: docker rm -f api-ci 2>/dev/null || true
