@@ -126,6 +126,25 @@ export const preferences = {
     return cache;
   },
 
+  /**
+   * Re-read from storage after something outside this service wrote the
+   * underlying key — notably a restored backup. Notifies subscribers so live
+   * screens update, but does not write or sync, because the stored values are
+   * already the source of truth.
+   */
+  async reload() {
+    cache = null;
+    const next = await this.all();
+    listeners.forEach(fn => {
+      try {
+        fn(next);
+      } catch (e) {
+        console.warn('Preference listener failed:', e);
+      }
+    });
+    return next;
+  },
+
   /** Test seam — forces the next read to hit storage. */
   _clearCache() {
     cache = null;

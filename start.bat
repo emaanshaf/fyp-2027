@@ -6,32 +6,32 @@ echo.
 
 :: Kill existing processes
 echo [1/4] Stopping existing services...
-taskkill /F /IM node.exe >nul 2>&1
-timeout /t 2 >nul
+taskkill /F /IM node.exe
+timeout /t 2
 
 :: Start backend
 echo [2/4] Starting Backend API (port 3001)...
 cd /d "%~dp0server"
-start /B node server.js > backend.log 2>&1
-timeout /t 3 >nul
+start "" node server.js
+timeout /t 3
 
 :: Start frontend
 echo [3/4] Starting Frontend Web App (port 8081)...
 cd /d "%~dp0"
-start /B npx expo start --web --port 8081 > frontend.log 2>&1
-timeout /t 20 >nul
+start "" npx expo start --web --port 8081
+timeout /t 20
 
 :: Verify
 echo [4/4] Verifying services...
 echo.
-curl -s http://localhost:3001/api/health >nul 2>&1
+curl -s http://localhost:3001/api/health
 if %errorlevel%==0 (
     echo   Backend API:   RUNNING  http://localhost:3001
 ) else (
     echo   Backend API:   FAILED
 )
 
-curl -s http://localhost:8081 >nul 2>&1
+curl -s http://localhost:8081
 if %errorlevel%==0 (
     echo   Frontend Web:  RUNNING  http://localhost:8081
 ) else (

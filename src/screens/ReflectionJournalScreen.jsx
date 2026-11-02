@@ -5,7 +5,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
+import { backend } from '../services/backend';
+export default function ReflectionJournalScreen() {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
 
 const MOODS = [
   { id: 'grateful', label: 'Grateful', icon: 'heart', color: COLORS.gold },
@@ -15,9 +21,9 @@ const MOODS = [
   { id: 'challenged', label: 'Challenged', icon: 'fitness', color: COLORS.red },
 ];
 
-export default function ReflectionJournalScreen() {
   const [entries, setEntries] = useState([]);
   const [showAdd, setShowAdd] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [surah, setSurah] = useState('');
   const [ayah, setAyah] = useState('');
   const [reflection, setReflection] = useState('');
@@ -26,31 +32,71 @@ export default function ReflectionJournalScreen() {
   useEffect(() => { loadEntries(); }, []);
 
   const loadEntries = async () => {
+    try {
+      const { entries: remoteEntries } = await backend.getJournalEntries();
+      if (remoteEntries) {
+        const mapped = remoteEntries.map(e => ({
+          id: e.id, surah: e.surah?.toString(), ayah: e.ayah?.toString(),
+          reflection: e.reflection, mood: e.mood, date: e.created_at
+        }));
+        setEntries(mapped);
+        await AsyncStorage.setItem('reflection_journal', JSON.stringify(mapped));
+        return;
+      }
+    } catch { /* offline - fallback to local */ }
     const raw = await AsyncStorage.getItem('reflection_journal');
     if (raw) setEntries(JSON.parse(raw));
   };
 
-  const addEntry = async () => {
+  const saveEntry = async () => {
     if (!reflection.trim()) return;
-    const entry = {
-      id: Date.now().toString(),
-      surah: surah || '1',
-      ayah: ayah || '1',
-      reflection: reflection.trim(),
-      mood: selectedMood,
-      date: new Date().toISOString(),
-    };
-    const updated = [entry, ...entries];
-    setEntries(updated);
-    await AsyncStorage.setItem('reflection_journal', JSON.stringify(updated));
-    setSurah(''); setAyah(''); setReflection(''); setSelectedMood(null);
+    
+    if (editingId) {
+      // Edit existing
+      const updated = entries.map(e => {
+        if (e.id === editingId) {
+          return { ...e, surah, ayah, reflection: reflection.trim(), mood: selectedMood };
+        }
+        return e;
+      });
+      setEntries(updated);
+      await AsyncStorage.setItem('reflection_journal', JSON.stringify(updated));
+      backend.updateJournalEntry(editingId, { surah, ayah, reflection: reflection.trim(), mood: selectedMood }).catch(() => {});
+    } else {
+      // Add new
+      const entry = {
+        id: Date.now().toString(),
+        surah: surah || '1',
+        ayah: ayah || '1',
+        reflection: reflection.trim(),
+        mood: selectedMood,
+        date: new Date().toISOString(),
+      };
+      const updated = [entry, ...entries];
+      setEntries(updated);
+      await AsyncStorage.setItem('reflection_journal', JSON.stringify(updated));
+      backend.addJournalEntry({ surah: entry.surah, ayah: entry.ayah, reflection: entry.reflection, mood: entry.mood }).catch(() => {});
+      loadEntries();
+    }
+    
+    setSurah(''); setAyah(''); setReflection(''); setSelectedMood(null); setEditingId(null);
     setShowAdd(false);
+  };
+
+  const editEntry = (entry) => {
+    setEditingId(entry.id);
+    setSurah(entry.surah || '');
+    setAyah(entry.ayah || '');
+    setReflection(entry.reflection);
+    setSelectedMood(entry.mood);
+    setShowAdd(true);
   };
 
   const deleteEntry = async (id) => {
     const updated = entries.filter(e => e.id !== id);
     setEntries(updated);
     await AsyncStorage.setItem('reflection_journal', JSON.stringify(updated));
+    backend.deleteJournalEntry(id).catch(() => {});
   };
 
   const getMood = (id) => MOODS.find(m => m.id === id);
@@ -95,9 +141,14 @@ export default function ReflectionJournalScreen() {
                 <Text style={styles.entryDate}>
                   {new Date(entry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </Text>
-                <TouchableOpacity onPress={() => deleteEntry(entry.id)}>
-                  <Ionicons name="trash-outline" size={14} color={COLORS.red} />
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 16 }}>
+                  <TouchableOpacity onPress={() => editEntry(entry)}>
+                    <Ionicons name="pencil-outline" size={16} color={COLORS.gold} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => deleteEntry(entry.id)}>
+                    <Ionicons name="trash-outline" size={16} color={COLORS.red} />
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           );
@@ -139,8 +190,8 @@ export default function ReflectionJournalScreen() {
                 </TouchableOpacity>
               ))}
             </View>
-            <TouchableOpacity style={styles.saveBtn} onPress={addEntry}>
-              <Text style={{ color: '#000', fontWeight: '800' }}>Save Reflection</Text>
+            <TouchableOpacity style={styles.saveBtn} onPress={saveEntry}>
+              <Text style={{ color: '#000', fontWeight: '800' }}>{editingId ? 'Update Reflection' : 'Save Reflection'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -149,7 +200,7 @@ export default function ReflectionJournalScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   headerCard: {
     padding: 24, borderRadius: 24, alignItems: 'center', marginBottom: 16,
     backgroundColor: COLORS.primary,

@@ -1,23 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView, Share, Animated
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, Animated
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { COLORS, globalStyles } from '../theme';
-import { shareVerse } from '../config/appConfig';
-
-const INTEREST_CATEGORIES = [
-  { id: 'anxiety', label: 'Anxiety & Worry', icon: 'shield-outline', color: COLORS.blue },
-  { id: 'patience', label: 'Patience', icon: 'hourglass-outline', color: COLORS.emerald },
-  { id: 'gratitude', label: 'Gratitude', icon: 'heart-outline', color: COLORS.gold },
-  { id: 'forgiveness', label: 'Forgiveness', icon: 'water-outline', color: COLORS.purple },
-  { id: 'love', label: 'Love & Mercy', icon: 'heart-circle-outline', color: COLORS.pink },
-  { id: 'strength', label: 'Strength', icon: 'flash-outline', color: COLORS.amber },
-  { id: 'hope', label: 'Hope', icon: 'sunny-outline', color: COLORS.cyan },
-  { id: 'death', label: 'Afterlife', icon: 'skull-outline', color: COLORS.red },
-];
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
+import { shareVerse as verseShareUrl } from '../config/appConfig';
+import { useShare } from '../context/ShareContext';
 
 const VERSES_BY_TOPIC = {
   anxiety: [
@@ -57,8 +47,24 @@ const VERSES_BY_TOPIC = {
     { verse: '3:185', arabic: 'كُلُّ نَفْسٍ ذَآئِقَةُ ٱلْمَوْتِ', translation: 'Every soul will taste death.', meaning: 'Death is not an end, but a return to our Creator.' },
   ],
 };
-
 export default function AyahOfDayScreen() {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+  const { share } = useShare();
+
+const INTEREST_CATEGORIES = [
+  { id: 'anxiety', label: 'Anxiety & Worry', icon: 'shield-outline', color: COLORS.blue },
+  { id: 'patience', label: 'Patience', icon: 'hourglass-outline', color: COLORS.emerald },
+  { id: 'gratitude', label: 'Gratitude', icon: 'heart-outline', color: COLORS.gold },
+  { id: 'forgiveness', label: 'Forgiveness', icon: 'water-outline', color: COLORS.purple },
+  { id: 'love', label: 'Love & Mercy', icon: 'heart-circle-outline', color: COLORS.pink },
+  { id: 'strength', label: 'Strength', icon: 'flash-outline', color: COLORS.amber },
+  { id: 'hope', label: 'Hope', icon: 'sunny-outline', color: COLORS.cyan },
+  { id: 'death', label: 'Afterlife', icon: 'skull-outline', color: COLORS.red },
+];
+
   const [selectedInterests, setSelectedInterests] = useState(['anxiety', 'patience']);
   const [currentVerse, setCurrentVerse] = useState(null);
   const [history, setHistory] = useState([]);
@@ -97,11 +103,11 @@ export default function AyahOfDayScreen() {
 
   const shareVerse = async () => {
     if (!currentVerse) return;
-    try {
-      await Share.share({
-        message: `${currentVerse.arabic}\n\n${currentVerse.translation}\n\n💡 ${currentVerse.meaning}\n\n— Ayah of the Day | Qitab-e-Noor\nhttps://qitabe-noor.app/quran/${currentVerse.verse}`,
-      });
-    } catch {}
+    share({
+      title: 'Ayah of the Day',
+      message: `${currentVerse.arabic}\n\n${currentVerse.translation}\n\n💡 ${currentVerse.meaning}\n\n— Ayah of the Day`,
+      url: verseShareUrl(currentVerse.verse),
+    });
   };
 
   return (
@@ -185,7 +191,7 @@ export default function AyahOfDayScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   verseCard: {
     margin: 16, borderRadius: 24, overflow: 'hidden',
     backgroundColor: COLORS.glass, borderWidth: 1, borderColor: COLORS.gold + '30',
@@ -199,8 +205,8 @@ const styles = StyleSheet.create({
   },
   verseLabelText: { color: COLORS.gold, fontSize: 10, fontWeight: '900', letterSpacing: 1.5 },
   arabicText: {
-    color: COLORS.gold, fontSize: 26, lineHeight: 42, textAlign: 'right',
-    writingDirection: 'rtl', marginBottom: 16,
+    color: COLORS.gold, fontSize: 28, lineHeight: 50, textAlign: 'right',
+    writingDirection: 'rtl', marginBottom: 16, fontFamily: 'AmiriQuran',
   },
   translationText: {
     color: COLORS.textPrimary, fontSize: 17, lineHeight: 26, fontWeight: '600', fontStyle: 'italic',

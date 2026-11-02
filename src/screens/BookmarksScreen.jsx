@@ -7,10 +7,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getItem, setItem } from '../firebase/syncedStorage';
 import { useFocusEffect } from '@react-navigation/native';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 import { DUA_TITLES } from '../data/duas';
 import { backend } from '../services/backend';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { hasAuthToken } from '../services/authToken';
 import {
   seedLibraryIfEmpty, removeLibrarySamples, isSample,
 } from '../data/librarySamples';
@@ -24,21 +24,23 @@ const TABS = [
   { id: 'notes', label: 'Notes', icon: 'document-text-outline' },
 ];
 
-const TYPE_COLORS = { quran: COLORS.gold, hadith: COLORS.emerald, duas: '#ff4444', notes: '#ffffff' };
 const TYPE_ICONS = { quran: 'book-outline', hadith: 'shield-checkmark-outline', duas: 'heart-outline', notes: 'document-text-outline' };
 
 export default function BookmarksScreen() {
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+
+  const TYPE_COLORS = { quran: COLORS.gold, hadith: COLORS.emerald, duas: '#ff4444', notes: '#ffffff' };
+
   const [activeTab, setActiveTab] = useState('all');
   const [search, setSearch] = useState('');
   const [items, setItems] = useState([]);
-
   const [seeded, setSeeded] = useState(null);
 
   useFocusEffect(
     useCallback(() => {
       (async () => {
-        // A brand-new library is empty, which shows nothing of what the screen
-        // is for. Seed real starter content once — never over the user's own.
         await seedLibraryIfEmpty({ getItem, setItem });
         const raw = await getItem('qitab_library_samples');
         setSeeded(raw ? JSON.parse(raw) : null);
@@ -55,7 +57,7 @@ export default function BookmarksScreen() {
 
   const loadAll = async () => {
     try {
-      const hasToken = await AsyncStorage.getItem('qitab_auth_token');
+      const hasToken = await hasAuthToken();
 
       // Try backend API first
       if (hasToken) {
@@ -176,7 +178,7 @@ export default function BookmarksScreen() {
       {
         text: 'Remove', style: 'destructive',
         onPress: async () => {
-          const hasToken = await AsyncStorage.getItem('qitab_auth_token');
+          const hasToken = await hasAuthToken();
 
           // Try backend API first
           if (hasToken && item.backendId) {
@@ -335,7 +337,7 @@ export default function BookmarksScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   sampleBar: {
     flexDirection: 'row', alignItems: 'center', gap: 9,
     marginHorizontal: 12, marginBottom: 8, padding: 10, borderRadius: 10,
@@ -407,3 +409,4 @@ const styles = StyleSheet.create({
   cardTitle: { color: COLORS.textPrimary, fontWeight: '800', fontSize: 15, marginTop: 10, marginBottom: 6 },
   cardSubtitle: { color: COLORS.textSecondary, fontSize: 13, lineHeight: 20 },
 });
+

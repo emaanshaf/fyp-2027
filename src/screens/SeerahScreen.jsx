@@ -2,14 +2,17 @@ import React, { useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 import { SEERAH_EVENTS, SEERAH_PERIODS } from '../data/seerah';
+export default function SeerahScreen() {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
 
 // The dataset stores colour token names so the timeline follows the theme.
 const EVENTS = SEERAH_EVENTS.map(e => ({ ...e, color: COLORS[e.color] || COLORS.gold }));
 
-
-export default function SeerahScreen() {
   const [selected, setSelected] = useState(null);
 
   return (
@@ -73,7 +76,7 @@ export default function SeerahScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   periodLabel: {
     color: COLORS.gold, fontSize: 11, fontWeight: '800',
     textTransform: 'uppercase', letterSpacing: 1.2,

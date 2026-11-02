@@ -1,23 +1,48 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 import { PROPHETS as PROPHET_DATA } from '../data/prophets';
+export default function ProphetsStoriesScreen({ route }) {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
 
 // The dataset stores colour names; resolve them against the active theme.
 const PROPHETS = PROPHET_DATA.map(p => ({ ...p, color: COLORS[p.color] || COLORS.gold }));
 
-
-export default function ProphetsStoriesScreen() {
   const [selected, setSelected] = useState(null);
+  const listRef = useRef(null);
+
+  // Search hits pass `{ id }`; expand that prophet and bring the card into
+  // view instead of leaving the user at the top of a long list.
+  useEffect(() => {
+    const id = route?.params?.id;
+    if (!id) return undefined;
+    const index = PROPHETS.findIndex(p => String(p.id) === String(id));
+    if (index < 0) return undefined;
+    setSelected(PROPHETS[index].id);
+    const timer = setTimeout(() => {
+      listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.1 });
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [route?.params?.id]);
 
   return (
     <SafeAreaView style={globalStyles.screen} edges={['bottom']}>
       <FlatList
+        ref={listRef}
         data={PROPHETS}
         keyExtractor={p => p.id}
         contentContainerStyle={{ padding: 12, paddingBottom: 32 }}
+        onScrollToIndexFailed={info => {
+          listRef.current?.scrollToOffset({
+            offset: info.averageItemLength * info.index,
+            animated: true,
+          });
+        }}
         ListHeaderComponent={() => (
           <View style={styles.headerCard}>
             <Ionicons name="people" size={32} color="#fff" />
@@ -52,7 +77,7 @@ export default function ProphetsStoriesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   headerCard: {
     padding: 24, borderRadius: 24, alignItems: 'center', marginBottom: 16,
     backgroundColor: COLORS.primary, borderWidth: 1, borderColor: COLORS.primary,

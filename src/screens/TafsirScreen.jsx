@@ -1,29 +1,32 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, ScrollView,
-  ActivityIndicator, TextInput, Share, Modal
+  ActivityIndicator, TextInput, Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 import { quranService, TRANSLATIONS as QURAN_TRANSLATIONS } from '../services/quranApi';
 import { fetchTafsir, sourcesForLanguage, htmlToText } from '../services/tafsirApi';
 import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePreferences } from '../hooks/usePreferences';
+import { useShare } from '../context/ShareContext';
+import { buildPath } from '../config/routes';
 
 const TRANSLATIONS = Object.fromEntries(
   Object.entries(QURAN_TRANSLATIONS).map(([lang, t]) => [lang, t.id])
 );
 
-// Colours cycle per source so the picker stays readable however many
-// commentaries the selected language offers.
-const SOURCE_COLORS = [COLORS.gold, COLORS.emerald, COLORS.cyan, COLORS.purple];
-
 // Sentinel for "fetched, but this commentary genuinely isn't available".
 const UNAVAILABLE = '__UNAVAILABLE__';
-
 export default function TafsirScreen({ navigation }) {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+  const { share } = useShare();
+
   const [surahs, setSurahs] = useState([]);
   const [selectedSurah, setSelectedSurah] = useState(null);
   const [verses, setVerses] = useState([]);
@@ -47,8 +50,11 @@ export default function TafsirScreen({ navigation }) {
   const sources = useMemo(() => {
     const forLang = sourcesForLanguage(language);
     const list = forLang.length ? forLang : sourcesForLanguage('en');
-    return list.map((s, i) => ({ ...s, color: SOURCE_COLORS[i % SOURCE_COLORS.length] }));
-  }, [language]);
+    // Colours cycle per source so the picker stays readable however many
+    // commentaries the selected language offers.
+    const palette = [COLORS.gold, COLORS.emerald, COLORS.cyan, COLORS.purple];
+    return list.map((s, i) => ({ ...s, color: palette[i % palette.length] }));
+  }, [language, COLORS]);
 
   useEffect(() => { loadSurahs(); }, []);
 
@@ -176,14 +182,18 @@ export default function TafsirScreen({ navigation }) {
     }
   };
 
-  const shareTafsir = async (verseKey) => {
-    const t = tafsirTexts[`${verseKey}_${selectedTafsir}`];
-    if (!t || t === UNAVAILABLE) return;
-    const text = `--- ${activeSource?.name} ---\n${t}`;
-    try { await Share.share({ message: `${verseKey}\n\n${text}\n\n— Tafsir | Qitab-e-Noor` }); } catch {}
-  };
-
   const activeSource = sources.find(s => s.key === selectedTafsir);
+
+  const shareTafsir = async (verseKey) => {
+    const body = tafsirTexts[`${verseKey}_${selectedTafsir}`];
+    if (!body || body === UNAVAILABLE) return;
+    const [surah, ayah] = String(verseKey).split(':').map(Number);
+    await share({
+      title: `${activeSource?.name || 'Tafsir'} · ${verseKey}`,
+      message: `${verseKey}\n\n--- ${activeSource?.name || 'Tafsir'} ---\n${body}`,
+      url: buildPath('Tafsir', { surah, ayah }),
+    });
+  };
 
   const filteredSurahs = surahs.filter(s =>
     !search || s.name_simple?.toLowerCase().includes(search.toLowerCase()) ||
@@ -396,7 +406,7 @@ export default function TafsirScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   langPicker: {
     flexDirection: 'row', flexWrap: 'wrap', gap: 6,
     paddingHorizontal: 12, paddingBottom: 8,
@@ -483,8 +493,9 @@ const styles = StyleSheet.create({
   },
   verseNumText: { color: COLORS.gold, fontWeight: '800', fontSize: 11 },
   arabicText: {
-    color: COLORS.textPrimary, fontSize: 22, marginTop: 12, textAlign: 'right',
-    lineHeight: 36, writingDirection: 'rtl',
+    fontFamily: 'AmiriQuran',
+    color: COLORS.textPrimary, fontSize: 26, marginTop: 12, textAlign: 'right',
+    lineHeight: 48, writingDirection: 'rtl',
   },
   translationText: {
     color: COLORS.textSecondary, fontSize: 13, marginTop: 8, lineHeight: 20,

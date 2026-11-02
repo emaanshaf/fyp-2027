@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 import {
   getHijriDate, resolveHijriDate, HIJRI_MONTHS, HIJRI_MONTHS_AR,
   formatHijriArabic,
@@ -29,6 +29,11 @@ const IMPORTANT_DAYS = [
 
 
 export default function IslamicCalendarScreen() {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+
   // Start from the arithmetic date so the screen paints immediately, then
   // replace it with the Umm al-Qura date once that resolves. The arithmetic
   // value can be a day out, so `approximate` drives a visible caveat.
@@ -209,7 +214,7 @@ export default function IslamicCalendarScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   dateCard: {
     margin: 16, borderRadius: 24, overflow: 'hidden',
     backgroundColor: COLORS.glass,

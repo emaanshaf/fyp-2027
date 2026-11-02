@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const { query } = require('../config/database');
 const { jwtSecret, jwtExpiresIn } = require('../config/env');
+const { sendPasswordResetEmail } = require('../config/email');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
 const { authLimiter } = require('../middleware/security');
@@ -129,6 +130,40 @@ router.put('/me', authenticate, [
       [name, req.userId]
     );
     res.json({ user: publicUser(result.rows[0]) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Delete your own account. App Store and Play Store rules require an in-app
+// deletion path for apps with account creation. The password is re-checked
+// here deliberately: a stolen session token must not be enough to destroy an
+// account. All user-owned rows cascade from the users table.
+router.delete('/me', authenticate, authLimiter, [
+  body('password')
+    .isString().withMessage('Password is required')
+    .isLength({ min: 1, max: 200 }).withMessage('Password is required'),
+], validate, async (req, res, next) => {
+  try {
+    const result = await query(
+      'SELECT id, password_hash FROM users WHERE id = $1',
+      [req.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const valid = await bcrypt.compare(req.body.password, result.rows[0].password_hash);
+    if (!valid) {
+      return res.status(401).json({
+        error: 'Password is incorrect',
+        reason: 'bad_password',
+      });
+    }
+
+    await query('DELETE FROM users WHERE id = $1', [req.userId]);
+    return res.json({ deleted: true });
   } catch (err) {
     next(err);
   }
@@ -292,6 +327,17 @@ router.get('/access/:module', authenticate, async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// Register push token
+router.post('/push-token', authenticate, [
+  body('token').notEmpty().withMessage('Token required'),
+], validate, async (req, res, next) => {
+  try {
+    const { token } = req.body;
+    await query('UPDATE users SET push_token=$1 WHERE id=$2', [token, req.userId]);
+    res.json({ registered: true });
+  } catch (err) { next(err); }
 });
 
 module.exports = router;

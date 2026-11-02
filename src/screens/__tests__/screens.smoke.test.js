@@ -3,6 +3,7 @@ import { render, waitFor } from '@testing-library/react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ThemeProvider } from '../../theme';
+import { AppLockProvider } from '../../context/AppLockContext';
 import { SCREENS } from '../../navigation/screenRegistry';
 import { MODULES } from '../../config/routes';
 
@@ -28,11 +29,13 @@ const Stack = createNativeStackNavigator();
 function mountScreen(Screen) {
   return render(
     <ThemeProvider>
-      <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="Test" component={Screen} initialParams={{}} />
-        </Stack.Navigator>
-      </NavigationContainer>
+      <AppLockProvider>
+        <NavigationContainer>
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Test" component={Screen} initialParams={{}} />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </AppLockProvider>
     </ThemeProvider>
   );
 }

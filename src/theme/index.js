@@ -24,6 +24,8 @@ export {
   useNavigation,
   useScreens,
   useComponents,
+  useGlobalStyles,
+  useThemedStyles,
   useThemeValue,
   useThemeName,
   useSetTheme,

@@ -16,14 +16,12 @@ export const baseTypography = {
     bold: 'System',
     // Quranic Arabic and Urdu are set apart from the Latin stack on purpose:
     // the system font renders Arabic legibly but not beautifully, and it makes
-    // no distinction between Uthmani script and running Urdu text.
-    //
-    // Every entry falls back to the system font, so an unbundled face degrades
-    // to something readable rather than to a row of boxes. Bundling a real
-    // Uthmani face is a follow-up; the token is the thing screens depend on.
-    quran: 'KFGQPC Uthmanic Script HAFS, Scheherazade New, System',
-    arabic: 'Scheherazade New, Jameel Noori Naskh, System',
-    urdu: 'Jameel Noori Naskh, Noto Nastaliq Urdu, System',
+    // no distinction between Uthmani script and running Urdu text. The first
+    // family in each stack is bundled in assets/fonts and loaded at startup;
+    // the rest are fallbacks if a platform refuses to load an asset.
+    quran: 'AmiriQuran, KFGQPC Uthmanic Script HAFS, Scheherazade New, System',
+    arabic: 'AmiriQuran, Scheherazade New, Jameel Noori Naskh, System',
+    urdu: 'NotoNastaliqUrdu, Jameel Noori Naskh, Noto Nastaliq Urdu, System',
   },
   fontSize: {
     xs: 10,

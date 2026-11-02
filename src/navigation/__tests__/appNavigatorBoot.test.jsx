@@ -1,10 +1,12 @@
 import React from 'react';
 import { render, waitFor } from '@testing-library/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 
 import AppNavigator from '../AppNavigator';
 import { ThemeProvider } from '../../theme';
 import { LANDING_SEEN_KEY } from '../../screens/LandingScreen';
+import { AUTH_TOKEN_KEY } from '../../services/authToken';
 
 // The app never got past its splash: the guard rendering "Loading
 // Qitab-e-Noor..." waited on `isReady`, but `isReady` is only set by
@@ -24,6 +26,10 @@ const TIMEOUT = { timeout: 10000 };
 
 beforeEach(async () => {
   await AsyncStorage.clear();
+  // The dashboard sits behind the sign-in gate. A returning, signed-in user is
+  // the case these boot assertions describe; without a token the correct
+  // screen is Login, not Home.
+  await SecureStore.setItemAsync(AUTH_TOKEN_KEY, 'test-session-token');
 });
 
 describe('app boot', () => {

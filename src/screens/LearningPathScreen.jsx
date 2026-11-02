@@ -5,7 +5,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 import { learning, TOPICS } from '../services/learningEngine';
 import { deckSummaries, enrollDeck, enrollAll } from '../services/decks';
 import { LEVELS, withProgress, levelProgress, nextLesson } from '../data/curriculum';
@@ -19,6 +19,11 @@ import { LEVELS, withProgress, levelProgress, nextLesson } from '../data/curricu
  * component state, so it vanished the moment you navigated away.
  */
 export default function LearningPathScreen({ navigation }) {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+
   const [selectedLevel, setSelectedLevel] = useState('beginner');
   const [completed, setCompleted] = useState({});
   const [stats, setStats] = useState(null);
@@ -288,6 +293,8 @@ export default function LearningPathScreen({ navigation }) {
 }
 
 function Stat({ value, label, color }) {
+  const styles = useThemedStyles(makeStyles);
+
   return (
     <View style={styles.stat}>
       <Text style={[styles.statValue, { color }]}>{value}</Text>
@@ -296,7 +303,7 @@ function Stat({ value, label, color }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   hero: {
     padding: 20, borderRadius: 24, marginBottom: 24,
     backgroundColor: COLORS.glass, borderWidth: 1, borderColor: COLORS.gold + '30',

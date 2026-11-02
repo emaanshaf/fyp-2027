@@ -5,7 +5,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
+import { backend } from '../services/backend';
+export default function GoodDeedsScreen() {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
 
 const DEED_TYPES = [
   { id: 'salah', name: 'Salah', icon: 'hand-left', color: COLORS.gold, points: 5 },
@@ -19,26 +25,51 @@ const DEED_TYPES = [
   { id: 'custom', name: 'Custom Deed', icon: 'add-circle', color: COLORS.textSecondary, points: 1 },
 ];
 
-export default function GoodDeedsScreen() {
   const [deeds, setDeeds] = useState([]);
   const [streak, setStreak] = useState(0);
   const [totalPoints, setTotalPoints] = useState(0);
   const [todayDeeds, setTodayDeeds] = useState([]);
   const [showAdd, setShowAdd] = useState(false);
   const [customDeed, setCustomDeed] = useState('');
+  const [activeTab, setActiveTab] = useState('today'); // 'today' or 'history'
 
   useEffect(() => { loadDeeds(); }, []);
 
   const loadDeeds = async () => {
-    const raw = await AsyncStorage.getItem('good_deeds');
-    if (raw) {
-      const all = JSON.parse(raw);
-      setDeeds(all);
-      const today = new Date().toISOString().split('T')[0];
-      const todayAll = all.filter(d => d.date === today);
-      setTodayDeeds(todayAll);
+    let all = [];
+    // Try server first
+    try {
+      const { deeds: remoteDeeds } = await backend.getDeeds();
+      const stats = await backend.getDeedStats();
+      if (remoteDeeds) {
+        all = remoteDeeds.map(d => ({
+          id: d.id,
+          type: d.type,
+          name: d.name,
+          points: d.points,
+          date: d.deed_date.split('T')[0],
+          time: d.deed_time,
+        }));
+        setDeeds(all);
+        setStreak(stats.streak || 0);
+        setTotalPoints(stats.totalPoints || 0);
+        await AsyncStorage.setItem('good_deeds', JSON.stringify(all));
+      }
+    } catch { /* offline - fallback to local */ }
+    
+    if (all.length === 0) {
+      const raw = await AsyncStorage.getItem('good_deeds');
+      if (raw) all = JSON.parse(raw);
+    }
+    
+    setDeeds(all);
+    const today = new Date().toISOString().split('T')[0];
+    const todayAll = all.filter(d => d.date === today);
+    setTodayDeeds(todayAll);
+    
+    // Fallback local stats if server failed
+    if (all.length > 0) {
       setTotalPoints(all.reduce((s, d) => s + (d.points || 0), 0));
-      // Calculate streak
       let streakCount = 0;
       for (let i = 0; i < 30; i++) {
         const d = new Date(); d.setDate(d.getDate() - i);
@@ -64,6 +95,8 @@ export default function GoodDeedsScreen() {
     const updated = [...deeds, newDeed];
     setDeeds(updated);
     await AsyncStorage.setItem('good_deeds', JSON.stringify(updated));
+    // Sync to backend (fire-and-forget)
+    backend.addDeed({ type, name: newDeed.name, points, deed_date: newDeed.date, deed_time: newDeed.time }).catch(() => {});
     loadDeeds();
     setShowAdd(false);
     setCustomDeed('');
@@ -93,42 +126,79 @@ export default function GoodDeedsScreen() {
           </View>
         </View>
 
-        {/* Deed Types */}
-        <View style={{ paddingHorizontal: 16 }}>
-          <Text style={styles.sectionTitle}>Log a Good Deed</Text>
-          <View style={styles.deedGrid}>
-            {DEED_TYPES.map(deed => (
-              <TouchableOpacity key={deed.id} style={styles.deedBtn}
-                onPress={() => deed.id === 'custom' ? setShowAdd(true) : addDeed(deed.id)}>
-                <View style={[styles.deedIcon, { backgroundColor: deed.color + '18' }]}>
-                  <Ionicons name={deed.icon} size={20} color={deed.color} />
-                </View>
-                <Text style={styles.deedName}>{deed.name}</Text>
-                <Text style={styles.deedCount}>{getDeedByType(deed.id)}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+        {/* Tabs */}
+        <View style={styles.tabRow}>
+          <TouchableOpacity style={[styles.tab, activeTab === 'today' && styles.tabActive]} onPress={() => setActiveTab('today')}>
+            <Text style={[styles.tabText, activeTab === 'today' && styles.tabTextActive]}>Today</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.tab, activeTab === 'history' && styles.tabActive]} onPress={() => setActiveTab('history')}>
+            <Text style={[styles.tabText, activeTab === 'history' && styles.tabTextActive]}>History</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Today's Log */}
-        {todayDeeds.length > 0 && (
-          <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
-            <Text style={styles.sectionTitle}>Today's Deeds</Text>
-            {todayDeeds.map(deed => {
+        {activeTab === 'today' ? (
+          <>
+            {/* Deed Types */}
+            <View style={{ paddingHorizontal: 16 }}>
+              <Text style={styles.sectionTitle}>Log a Good Deed</Text>
+              <View style={styles.deedGrid}>
+                {DEED_TYPES.map(deed => (
+                  <TouchableOpacity key={deed.id} style={styles.deedBtn}
+                    onPress={() => deed.id === 'custom' ? setShowAdd(true) : addDeed(deed.id)}>
+                    <View style={[styles.deedIcon, { backgroundColor: deed.color + '18' }]}>
+                      <Ionicons name={deed.icon} size={20} color={deed.color} />
+                    </View>
+                    <Text style={styles.deedName}>{deed.name}</Text>
+                    <Text style={styles.deedCount}>{getDeedByType(deed.id)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Today's Log */}
+            {todayDeeds.length > 0 && (
+              <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
+                <Text style={styles.sectionTitle}>Today's Deeds</Text>
+                {todayDeeds.map(deed => {
+                  const dt = DEED_TYPES.find(d => d.id === deed.type);
+                  return (
+                    <View key={deed.id} style={styles.logCard}>
+                      <View style={[styles.logIcon, { backgroundColor: (dt?.color || COLORS.textSecondary) + '18' }]}>
+                        <Ionicons name={dt?.icon || 'checkmark'} size={16} color={dt?.color || COLORS.textSecondary} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.logName}>{deed.name}</Text>
+                        <Text style={styles.logTime}>{deed.time}</Text>
+                      </View>
+                      <Text style={styles.logPoints}>+{deed.points}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </>
+        ) : (
+          /* History Tab */
+          <View style={{ paddingHorizontal: 16 }}>
+            <Text style={styles.sectionTitle}>Past Deeds</Text>
+            {deeds.filter(d => d.date !== new Date().toISOString().split('T')[0]).map(deed => {
               const dt = DEED_TYPES.find(d => d.id === deed.type);
               return (
-                <View key={deed.id} style={styles.logCard}>
+                <View key={deed.id} style={[styles.logCard, { opacity: 0.8 }]}>
                   <View style={[styles.logIcon, { backgroundColor: (dt?.color || COLORS.textSecondary) + '18' }]}>
                     <Ionicons name={dt?.icon || 'checkmark'} size={16} color={dt?.color || COLORS.textSecondary} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.logName}>{deed.name}</Text>
-                    <Text style={styles.logTime}>{deed.time}</Text>
+                    <Text style={styles.logTime}>{deed.date} • {deed.time}</Text>
                   </View>
                   <Text style={styles.logPoints}>+{deed.points}</Text>
                 </View>
               );
             })}
+            {deeds.length === todayDeeds.length && (
+              <Text style={{ color: COLORS.textSecondary, textAlign: 'center', marginTop: 20 }}>No past deeds yet. Keep up the good work!</Text>
+            )}
           </View>
         )}
 
@@ -164,7 +234,7 @@ export default function GoodDeedsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   statsRow: { flexDirection: 'row', gap: 10, padding: 16, paddingBottom: 8 },
   statCard: {
     flex: 1, alignItems: 'center', padding: 14, borderRadius: 16,
@@ -181,6 +251,11 @@ const styles = StyleSheet.create({
   deedIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
   deedName: { color: COLORS.textPrimary, fontSize: 11, fontWeight: '600', textAlign: 'center' },
   deedCount: { color: COLORS.textSecondary, fontSize: 10, marginTop: 2 },
+  tabRow: { flexDirection: 'row', paddingHorizontal: 16, marginBottom: 20 },
+  tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tabActive: { borderBottomColor: COLORS.gold },
+  tabText: { color: COLORS.textSecondary, fontSize: 14, fontWeight: '700' },
+  tabTextActive: { color: COLORS.gold },
   logCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, marginBottom: 6,
     borderRadius: 12, backgroundColor: COLORS.glass, borderWidth: 1, borderColor: COLORS.glassBorder,

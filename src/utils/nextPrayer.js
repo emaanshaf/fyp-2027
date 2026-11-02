@@ -14,6 +14,7 @@ export const PRAYER_ORDER = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
 
 const DEFAULT_CITY = 'Islamabad';
 const DEFAULT_COUNTRY = 'Pakistan';
+export { DEFAULT_CITY, DEFAULT_COUNTRY };
 
 /** "05:12" (and "05:12 (PKT)") -> minutes since midnight. */
 function toMinutes(hhmm) {
@@ -34,8 +35,11 @@ export function to12Hour(hhmm) {
 /**
  * @returns {Promise<null | {
  *   name: string, time: string, city: string,
- *   minutesAway: number, countdown: string, tomorrow: boolean
- * }>} null when no timings have been cached yet.
+ *   minutesAway: number, countdown: string, tomorrow: boolean,
+ *   windowMinutes: number, at: Date
+ * }>} null when no timings have been cached yet. `at` is the absolute target
+ *   instant and `windowMinutes` the gap from the previous prayer, used by the
+ *   countdown ring.
  */
 export async function getNextPrayer(now = new Date()) {
   const city = (await AsyncStorage.getItem('qitab_prayer_city')) || DEFAULT_CITY;
@@ -60,7 +64,8 @@ export async function getNextPrayer(now = new Date()) {
 
   // After Isha the next prayer is tomorrow's Fajr, so wrap rather than
   // returning nothing for the last few hours of every day.
-  const upcoming = schedule.find(p => p.mins > nowMins);
+  const nextIndex = schedule.findIndex(p => p.mins > nowMins);
+  const upcoming = nextIndex === -1 ? null : schedule[nextIndex];
   const next = upcoming || schedule[0];
   const tomorrow = !upcoming;
   const minutesAway = tomorrow
@@ -70,6 +75,24 @@ export async function getNextPrayer(now = new Date()) {
   const h = Math.floor(minutesAway / 60);
   const m = minutesAway % 60;
 
+  // The previous prayer sets the length of this interval, which is what a
+  // countdown ring fills against. It wraps to yesterday's Isha for Fajr and
+  // to today's Isha for tomorrow's Fajr.
+  const previous = nextIndex > 0
+    ? schedule[nextIndex - 1]
+    : schedule[schedule.length - 1];
+  const wrapsBack = tomorrow || nextIndex === 0;
+  const windowMinutes = wrapsBack
+    ? 24 * 60 - previous.mins + next.mins
+    : next.mins - previous.mins;
+
+  // Absolute target, so a ring can tick against a real instant instead of
+  // re-deriving minutes every second.
+  const at = new Date(now);
+  at.setHours(0, 0, 0, 0);
+  at.setMinutes(next.mins);
+  if (tomorrow) at.setDate(at.getDate() + 1);
+
   return {
     name: next.name,
     time: to12Hour(next.time),
@@ -77,6 +100,8 @@ export async function getNextPrayer(now = new Date()) {
     minutesAway,
     countdown: h > 0 ? `${h}h ${m}m` : `${m}m`,
     tomorrow,
+    windowMinutes: windowMinutes > 0 ? windowMinutes : 60,
+    at,
   };
 }
 

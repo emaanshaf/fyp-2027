@@ -1,17 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView, Animated, Platform, Linking
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { COLORS, globalStyles } from '../theme';
-import { getModulePath, openModuleInApp } from '../utils/deepLinking';
+import { useColors, useThemedStyles } from '../theme';
 import { useNavigationUrl } from '../hooks/useNavigationUrl';
 import { moduleByName, accentFor, hasAccess } from '../config/routes';
 import { useRole } from '../context/RoleContext';
 import { usePrayerLock } from '../context/PrayerLockContext';
+import { useLanguage } from '../context/LanguageContext';
+import { useShare } from '../context/ShareContext';
 import { formatHijri, resolveHijriDate } from '../utils/hijri';
 import { getNextPrayer, getTodayTimings } from '../utils/nextPrayer';
+import SkyBackdrop from '../components/SkyBackdrop';
+import PrayerCountdownRing from '../components/PrayerCountdownRing';
+import HomeWeather from '../components/HomeWeather';
+import TodaysRemindersStrip from '../components/TodaysRemindersStrip';
+import { skyState } from '../utils/sky';
+import { APP_CONFIG } from '../config/appConfig';
 
 // The dashboard grid, drawn from the shared route table so labels, icons,
 // accents and permissions cannot drift from the drawer and navigator.
@@ -30,19 +38,25 @@ const SUBLABELS = {
   Generator: 'Creator',
   AIChat: 'Ask Anything',
   Learning: 'Guided & Adaptive',
+  Pillars: 'Five Foundations',
+  Hajj: 'Step by Step',
+  Istikhara: 'Seek Guidance',
+  ELearning: 'Structured Courses',
+  Communities: 'Learn Together',
+  News: 'Muslim World',
 };
 
 const DASHBOARD_MODULES = [
   'Quran', 'Hadith', 'Prayer', 'PrayerTracker', 'Tasbih', 'Duas',
-  'NamesOfAllah', 'Calendar', 'Zakat', 'Reminders', 'Generator',
-  'AIChat', 'Learning',
+  'NamesOfAllah', 'Calendar', 'Zakat', 'Reminders', 'Pillars', 'Hajj',
+  'Istikhara', 'ELearning', 'Communities', 'News', 'AIChat', 'Learning', 'Generator',
 ];
 
 // Built per-role rather than once at module scope: the grid used to include
 // every entry unconditionally, so a plain user saw the moderator-only Content
 // Creator tile and tapping it did nothing (the route is never registered for
 // them). The drawer and tab bar already filtered on the same rule.
-const modulesForRole = role =>
+const modulesForRole = (role, COLORS) =>
   DASHBOARD_MODULES.filter(name => hasAccess(role, name)).map(name => {
     const mod = moduleByName(name);
     return {
@@ -64,6 +78,49 @@ const DAILY_AYAH = [
   { text: 'Verily, with every difficulty there is relief.', surah: 'Ash-Sharh 94:5' },
   { text: 'And your Lord says, "Call upon Me; I will respond to you."', surah: 'Ghafir 40:60' },
   { text: 'Indeed, Allah is with the patient.', surah: 'Al-Baqarah 2:153' },
+  { text: 'Do not lose hope, nor be sad. You will surely be victorious if you are true believers.', surah: 'Al-Imran 3:139' },
+  { text: 'And whoever puts their trust in Allah, then He will suffice him.', surah: 'At-Talaq 65:3' },
+  { text: 'He is with you wherever you are.', surah: 'Al-Hadid 57:4' },
+  { text: 'My mercy encompasses all things.', surah: "Al-A'raf 7:156" },
+  { text: 'So flee to Allah. Indeed, I am to you from Him a clear warner.', surah: 'Adh-Dhariyat 51:50' },
+  { text: 'And We have certainly made the Quran easy for remembrance, so is there any who will remember?', surah: 'Al-Qamar 54:17' },
+  { text: 'Indeed, the most noble of you in the sight of Allah is the most righteous of you.', surah: 'Al-Hujurat 49:13' },
+  { text: 'And speak to people good words.', surah: 'Al-Baqarah 2:83' },
+  { text: 'Allah does not change the condition of a people until they change what is in themselves.', surah: "Ar-Ra'd 13:11" },
+  { text: 'And He found you poor and made you self-sufficient.', surah: 'Ad-Duha 93:8' },
+  { text: 'And be patient. Indeed, Allah does not allow to be lost the reward of those who do good.', surah: 'Hud 11:115' },
+  { text: 'And your Lord is going to give you, and you will be satisfied.', surah: 'Ad-Duha 93:5' },
+  { text: 'He who created death and life to test you as to which of you is best in deed.', surah: 'Al-Mulk 67:2' },
+  { text: 'So which of the favors of your Lord would you deny?', surah: 'Ar-Rahman 55:13' },
+  { text: 'Indeed, to Allah we belong, and indeed to Him we will return.', surah: 'Al-Baqarah 2:156' },
+  { text: 'And if Allah should touch you with adversity, there is no remover of it except Him.', surah: "Al-An'am 6:17" },
+  { text: 'Say, "O My servants who have transgressed against themselves, do not despair of the mercy of Allah."', surah: 'Az-Zumar 39:53' },
+  { text: 'And whoever is grateful — his gratitude is only for the benefit of himself.', surah: 'Luqman 31:12' },
+  { text: 'And it may be that you dislike a thing which is good for you.', surah: 'Al-Baqarah 2:216' },
+  { text: 'Verily, the promise of Allah is truth.', surah: 'Luqman 31:33' },
+  { text: 'And whoever fears Allah — He will make for him a way out.', surah: 'At-Talaq 65:2' },
+  { text: 'Allah is sufficient for us, and He is the best Disposer of affairs.', surah: 'Al-Imran 3:173' },
+  { text: 'This is the Book about which there is no doubt, a guidance for those conscious of Allah.', surah: 'Al-Baqarah 2:2' },
+  { text: 'And whoever holds firmly to Allah has indeed been guided to a straight path.', surah: 'Al-Imran 3:101' },
+  { text: 'Indeed, He is to His servants Aware and Seeing.', surah: 'Al-Isra 17:30' },
+  { text: 'And we will surely test you with something of fear and hunger and a loss of wealth and lives, but give good tidings to the patient.', surah: 'Al-Baqarah 2:155' },
+  { text: 'Indeed, prayer prohibits immorality and wrongdoing, and the remembrance of Allah is greater.', surah: 'Al-Ankabut 29:45' },
+  { text: 'And your Lord is forgiving, full of mercy.', surah: 'Al-Kahf 18:58' },
+  { text: 'And hasten to forgiveness from your Lord and a garden as wide as the heavens and earth, prepared for the righteous.', surah: 'Al-Imran 3:133' },
+  { text: 'Indeed, it is not the eyes that are blind, but blind are the hearts which are within the chests.', surah: 'Al-Hajj 22:46' },
+  { text: 'And He is the Forgiving, the Loving.', surah: 'Al-Buruj 85:14' },
+  { text: 'And it is not for a soul to die except by permission of Allah at a decree determined.', surah: 'Al-Imran 3:145' },
+  { text: 'And He gave you of all you asked of Him. And if you should count the favor of Allah, you could not enumerate them.', surah: 'Ibrahim 14:34' },
+  { text: 'Unquestionably, to Allah belongs whatever is in the heavens and the earth.', surah: 'Yunus 10:55' },
+  { text: 'And whoever is guided is only guided for his own soul.', surah: 'Al-Isra 17:15' },
+  { text: 'And He is with you wherever you are. And Allah, of what you do, is Seeing.', surah: 'Al-Hadid 57:4' },
+  { text: 'And We created you in pairs.', surah: 'An-Naba 78:8' },
+  { text: 'So, verily, with every difficulty, there is relief.', surah: 'Ash-Sharh 94:5' },
+  { text: 'Our Lord, give us good in this world and good in the Hereafter, and save us from the torment of the Fire.', surah: 'Al-Baqarah 2:201' },
+  { text: 'And Allah is the best of planners.', surah: 'Al-Imran 3:54' },
+  { text: 'Indeed, the mercy of Allah is near to the doers of good.', surah: "Al-A'raf 7:56" },
+  { text: 'Whoever does righteous deeds — it is for his own soul, and whoever does evil — it is against it.', surah: 'Fussilat 41:46' },
+  { text: 'And We have not sent you except as a mercy to the worlds.', surah: 'Al-Anbiya 21:107' },
 ];
 
 const SALAWAT_TEXT = 'Allahumma salli ala Muhammad wa aali Muhammad';
@@ -79,9 +136,18 @@ const PRAYER_ICONS = {
 };
 
 export default function HomeScreen({ navigation }) {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const styles = useThemedStyles(makeStyles);
+
   const role = useRole();
   const { enabled: lockEnabled, pendingPrayer, delayMin, confirmPrayed } = usePrayerLock();
-  const modules = React.useMemo(() => modulesForRole(role), [role]);
+  const { t, isUrdu, moduleTitle } = useLanguage();
+  const { share } = useShare();
+  const modules = React.useMemo(
+    () => modulesForRole(role, COLORS),
+    [role, COLORS]
+  );
   const [userName, setUserName] = useState('');
   const [ayah, setAyah] = useState(null);
   const [prayerCount, setPrayerCount] = useState(0);
@@ -91,6 +157,9 @@ export default function HomeScreen({ navigation }) {
   const [streak, setStreak] = useState(0);
   const [hijriDate, setHijriDate] = useState(null);
   const hijri = hijriDate ? formatHijri(hijriDate) : formatHijri();
+  // Recomputed on each render; the one-minute prayer tick re-renders the
+  // screen, so the chip follows sunrise and Maghrib without its own timer.
+  const sky = skyState({ prayers: todayTimings?.prayers });
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const { navigateTo } = useNavigationUrl();
 
@@ -104,8 +173,16 @@ export default function HomeScreen({ navigation }) {
     Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }).start();
   }, []);
 
+  // Called when the ring reaches zero, so the card switches to the next
+  // prayer immediately instead of waiting for the minute tick.
+  const refreshPrayerTimings = () => {
+    getNextPrayer().then(p => { if (p) setNextPrayer(p); }).catch(() => {});
+    getTodayTimings().then(t => { if (t) setTodayTimings(t); }).catch(() => {});
+  };
+
   // The countdown re-reads once a minute rather than once a second: the card
-  // shows whole minutes, so a per-second timer would just burn battery.
+  // shows the next prayer, while the ring ticks locally against `at`. This
+  // keeps storage work off the second-by-second path.
   useEffect(() => {
     let alive = true;
     const tick = () => {
@@ -141,7 +218,11 @@ export default function HomeScreen({ navigation }) {
   };
 
   const pickDailyAyah = () => {
-    const idx = new Date().getDate() % DAILY_AYAH.length;
+    // Cycle by day-of-year so each ayah shows for a full day and repeats only every 50 days
+    const start = new Date(new Date().getFullYear(), 0, 0);
+    const diff = new Date() - start;
+    const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const idx = dayOfYear % DAILY_AYAH.length;
     setAyah(DAILY_AYAH[idx]);
   };
 
@@ -168,8 +249,24 @@ export default function HomeScreen({ navigation }) {
     navigateTo(module.id, { fromHome: true });
   };
 
+  const shareDailyAyah = () => {
+    if (!ayah) return;
+    const reference = String(ayah.surah).match(/(\d+):(\d+(?:-\d+)?)/)?.[0];
+    share({
+      title: t('home.ayahOfDay', 'Ayah of the Day'),
+      message: `"${ayah.text}"\n— ${ayah.surah}`,
+      url: reference ? APP_CONFIG.shareVerse(reference) : APP_CONFIG.appUrl,
+    });
+  };
 
-  const getGreeting = () => 'Assalamu Alaikum';
+  const getGreeting = () => t('home.greeting');
+
+  // Urdu runs right-to-left. Applying this only to the Urdu strings keeps the
+  // numeric stat row aligned; Nastaliq supplies its own tall line metrics.
+  const urduText = isUrdu ? {
+    fontFamily: 'NotoNastaliqUrdu',
+    writingDirection: 'rtl',
+  } : null;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 100 }}>
@@ -178,10 +275,20 @@ export default function HomeScreen({ navigation }) {
         {/* Hero Header — solid emerald banner with location/date up top and
             the greeting below, the way Islam 360 opens its dashboard rather
             than the glass card this used to be. */}
-        <View style={styles.hero}>
-          <View style={styles.heroPattern} pointerEvents="none">
-            <Ionicons name="moon" size={120} color="rgba(255,255,255,0.06)" style={styles.heroPatternMoon} />
-          </View>
+        <LinearGradient
+          colors={[COLORS.primary, COLORS.primaryPressed || COLORS.primary]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.hero}
+        >
+          {/* Sun or moon for the current hour, drawn behind the name and
+              Hijri chip. Uses cached prayer times for its windows and falls
+              back to the clock before they load. */}
+          <SkyBackdrop
+            now={new Date()}
+            prayers={todayTimings?.prayers}
+            hijriDay={hijriDate?.day}
+          />
           <View style={styles.heroContent}>
             <View style={styles.heroTopRow}>
               <View style={styles.locationRow}>
@@ -190,31 +297,51 @@ export default function HomeScreen({ navigation }) {
                   {todayTimings?.city || nextPrayer?.city || 'Set location'}
                 </Text>
               </View>
-              <View style={styles.hijriChip}>
-                <Ionicons name="moon-outline" size={11} color={COLORS.gold} />
-                <Text style={styles.hijriChipText}>{hijri}</Text>
+              <View style={styles.heroRight}>
+                <TouchableOpacity
+                  onPress={() => navigateTo('Search')}
+                  style={styles.heroSearchBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('home.search')}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="search" size={15} color="#fff" />
+                </TouchableOpacity>
+                <View style={styles.hijriChip}>
+                  <Ionicons
+                    name={sky.body === 'sun' ? 'sunny' : 'moon'}
+                    size={11}
+                    color={COLORS.gold}
+                  />
+                  <Text style={[styles.hijriChipText, urduText]}>{hijri}</Text>
+                </View>
               </View>
             </View>
 
             <View style={styles.heroGreetingRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.greeting}>{getGreeting()}</Text>
+                <Text style={[styles.greeting, urduText]}>{getGreeting()}</Text>
                 {userName ? (
-                  <Text style={styles.userName}>{userName}</Text>
+                  <Text style={[styles.userName, urduText]}>{userName}</Text>
                 ) : (
                   <TouchableOpacity
                     onPress={() => navigateTo('Settings')}
                     activeOpacity={0.7}
                     style={styles.namePrompt}
                     accessibilityRole="button"
-                    accessibilityLabel="Add your name"
+                    accessibilityLabel={t('home.addName')}
                   >
-                    <Text style={styles.namePromptText}>Add your name</Text>
+                    <Text style={[styles.namePromptText, urduText]}>{t('home.addName')}</Text>
                     <Ionicons name="arrow-forward" size={13} color="#fff" />
                   </TouchableOpacity>
                 )}
               </View>
             </View>
+
+            {/* Current conditions for the city the prayer screen saved, the
+                way Islam 360 places weather beside the Hijri date. Hidden
+                until a city exists or the first request succeeds. */}
+            <HomeWeather city={todayTimings?.city || nextPrayer?.city} />
           </View>
 
           {/* Quick Stats */}
@@ -228,22 +355,22 @@ export default function HomeScreen({ navigation }) {
             >
               <Ionicons name="checkmark-done" size={16} color="#fff" />
               <Text style={styles.statNum}>{prayerCount}/5</Text>
-              <Text style={styles.statLabel}>Today</Text>
+              <Text style={styles.statLabel}>{t('home.today')}</Text>
             </TouchableOpacity>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Ionicons name="flame" size={16} color={COLORS.gold} />
               <Text style={styles.statNum}>{streak}</Text>
-              <Text style={styles.statLabel}>Day streak</Text>
+              <Text style={styles.statLabel}>{t('home.streak')}</Text>
             </View>
             <View style={styles.statDivider} />
             <TouchableOpacity style={styles.statItem} onPress={addSalawat} activeOpacity={0.7}>
               <Ionicons name="heart" size={16} color="#fff" />
               <Text style={styles.statNum}>{salawatCount}</Text>
-              <Text style={styles.statLabel}>Salawat</Text>
+              <Text style={styles.statLabel}>{t('home.salawat')}</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </LinearGradient>
 
         {/* Prayer strip — all five prayers at once with the next one picked
             out, the signature Islam 360 dashboard element. Only the next-
@@ -276,6 +403,11 @@ export default function HomeScreen({ navigation }) {
           </ScrollView>
         )}
 
+        {/* Reminder status, always on the dashboard. The five-minute popup can
+            only speak once a reminder is due, so without this card an empty
+            reminder list looked like a broken feature. */}
+        <TodaysRemindersStrip onOpen={() => navigateTo('Reminders')} />
+
         {/* The reminder that precedes the lock. It states the deadline rather
             than appearing without warning when the app locks. */}
         {lockEnabled && pendingPrayer ? (
@@ -285,11 +417,12 @@ export default function HomeScreen({ navigation }) {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.lockNoticeTitle}>
-                It is time for {pendingPrayer}
+                {t('home.timeFor')} {pendingPrayer}
               </Text>
               <Text style={styles.lockNoticeBody}>
-                The app will pause {delayMin} minutes after the adhan until you
-                confirm you have prayed.
+                {isUrdu
+                  ? `اذان کے بعد ${delayMin} منٹ تک ایپ روکی جائے گی جب تک آپ نماز کی تصدیق نہ کریں۔`
+                  : `The app will pause ${delayMin} minutes ${t('home.lockBody')}.`}
               </Text>
             </View>
             <TouchableOpacity
@@ -313,8 +446,8 @@ export default function HomeScreen({ navigation }) {
           onPress={() => navigateTo('Prayer')}
           accessibilityRole="button"
           accessibilityLabel={nextPrayer
-            ? `Next prayer ${nextPrayer.name} at ${nextPrayer.time}, in ${nextPrayer.countdown}`
-            : 'Set your prayer location'}
+            ? `${t('home.nextPrayer')} ${nextPrayer.name} ${nextPrayer.time}, ${nextPrayer.countdown}`
+            : t('home.setLocation')}
         >
           <View style={[styles.prayerIcon, {
             backgroundColor: COLORS.primary + '1F', borderColor: COLORS.primary + '38',
@@ -324,44 +457,94 @@ export default function HomeScreen({ navigation }) {
           <View style={{ flex: 1 }}>
             {nextPrayer ? (
               <>
-                <Text style={styles.prayerLabel}>
-                  Next prayer{nextPrayer.tomorrow ? ' · tomorrow' : ''}
+                <Text style={[styles.prayerLabel, urduText]}>
+                  {t('home.nextPrayer')}{nextPrayer.tomorrow ? ` · ${t('home.tomorrow')}` : ''}
                 </Text>
                 <Text style={styles.prayerName}>
                   {nextPrayer.name}{' '}
                   <Text style={[styles.prayerTime, { color: COLORS.primaryTint }]}>{nextPrayer.time}</Text>
                 </Text>
-                <Text style={styles.prayerMeta}>{nextPrayer.city}</Text>
+                <Text style={[styles.prayerMeta, urduText]}>{nextPrayer.city}</Text>
               </>
             ) : (
               <>
-                <Text style={styles.prayerLabel}>Prayer times</Text>
-                <Text style={styles.prayerName}>Set your location</Text>
-                <Text style={styles.prayerMeta}>Tap to choose your city</Text>
+                <Text style={[styles.prayerLabel, urduText]}>{t('home.prayerTimes')}</Text>
+                <Text style={[styles.prayerName, urduText]}>{t('home.setLocation')}</Text>
+                <Text style={[styles.prayerMeta, urduText]}>{t('home.tapChooseCity')}</Text>
               </>
             )}
           </View>
           {nextPrayer && (
-            <View style={[styles.countdownPill, {
-              backgroundColor: COLORS.primary + '14', borderColor: COLORS.primary + '30',
-            }]}>
-              <Text style={[styles.countdownNum, { color: COLORS.primaryTint }]}>{nextPrayer.countdown}</Text>
-              <Text style={styles.countdownLabel}>to go</Text>
-            </View>
+            <PrayerCountdownRing
+              target={nextPrayer.at}
+              windowMinutes={nextPrayer.windowMinutes}
+              color={COLORS.primaryTint}
+              trackColor={COLORS.primary + '26'}
+              textColor={COLORS.textPrimary}
+              label={t('home.toGo')}
+              doneLabel={isUrdu ? 'اب' : 'Now'}
+              onComplete={refreshPrayerTimings}
+            />
           )}
         </TouchableOpacity>
 
-        {/* Daily Ayah */}
+        {/* Daily Ayah. Tapping the card opens the full reflection; the share
+            icon opens the same WhatsApp/Instagram sheet used by every module. */}
         {ayah && (
-          <TouchableOpacity style={styles.ayahCard} activeOpacity={0.8}>
+          <View style={styles.ayahCard}>
             <View style={styles.ayahGlow} />
-            <View style={styles.ayahIcon}>
-              <Ionicons name="book-outline" size={20} color={COLORS.gold} />
+            <View style={styles.ayahTopRow}>
+              <View style={styles.ayahIcon}>
+                <Ionicons name="book-outline" size={20} color={COLORS.gold} />
+              </View>
+              <TouchableOpacity
+                onPress={shareDailyAyah}
+                style={[styles.ayahShareBtn, { backgroundColor: COLORS.gold + '18', borderColor: COLORS.gold + '3A' }]}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.share')}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="share-social-outline" size={16} color={COLORS.gold} />
+              </TouchableOpacity>
             </View>
-            <Text style={styles.ayahText}>"{ayah.text}"</Text>
-            <Text style={styles.ayahRef}>— {ayah.surah}</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => navigateTo('AyahOfDay')}
+              accessibilityRole="button"
+              accessibilityLabel={t('home.ayahOfDay', 'Ayah of the Day')}
+            >
+              <Text style={styles.ayahText}>"{ayah.text}"</Text>
+              <Text style={styles.ayahRef}>— {ayah.surah}</Text>
+            </TouchableOpacity>
+          </View>
         )}
+
+        {/* A direct invitation to the assistant. The tile in the grid is easy
+            to miss; this makes "ask anything" a first-class action. */}
+        <TouchableOpacity
+          style={styles.aiCta}
+          activeOpacity={0.85}
+          onPress={() => navigateTo('AIChat')}
+          accessibilityRole="button"
+          accessibilityLabel={t('home.askAi', 'Ask the Islamic AI Assistant')}
+        >
+          <LinearGradient
+            colors={[COLORS.cyan + '26', COLORS.primary + '1F']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={[styles.aiCtaIcon, { backgroundColor: COLORS.cyan + '22', borderColor: COLORS.cyan + '45' }]}>
+            <Ionicons name="sparkles" size={20} color={COLORS.cyan} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.aiCtaTitle}>{t('home.askAi', 'Ask the Islamic AI Assistant')}</Text>
+            <Text style={styles.aiCtaBody}>
+              {t('home.askAiBody', 'Any question about Islam — Quran, fiqh, worship or daily life.')}
+            </Text>
+          </View>
+          <Ionicons name="arrow-forward-circle" size={26} color={COLORS.cyan} />
+        </TouchableOpacity>
 
         {/* Salawat Banner */}
         <TouchableOpacity style={styles.salawatBanner} onPress={addSalawat} activeOpacity={0.7}>
@@ -373,21 +556,21 @@ export default function HomeScreen({ navigation }) {
 
         {/* Modules Grid */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Explore</Text>
+          <View style={styles.sectionTitleRow}>
+            <View style={styles.sectionTitleBar} />
+            <Text style={styles.sectionTitle}>{t('home.explore')}</Text>
+          </View>
         </View>
         <View style={styles.grid}>
           {modules.map((mod) => (
             <TouchableOpacity
               key={mod.id}
               style={styles.moduleCard}
-              activeOpacity={0.75}
+              activeOpacity={0.72}
               onPress={() => handleModulePress(mod)}
               accessibilityRole="button"
-              accessibilityLabel={`${mod.label}. ${mod.sublabel}`}
+              accessibilityLabel={`${moduleTitle(mod.id, mod.label)}. ${mod.sublabel}`}
             >
-              {/* The icon plate carries the module's accent at low opacity,
-                  with the glyph at full strength. Every tile used to be the
-                  same white-on-grey, which gave the grid no scanability. */}
               <View
                 style={[
                   styles.moduleIconWrap,
@@ -396,37 +579,27 @@ export default function HomeScreen({ navigation }) {
                   mod.featured && { borderColor: mod.accent + '80', shadowColor: mod.accent },
                 ]}
               >
-                {/* Duas is the module people open most and had no visual
-                    priority in a flat grid of identical plates. It gets a
-                    filled glyph, a halo and a pair of small ornaments so the
-                    eye lands on it without a second row of chrome. */}
                 {mod.featured && (
                   <View style={[styles.moduleHalo, { backgroundColor: mod.accent }]} />
                 )}
                 <Ionicons
                   name={mod.featured ? 'heart' : mod.icon}
-                  size={mod.featured ? 26 : 23}
+                  size={mod.featured ? 26 : 22}
                   color={mod.accent}
                 />
                 {mod.featured && (
                   <>
-                    <Ionicons
-                      name="sparkles" size={10} color={mod.accent}
-                      style={styles.moduleSparkTop}
-                    />
-                    <Ionicons
-                      name="sparkles" size={7} color={mod.accent}
-                      style={styles.moduleSparkBottom}
-                    />
+                    <Ionicons name="sparkles" size={10} color={mod.accent} style={styles.moduleSparkTop} />
+                    <Ionicons name="sparkles" size={7}  color={mod.accent} style={styles.moduleSparkBottom} />
                   </>
                 )}
               </View>
-              <Text
-                style={[styles.moduleLabel, mod.featured && { color: mod.accent }]}
-                numberOfLines={2}
-              >
-                {mod.label}
+              <Text style={[styles.moduleLabel, mod.featured && { color: mod.accent }]} numberOfLines={1}>
+                {moduleTitle(mod.id, mod.label)}
               </Text>
+              {mod.sublabel ? (
+                <Text style={styles.moduleSublabel} numberOfLines={1}>{mod.sublabel}</Text>
+              ) : null}
             </TouchableOpacity>
           ))}
         </View>
@@ -438,7 +611,7 @@ export default function HomeScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   // Solid emerald banner, not a glass card — this is the Islam 360 signature:
   // location + Hijri date pinned to the top, greeting below, stats along the
@@ -447,8 +620,6 @@ const styles = StyleSheet.create({
     margin: 16, marginBottom: 12, borderRadius: 24, overflow: 'hidden',
     backgroundColor: COLORS.primary,
   },
-  heroPattern: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },
-  heroPatternMoon: { position: 'absolute', top: -30, right: -30 },
   heroContent: { padding: 20, paddingBottom: 18 },
   heroTopRow: {
     flexDirection: 'row', alignItems: 'center',
@@ -456,6 +627,13 @@ const styles = StyleSheet.create({
   },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   locationText: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '700' },
+  heroRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  heroSearchBtn: {
+    width: 28, height: 28, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
+  },
   greeting: { color: 'rgba(255,255,255,0.75)', fontSize: 14, fontWeight: '600' },
   hijriChip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
@@ -508,13 +686,6 @@ const styles = StyleSheet.create({
   prayerName: { color: COLORS.textPrimary, fontSize: 19, fontWeight: '800', marginTop: 3 },
   prayerTime: { color: COLORS.cyan, fontSize: 16, fontWeight: '700' },
   prayerMeta: { color: COLORS.textSecondary, fontSize: 12, marginTop: 2 },
-  countdownPill: {
-    alignItems: 'center', borderRadius: 14, paddingVertical: 8,
-    paddingHorizontal: 12, backgroundColor: COLORS.cyan + '14',
-    borderWidth: 1, borderColor: COLORS.cyan + '30',
-  },
-  countdownNum: { color: COLORS.cyan, fontSize: 15, fontWeight: '900' },
-  countdownLabel: { color: COLORS.textSecondary, fontSize: 9.5, marginTop: 1 },
   quickStats: {
     flexDirection: 'row', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.14)',
     paddingVertical: 14, paddingHorizontal: 8,
@@ -540,17 +711,38 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.glass, borderWidth: 1, borderColor: COLORS.glassBorder,
     overflow: 'hidden',
   },
+  ayahTopRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  ayahShareBtn: {
+    width: 32, height: 32, borderRadius: 16, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+  },
   ayahGlow: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255, 255, 255,0.04)' },
   ayahIcon: {
     width: 36, height: 36, borderRadius: 10,
     backgroundColor: 'rgba(255, 255, 255,0.1)',
-    alignItems: 'center', justifyContent: 'center', marginBottom: 10,
+    alignItems: 'center', justifyContent: 'center',
   },
   ayahText: {
     color: COLORS.textPrimary, fontSize: 16, fontWeight: '600',
     fontStyle: 'italic', lineHeight: 24,
   },
   ayahRef: { color: COLORS.gold, fontSize: 12, fontWeight: '700', marginTop: 8 },
+  aiCta: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    marginHorizontal: 16, marginBottom: 14, padding: 16, borderRadius: 18,
+    backgroundColor: COLORS.bgSecondary,
+    borderWidth: 1, borderColor: COLORS.cyan + '30',
+    overflow: 'hidden',
+  },
+  aiCtaIcon: {
+    width: 44, height: 44, borderRadius: 14, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  aiCtaTitle: { color: COLORS.textPrimary, fontSize: 14, fontWeight: '800' },
+  aiCtaBody: { color: COLORS.textSecondary, fontSize: 11, lineHeight: 16, marginTop: 2 },
   salawatBanner: {
     marginHorizontal: 16, marginBottom: 16, borderRadius: 16, padding: 14,
     backgroundColor: 'rgba(255, 255, 255,0.08)',
@@ -564,34 +756,38 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255, 255, 255,0.4)',
   },
   salawatCounterNum: { color: COLORS.pink, fontSize: 16, fontWeight: '900' },
-  sectionHeader: { paddingHorizontal: 16, marginBottom: 12 },
-  sectionTitle: { color: COLORS.gold, fontSize: 18, fontWeight: '900' },
-  // Four per row of circular plates — Islam 360's grid, rather than the
-  // three-per-row rounded squares this used to be.
+  sectionHeader: { paddingHorizontal: 16, marginBottom: 14, marginTop: 4 },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  sectionTitleBar: { width: 3, height: 18, backgroundColor: COLORS.gold, borderRadius: 2 },
+  sectionTitle: { color: COLORS.gold, fontSize: 17, fontWeight: '900', letterSpacing: 0.3 },
   grid: {
-    flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 8, gap: 0,
+    flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 6, gap: 0,
   },
   moduleCard: {
-    width: '25%', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 4,
+    width: '25%', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 4,
   },
   moduleIconWrap: {
-    width: 56, height: 56, borderRadius: 28,
+    width: 58, height: 58, borderRadius: 29,
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1,
   },
   moduleIconFeatured: {
     borderWidth: 1.5,
-    shadowOpacity: 0.5, shadowRadius: 12, shadowOffset: { width: 0, height: 0 },
-    elevation: 6,
+    shadowOpacity: 0.55, shadowRadius: 14, shadowOffset: { width: 0, height: 0 },
+    elevation: 7,
   },
   moduleHalo: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 28, opacity: 0.13,
+    borderRadius: 29, opacity: 0.13,
   },
   moduleSparkTop: { position: 'absolute', top: 5, right: 6, opacity: 0.95 },
   moduleSparkBottom: { position: 'absolute', bottom: 6, left: 7, opacity: 0.6 },
   moduleLabel: {
     color: COLORS.textPrimary, fontSize: 11, fontWeight: '700',
     lineHeight: 14, marginTop: 8, textAlign: 'center', letterSpacing: 0.1,
+  },
+  moduleSublabel: {
+    color: COLORS.textSecondary, fontSize: 9.5, fontWeight: '600',
+    marginTop: 2, textAlign: 'center', letterSpacing: 0.1, opacity: 0.75,
   },
 });

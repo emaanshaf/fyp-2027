@@ -6,8 +6,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Sharing from 'expo-sharing';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
+import { useShare } from '../context/ShareContext';
+import APP_CONFIG from '../config/appConfig';
 
 const TEMPLATES = [
   {
@@ -49,6 +50,12 @@ const TEMPLATES = [
 ];
 
 export default function GeneratorScreen() {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+  const { share } = useShare();
+
   const [template, setTemplate] = useState(TEMPLATES[0]);
   const [content, setContent] = useState('');
   const [citation, setCitation] = useState('');
@@ -56,13 +63,12 @@ export default function GeneratorScreen() {
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const handleShare = async () => {
-    const isAvailable = await Sharing.isAvailableAsync();
-    if (!isAvailable) {
-      return;
-    }
-    // Sharing text as a simple text file
-    const text = `${content}\n\n— ${citation}\n\nShared via Qitab-e-Noor`;
-    await Sharing.shareAsync(`data:text/plain;charset=utf-8,${encodeURIComponent(text)}`).catch(() => {});
+    const text = citation ? `${content}\n\n— ${citation}` : content;
+    await share({
+      title: template.label,
+      message: text,
+      url: APP_CONFIG.appUrl,
+    });
   };
 
   return (
@@ -236,7 +242,7 @@ export default function GeneratorScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   templatePicker: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -45,7 +45,8 @@ particular style/scope) typically needs:
 - **For robust, reliable behavior:** several thousand+ pairs, ideally
   covering edge cases and varied phrasings of the same question
 
-**This app's `src/ai/islamicKnowledge.js`** (57 entries) is a good seed but
+**This app's `src/ai/islamicKnowledge.js`** (161 entries across 8 categories) is
+a good seed but
 far too small on its own — it would need to be expanded significantly, and
 each entry reformatted from the current `{keywords, topic, answer,
 references}` shape into instruction-tuning format, e.g.:

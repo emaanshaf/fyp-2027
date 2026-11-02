@@ -5,12 +5,17 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 
 const SUHOOR_DUA = 'وَبِصَوْمِ غَدٍ نَّوَيْتُ مِنْ شَهْرِ رَمَضَانَ';
 const IFTAR_DUA = 'اللَّهُمَّ لَكَ صُمْتُ وَعَلَى رِزْقِكَ أَفْطَرْتُ';
 
 export default function RamadanModeScreen() {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+
   const [fasting, setFasting] = useState(false);
   const [fastStarted, setFastStarted] = useState(null);
   const [quranPages, setQuranPages] = useState(0);
@@ -160,7 +165,10 @@ export default function RamadanModeScreen() {
 }
 
 function GoalItem({ goal }) {
+  const COLORS = useColors();
+  const styles = useThemedStyles(makeStyles);
   const [done, setDone] = useState(false);
+
   return (
     <TouchableOpacity style={[styles.goalCard, done && styles.goalDone]}
       onPress={() => setDone(!done)}>
@@ -171,7 +179,7 @@ function GoalItem({ goal }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   headerCard: {
     margin: 16, borderRadius: 24, padding: 28, alignItems: 'center', overflow: 'hidden',
     backgroundColor: COLORS.primary,

@@ -31,9 +31,16 @@ export function ThemeProvider({ children }) {
 
   useEffect(() => {
     AsyncStorage.getItem(THEME_STORAGE_KEY).then(saved => {
-      const name = saved && themes[saved] ? saved : 'default';
+      // Only restore a saved preference if it's a known, valid theme.
+      // An invalid or missing value defaults to 'default' (Islamic Dark).
+      const name = (saved && themes[saved]) ? saved : 'default';
       setCurrentThemeName(name);
       setResolvedTheme(themes[name] || defaultTheme);
+      setHydrated(true);
+    }).catch(() => {
+      // Storage failure — fall back to dark theme gracefully.
+      setCurrentThemeName('default');
+      setResolvedTheme(defaultTheme);
       setHydrated(true);
     });
   }, []);

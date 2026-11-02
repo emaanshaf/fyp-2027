@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
+import { backend } from '../services/backend';
+import { notificationService } from '../services/notifications';
 
 const PLANS = [
   { id: '7', days: 7, label: '7 Days', daily: 87, desc: 'Intensive — 87 pages/day' },
@@ -19,6 +21,11 @@ const PLANS = [
 const TOTAL_PAGES = 604;
 
 export default function KhatmPlannerScreen() {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+
   const [activePlan, setActivePlan] = useState(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [startDate, setStartDate] = useState(null);
@@ -27,6 +34,19 @@ export default function KhatmPlannerScreen() {
   useEffect(() => { loadPlan(); }, []);
 
   const loadPlan = async () => {
+    // Try server first, fall back to AsyncStorage
+    try {
+      const data = await backend.getKhatmPlan();
+      if (data?.plan) {
+        const p = data.plan;
+        const planObj = PLANS.find(x => x.id === p.plan_id) || null;
+        setActivePlan(planObj);
+        setCurrentPage(p.current_page || 0);
+        setStartDate(p.start_date);
+        setStreak(p.streak || 0);
+        return;
+      }
+    } catch { /* offline — fall through */ }
     const raw = await AsyncStorage.getItem('khatm_plan');
     if (raw) {
       const d = JSON.parse(raw);
@@ -42,21 +62,41 @@ export default function KhatmPlannerScreen() {
     await AsyncStorage.setItem('khatm_plan', JSON.stringify(state));
   };
 
-  const startPlan = (plan) => {
+  const startPlan = async (plan) => {
     setActivePlan(plan);
     setCurrentPage(0);
-    setStartDate(new Date().toISOString());
+    const now = new Date().toISOString();
+    setStartDate(now);
     setStreak(0);
-    savePlan({ plan, currentPage: 0, startDate: new Date().toISOString(), streak: 0 });
+    const state = { plan, currentPage: 0, startDate: now, streak: 0 };
+    await AsyncStorage.setItem('khatm_plan', JSON.stringify(state));
+    backend.saveKhatmPlan({
+      plan_id: plan.id, plan_days: plan.days, plan_label: plan.label,
+      current_page: 0, start_date: now, streak: 0,
+    }).catch(() => {});
+    // Schedule daily 8 AM reminder
+    notificationService.scheduleKhatmReminder(plan.daily).catch(() => {});
   };
 
-  const readPages = (n) => {
+  const readPages = async (n) => {
     const newPage = Math.min(TOTAL_PAGES, currentPage + n);
     setCurrentPage(newPage);
-    if (!startDate) setStartDate(new Date().toISOString());
+    const sd = startDate || new Date().toISOString();
+    if (!startDate) setStartDate(sd);
     const newStreak = streak + 1;
     setStreak(newStreak);
-    savePlan({ currentPage: newPage, streak: newStreak });
+    const state = { plan: activePlan, currentPage: newPage, startDate: sd, streak: newStreak };
+    await AsyncStorage.setItem('khatm_plan', JSON.stringify(state));
+    if (activePlan) {
+      backend.saveKhatmPlan({
+        plan_id: activePlan.id, plan_days: activePlan.days, plan_label: activePlan.label,
+        current_page: newPage, start_date: sd, streak: newStreak,
+      }).catch(() => {});
+      // Re-schedule reminder with updated daily target
+      const remaining = TOTAL_PAGES - newPage;
+      const dailyTarget = Math.ceil(remaining / Math.max(1, activePlan.days - Math.floor(newStreak / activePlan.days)));
+      notificationService.scheduleKhatmReminder(dailyTarget).catch(() => {});
+    }
   };
 
   const getProgress = () => Math.round((currentPage / TOTAL_PAGES) * 100);
@@ -146,9 +186,11 @@ export default function KhatmPlannerScreen() {
         )}
 
         {/* Cancel */}
-        <TouchableOpacity style={styles.cancelBtn} onPress={() => {
+        <TouchableOpacity style={styles.cancelBtn} onPress={async () => {
           setActivePlan(null); setCurrentPage(0); setStartDate(null);
-          AsyncStorage.removeItem('khatm_plan');
+          await AsyncStorage.removeItem('khatm_plan');
+          backend.deleteKhatmPlan().catch(() => {});
+          notificationService.cancelKhatmReminder().catch(() => {});
         }}>
           <Text style={{ color: COLORS.red, fontSize: 13, fontWeight: '600' }}>Change Plan</Text>
         </TouchableOpacity>
@@ -157,7 +199,7 @@ export default function KhatmPlannerScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   headerCard: {
     padding: 24, borderRadius: 24, alignItems: 'center', marginBottom: 20,
     backgroundColor: COLORS.primary, borderWidth: 1, borderColor: COLORS.primary,

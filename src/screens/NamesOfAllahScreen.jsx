@@ -1,14 +1,16 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  ScrollView, Animated, Share
+  ScrollView, Animated
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 import * as Speech from 'expo-speech';
 import { ASMA_UL_HUSNA } from '../data/names';
+import { useShare } from '../context/ShareContext';
+import { APP_CONFIG } from '../config/appConfig';
 
 // Real recitation, not device TTS: one mp3 per name (1.mp3 .. 99.mp3),
 // matching ASMA_UL_HUSNA's id field exactly. Source: soachishti/Asma-ul-Husna
@@ -17,7 +19,13 @@ import { ASMA_UL_HUSNA } from '../data/names';
 const NAME_AUDIO_BASE = 'https://raw.githubusercontent.com/soachishti/Asma-ul-Husna/master/audio';
 const nameAudioUrl = (id) => `${NAME_AUDIO_BASE}/${id}.mp3`;
 
-export default function NamesOfAllahScreen() {
+export default function NamesOfAllahScreen({ route }) {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+  const { share } = useShare();
+
   const [selected, setSelected] = useState(null);
   const [favorites, setFavorites] = useState([]);
   const [speakingId, setSpeakingId] = useState(null);
@@ -31,6 +39,22 @@ export default function NamesOfAllahScreen() {
   // not advance the sequence after the user has asked it to stop.
   const cancelledRef = useRef(false);
   const soundRef = useRef(null);
+
+  // Search hits pass `{ id }` so the matching name opens expanded. The grid
+  // is three columns wide, so its scroll index is the row, not the item.
+  useEffect(() => {
+    const id = Number(route?.params?.id);
+    if (!id) return undefined;
+    const name = ASMA_UL_HUSNA.find(n => Number(n.id) === id);
+    if (!name) return undefined;
+    setSelected(name);
+    const timer = setTimeout(() => {
+      listRef.current?.scrollToIndex({
+        index: Math.floor((id - 1) / 3), animated: true, viewPosition: 0.3,
+      });
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [route?.params?.id]);
 
   /** Speaks one string and resolves when the device finishes or fails. */
   const speak = (text, locale) =>
@@ -130,11 +154,11 @@ export default function NamesOfAllahScreen() {
   };
 
   const shareName = async (item) => {
-    try {
-      await Share.share({
-        message: `${item.arabic}\n${item.name} — ${item.meaning}\n\n${item.desc}\n\n— 99 Names of Allah | Qitab-e-Noor`,
-      });
-    } catch {}
+    share({
+      title: item.name,
+      message: `${item.arabic}\n${item.name} — ${item.meaning}\n\n${item.desc}\n\n— 99 Names of Allah`,
+      url: APP_CONFIG.shareUrl('/names-of-allah'),
+    });
   };
 
   return (
@@ -272,7 +296,7 @@ export default function NamesOfAllahScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',

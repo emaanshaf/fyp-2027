@@ -7,25 +7,91 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Speech from 'expo-speech';
 import { getItem, setItem } from '../firebase/syncedStorage';
-import { COLORS, globalStyles } from '../theme';
-import { DUAS, CATEGORIES, CAT_ICONS, getContextualDua } from '../data/duas';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
+import { DUAS, CATEGORIES, CAT_ICONS } from '../data/duas';
+import { MANUAL_CONTEXTS, buildContextRecommendation } from '../services/contextDuas';
+import { lookupCurrentPlace } from '../services/placeLookup';
 import { backend } from '../services/backend';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { hasAuthToken } from '../services/authToken';
+import { useShare } from '../context/ShareContext';
+import { APP_CONFIG } from '../config/appConfig';
 
-export default function DuasScreen() {
+export default function DuasScreen({ route }) {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+  const { share } = useShare();
+
   const [category, setCategory] = useState('Morning');
   const [search, setSearch] = useState('');
   const [favorites, setFavorites] = useState([]);
   const [selected, setSelected] = useState(null);
-  const [recommended] = useState(() => getContextualDua());
+
+  // ── Context card: clock + optional place/speed + user's own chips ──────
+  const [manualContexts, setManualContexts] = useState([]);
+  const [place, setPlace] = useState(null);
+  const [locating, setLocating] = useState(false);
+  const [locationNote, setLocationNote] = useState('');
+  const [recommendation, setRecommendation] = useState(() => buildContextRecommendation());
 
   useEffect(() => {
     loadFavorites();
   }, []);
 
+  // If permission was granted on a previous visit, refresh the place quietly.
+  // With no prior grant this resolves as "skipped" and Android/iOS never show
+  // a dialog just because the screen opened.
+  useEffect(() => {
+    let active = true;
+    lookupCurrentPlace({ prompt: false })
+      .then(result => {
+        if (!active || result.outcome === 'skipped' || result.outcome === 'denied') return;
+        if (result.outcome === 'ok' || result.outcome === 'unsupported') setPlace(result);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    setRecommendation(buildContextRecommendation({
+      manualContexts,
+      place,
+      speedMps: place?.speedMps ?? null,
+    }));
+  }, [manualContexts, place]);
+
+  const toggleContext = id => setManualContexts(prev => (
+    prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
+  ));
+
+  const handleUseLocation = async () => {
+    if (locating) return;
+    setLocating(true);
+    setLocationNote('');
+    try {
+      const result = await lookupCurrentPlace();
+      if (result.outcome === 'ok' || result.outcome === 'unsupported') setPlace(result);
+      if (result.message) setLocationNote(result.message);
+    } catch {
+      setLocationNote('Could not read your location. Choose a place below instead.');
+    } finally {
+      setLocating(false);
+    }
+  };
+
+  // `/duas/12` and a search hit both carry the dua id. Open that dua's detail
+  // sheet even when the user's current category would not list it.
+  useEffect(() => {
+    const id = Number(route?.params?.id);
+    if (!id) return;
+    const dua = DUAS.find(d => Number(d.id) === id);
+    if (dua) setSelected(dua);
+  }, [route?.params?.id]);
+
   const loadFavorites = async () => {
     try {
-      const hasToken = await AsyncStorage.getItem('qitab_auth_token');
+      const hasToken = await hasAuthToken();
       if (hasToken) {
         try {
           const apiFavs = await backend.getFavorites();
@@ -46,7 +112,7 @@ export default function DuasScreen() {
     await setItem('qitab_fav_duas', JSON.stringify(next));
 
     // Also save to backend if logged in
-    const hasToken = await AsyncStorage.getItem('qitab_auth_token');
+    const hasToken = await hasAuthToken();
     if (hasToken) {
       try {
         const dua = DUAS.find(d => d.id === id);
@@ -72,26 +138,107 @@ export default function DuasScreen() {
 
   const speak = (text) => Speech.speak(text, { language: 'ar-SA', rate: 0.75 });
 
+  const shareDua = (dua) => {
+    if (!dua) return;
+    const parts = [dua.arabic];
+    if (dua.transliteration) parts.push(dua.transliteration);
+    parts.push(dua.translation);
+    share({
+      title: dua.title,
+      message: parts.join('\n\n'),
+      url: APP_CONFIG.shareUrl(`/duas/${dua.id}`),
+    });
+  };
+
   return (
     <SafeAreaView style={globalStyles.screen} edges={['bottom']}>
       {/* Contextual recommendation */}
-      {recommended?.dua && (
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={() => setSelected(recommended.dua)}
-          style={styles.recommendCard}
-        >
-          <View style={[globalStyles.row, { gap: 8, marginBottom: 8 }]}>
+      {recommendation?.dua && (
+        <View style={styles.recommendCard}>
+          <View style={[globalStyles.row, { gap: 8, marginBottom: 4 }]}>
             <Ionicons name="sparkles" size={16} color={COLORS.gold} />
-            <Text style={styles.recommendReason}>{recommended.reason}</Text>
+            <Text style={styles.recommendReason}>{recommendation.reason}</Text>
           </View>
-          <Text style={styles.recommendTitle}>{recommended.dua.title}</Text>
-          <Text style={styles.recommendArabic} numberOfLines={1}>{recommended.dua.arabic}</Text>
-          <View style={[globalStyles.row, { marginTop: 10, gap: 4 }]}>
-            <Text style={{ color: COLORS.gold, fontSize: 11, fontWeight: '800', letterSpacing: 1 }}>READ NOW</Text>
-            <Ionicons name="chevron-forward" size={13} color={COLORS.gold} />
+
+          {recommendation.placeLabel ? (
+            <View style={[globalStyles.row, { gap: 6, marginBottom: 8 }]}>
+              <Ionicons name="location-outline" size={12} color={COLORS.textSecondary} />
+              <Text style={styles.contextMeta}>
+                Near {recommendation.placeLabel}, named by your device
+              </Text>
+            </View>
+          ) : null}
+
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => setSelected(recommendation.dua)}
+            accessibilityRole="button"
+            accessibilityLabel={`Read ${recommendation.dua.title}`}
+          >
+            <Text style={styles.recommendTitle}>{recommendation.dua.title}</Text>
+            <Text style={styles.recommendArabic} numberOfLines={1}>{recommendation.dua.arabic}</Text>
+            <View style={[globalStyles.row, { marginTop: 10, gap: 4 }]}>
+              <Text style={{ color: COLORS.gold, fontSize: 11, fontWeight: '800', letterSpacing: 1 }}>READ NOW</Text>
+              <Ionicons name="chevron-forward" size={13} color={COLORS.gold} />
+            </View>
+          </TouchableOpacity>
+
+          {/* GPS can name a mosque or a market, but never a mood or the rain.
+              These chips are the honest way to correct it. */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginTop: 14 }}
+            contentContainerStyle={{ gap: 8, paddingRight: 4 }}
+          >
+            {MANUAL_CONTEXTS.map(context => {
+              const active = manualContexts.includes(context.id);
+              return (
+                <TouchableOpacity
+                  key={context.id}
+                  onPress={() => toggleContext(context.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={context.label}
+                  style={[styles.contextChip, active && styles.contextChipActive]}
+                >
+                  <Ionicons
+                    name={context.icon}
+                    size={13}
+                    color={active ? COLORS.gold : COLORS.textSecondary}
+                  />
+                  <Text style={[styles.contextChipText, active && { color: COLORS.gold }]}>
+                    {context.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          <View style={[globalStyles.row, { marginTop: 12, justifyContent: 'space-between', gap: 12 }]}>
+            <TouchableOpacity
+              onPress={handleUseLocation}
+              disabled={locating}
+              accessibilityRole="button"
+              accessibilityLabel="Use my location to suggest a dua"
+              style={styles.contextAction}
+            >
+              <Ionicons
+                name={locating ? 'hourglass-outline' : 'navigate-outline'}
+                size={13}
+                color={COLORS.gold}
+              />
+              <Text style={styles.contextActionText}>
+                {locating
+                  ? 'Checking\u2026'
+                  : place?.latitude != null ? 'Update location' : 'Use my location'}
+              </Text>
+            </TouchableOpacity>
+            <Text style={styles.contextPrivacy}>Location stays on your device</Text>
           </View>
-        </TouchableOpacity>
+
+          {locationNote ? <Text style={styles.contextNote}>{locationNote}</Text> : null}
+        </View>
       )}
 
       {/* Search */}
@@ -152,6 +299,13 @@ export default function DuasScreen() {
                 <TouchableOpacity onPress={() => speak(dua.arabic)}>
                   <Ionicons name="volume-high-outline" size={18} color={COLORS.textSecondary} />
                 </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => shareDua(dua)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Share ${dua.title}`}
+                >
+                  <Ionicons name="share-outline" size={18} color={COLORS.textSecondary} />
+                </TouchableOpacity>
                 <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
               </View>
             </TouchableOpacity>
@@ -201,9 +355,10 @@ export default function DuasScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[globalStyles.btnPrimary, { flex: 1, backgroundColor: COLORS.glass, borderWidth: 1, borderColor: COLORS.glassBorder }]}
-                  onPress={() => setSelected(null)}
+                  onPress={() => shareDua(selected)}
                 >
-                  <Text style={{ color: COLORS.textPrimary, fontWeight: '700' }}>Close</Text>
+                  <Ionicons name="share-social-outline" size={18} color={COLORS.gold} />
+                  <Text style={{ color: COLORS.textPrimary, fontWeight: '700' }}>Share</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -214,7 +369,7 @@ export default function DuasScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   recommendCard: {
     margin: 12,
     marginBottom: 4,
@@ -225,8 +380,26 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255,0.25)',
   },
   recommendReason: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '600', flex: 1 },
+  contextMeta: { color: COLORS.textSecondary, fontSize: 11, flex: 1 },
+  contextChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 6,
+    paddingHorizontal: 11,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  contextChipActive: { borderColor: COLORS.gold, backgroundColor: 'rgba(255,255,255,0.1)' },
+  contextChipText: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '700' },
+  contextAction: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 4 },
+  contextActionText: { color: COLORS.gold, fontSize: 12, fontWeight: '800' },
+  contextPrivacy: { color: COLORS.textSecondary, fontSize: 10, flexShrink: 1, textAlign: 'right' },
+  contextNote: { color: COLORS.amber, fontSize: 11, marginTop: 8, lineHeight: 16 },
   recommendTitle: { color: COLORS.textPrimary, fontSize: 16, fontWeight: '800', marginBottom: 6 },
-  recommendArabic: { textAlign: 'right', writingDirection: 'rtl', color: COLORS.gold, fontSize: 17 },
+  recommendArabic: { textAlign: 'right', writingDirection: 'rtl', color: COLORS.gold, fontSize: 17, fontFamily: 'AmiriQuran', lineHeight: 32 },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -267,6 +440,7 @@ const styles = StyleSheet.create({
     writingDirection: 'rtl',
     color: COLORS.gold,
     fontSize: 18,
+    fontFamily: 'AmiriQuran',
     lineHeight: 34,
     marginBottom: 8,
   },
@@ -286,6 +460,7 @@ const styles = StyleSheet.create({
     writingDirection: 'rtl',
     color: COLORS.gold,
     fontSize: 24,
+    fontFamily: 'AmiriQuran',
     lineHeight: 46,
     marginBottom: 24,
   },

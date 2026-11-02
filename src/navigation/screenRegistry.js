@@ -10,6 +10,7 @@ import HomeScreen from '../screens/HomeScreen';
 import QuranScreen from '../screens/QuranScreen';
 import HadithScreen from '../screens/HadithScreen';
 import DuasScreen from '../screens/DuasScreen';
+import SearchScreen from '../screens/SearchScreen';
 import PrayerTimesScreen from '../screens/PrayerTimesScreen';
 import ZakatScreen from '../screens/ZakatScreen';
 import TasbihScreen from '../screens/TasbihScreen';
@@ -18,6 +19,7 @@ import BookmarksScreen from '../screens/BookmarksScreen';
 import GeneratorScreen from '../screens/GeneratorScreen';
 import AIChatScreen from '../screens/AIChatScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import LegalScreen from '../screens/LegalScreen';
 import NamesOfAllahScreen from '../screens/NamesOfAllahScreen';
 import IslamicCalendarScreen from '../screens/IslamicCalendarScreen';
 import PrayerTrackerScreen from '../screens/PrayerTrackerScreen';
@@ -39,13 +41,24 @@ import GoodDeedsScreen from '../screens/GoodDeedsScreen';
 import ReflectionJournalScreen from '../screens/ReflectionJournalScreen';
 import KhatmPlannerScreen from '../screens/KhatmPlannerScreen';
 import LearnWorshipScreen from '../screens/LearnWorshipScreen';
+import PillarsScreen from '../screens/PillarsScreen';
+import HajjGuideScreen from '../screens/HajjGuideScreen';
+import IstikharaScreen from '../screens/IstikharaScreen';
+import ELearningScreen from '../screens/ELearningScreen';
+import CommunitiesScreen from '../screens/CommunitiesScreen';
+import IslamicNewsScreen from '../screens/IslamicNewsScreen';
 import NotFoundScreen from '../screens/NotFoundScreen';
+import LoginScreen from '../screens/LoginScreen';
+import AdminPanelScreen from '../screens/AdminPanelScreen';
+import ApiConsoleScreen from '../screens/ApiConsoleScreen';
+import DiagnosticsScreen from '../screens/DiagnosticsScreen';
 
 export const SCREENS = {
   Home: HomeScreen,
   Quran: QuranScreen,
   Prayer: PrayerTimesScreen,
   Duas: DuasScreen,
+  Search: SearchScreen,
 
   Tafsir: TafsirScreen,
   Hifz: HifzScreen,
@@ -71,15 +84,28 @@ export const SCREENS = {
   Seerah: SeerahScreen,
   Prophets: ProphetsStoriesScreen,
   LearnWorship: LearnWorshipScreen,
+  Pillars: PillarsScreen,
+  Hajj: HajjGuideScreen,
+  Istikhara: IstikharaScreen,
+  ELearning: ELearningScreen,
+
+  Communities: CommunitiesScreen,
+  News: IslamicNewsScreen,
 
   GoodDeeds: GoodDeedsScreen,
   Journal: ReflectionJournalScreen,
   Bookmarks: BookmarksScreen,
   AIChat: AIChatScreen,
   Settings: SettingsScreen,
+  Legal: LegalScreen,
+  ApiConsole: ApiConsoleScreen,
+  Diagnostics: DiagnosticsScreen,
   Reminders: RemindersScreen,
 
   Generator: GeneratorScreen,
+
+  Login: LoginScreen,
+  AdminPanel: AdminPanelScreen,
 
   NotFound: NotFoundScreen,
 };

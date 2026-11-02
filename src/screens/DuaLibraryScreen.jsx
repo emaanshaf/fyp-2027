@@ -1,26 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, ScrollView, TextInput, Share
+  View, Text, FlatList, TouchableOpacity, StyleSheet, ScrollView, TextInput
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { COLORS, globalStyles } from '../theme';
-
-const DUA_CATEGORIES = [
-  { id: 'morning', name: 'Morning Azkar', icon: 'sunny', color: COLORS.gold, time: 'After Fajr' },
-  { id: 'evening', name: 'Evening Azkar', icon: 'moon', color: COLORS.purple, time: 'After Asr' },
-  { id: 'sleep', name: 'Sleep Azkar', icon: 'bed', color: COLORS.blue, time: 'Before Sleep' },
-  { id: 'wakeup', name: 'Wake Up', icon: 'alarm', color: COLORS.amber, time: 'On Waking' },
-  { id: 'salah', name: 'After Salah', icon: 'hand-left', color: COLORS.emerald, time: 'After Prayer' },
-  { id: 'travel', name: 'Travel', icon: 'airplane', color: COLORS.cyan, time: 'During Journey' },
-  { id: 'protection', name: 'Protection', icon: 'shield', color: COLORS.red, time: 'Anytime' },
-  { id: 'parents', name: 'For Parents', icon: 'people', color: COLORS.pink, time: 'Anytime' },
-  { id: 'forgiveness', name: 'Forgiveness', icon: 'water', color: '#ffffff', time: 'Anytime' },
-  { id: 'hardship', name: 'Hard Times', icon: 'rainy', color: COLORS.amber, time: 'When in Need' },
-  { id: 'food', name: 'Before/After Eating', icon: 'restaurant', color: COLORS.emerald, time: 'Mealtime' },
-  { id: 'home', name: 'Entering Home', icon: 'home', color: COLORS.gold, time: 'On Entering' },
-];
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
+import { useShare } from '../context/ShareContext';
+import { APP_CONFIG } from '../config/appConfig';
 
 const AZKAR_DATA = {
   morning: [
@@ -78,8 +65,28 @@ const EXTRA_DUA = {
     { arabic: 'بِسْمِ اللَّهِ وَلَجْنَا، بِسْمِ اللَّهِ خَرَجْنَا', transliteration: 'Bismillahi walajna, bismillahi kharajna', translation: 'In the name of Allah we enter, in the name of Allah we leave.', count: 1 },
   ],
 };
-
 export default function DuaLibraryScreen() {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+  const { share } = useShare();
+
+const DUA_CATEGORIES = [
+  { id: 'morning', name: 'Morning Azkar', icon: 'sunny', color: COLORS.gold, time: 'After Fajr' },
+  { id: 'evening', name: 'Evening Azkar', icon: 'moon', color: COLORS.purple, time: 'After Asr' },
+  { id: 'sleep', name: 'Sleep Azkar', icon: 'bed', color: COLORS.blue, time: 'Before Sleep' },
+  { id: 'wakeup', name: 'Wake Up', icon: 'alarm', color: COLORS.amber, time: 'On Waking' },
+  { id: 'salah', name: 'After Salah', icon: 'hand-left', color: COLORS.emerald, time: 'After Prayer' },
+  { id: 'travel', name: 'Travel', icon: 'airplane', color: COLORS.cyan, time: 'During Journey' },
+  { id: 'protection', name: 'Protection', icon: 'shield', color: COLORS.red, time: 'Anytime' },
+  { id: 'parents', name: 'For Parents', icon: 'people', color: COLORS.pink, time: 'Anytime' },
+  { id: 'forgiveness', name: 'Forgiveness', icon: 'water', color: '#ffffff', time: 'Anytime' },
+  { id: 'hardship', name: 'Hard Times', icon: 'rainy', color: COLORS.amber, time: 'When in Need' },
+  { id: 'food', name: 'Before/After Eating', icon: 'restaurant', color: COLORS.emerald, time: 'Mealtime' },
+  { id: 'home', name: 'Entering Home', icon: 'home', color: COLORS.gold, time: 'On Entering' },
+];
+
   const [selectedCat, setSelectedCat] = useState(null);
   const [completedCounts, setCompletedCounts] = useState({});
   const [personalDuas, setPersonalDuas] = useState([]);
@@ -129,11 +136,11 @@ export default function DuaLibraryScreen() {
   };
 
   const shareDua = async (dua) => {
-    try {
-      await Share.share({
-        message: `${dua.arabic}\n\n${dua.transliteration || ''}\n${dua.translation}\n\n— Dua Library | Qitab-e-Noor`,
-      });
-    } catch {}
+    share({
+      title: dua.title || 'Dua',
+      message: `${dua.arabic}\n\n${dua.transliteration || ''}\n${dua.translation}\n\n— Dua Library`,
+      url: dua.id != null ? APP_CONFIG.shareDua(dua.id) : APP_CONFIG.shareUrl('/dua-library'),
+    });
   };
 
   if (!selectedCat) {
@@ -259,7 +266,7 @@ export default function DuaLibraryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   pageTitle: { color: COLORS.gold, fontSize: 22, fontWeight: '900' },
   catCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, marginBottom: 8,
@@ -293,7 +300,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.glassBorder,
   },
   duaDone: { borderColor: COLORS.emerald + '40', backgroundColor: 'rgba(255, 255, 255,0.04)' },
-  duaArabic: { color: COLORS.gold, fontSize: 20, textAlign: 'right', lineHeight: 34, writingDirection: 'rtl' },
+  duaArabic: { color: COLORS.gold, fontSize: 22, textAlign: 'right', lineHeight: 40, writingDirection: 'rtl', fontFamily: 'AmiriQuran' },
   duaTranslit: { color: COLORS.textSecondary, fontSize: 12, fontStyle: 'italic', marginTop: 8 },
   duaTranslation: { color: COLORS.textPrimary, fontSize: 14, lineHeight: 21, marginTop: 6 },
   duaFooter: {

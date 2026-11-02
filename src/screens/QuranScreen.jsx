@@ -8,9 +8,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { getItem, setItem } from '../firebase/syncedStorage';
 import { usePreferences } from '../hooks/usePreferences';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 import { backend } from '../services/backend';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { hasAuthToken } from '../services/authToken';
+import { useShare } from '../context/ShareContext';
+import { APP_CONFIG } from '../config/appConfig';
 import * as Speech from 'expo-speech';
 import {
   quranService, TRANSLATIONS, RECITERS, TARJAMA_AUDIO, hasRecitedTranslation,
@@ -43,6 +45,11 @@ function ReaderSettingsModal({
       `${r.name} ${r.arabic || ''} ${r.style || ''}`.toLowerCase().includes(q)
     );
   }, [qariQuery]);
+
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
 
   return (
   <Modal visible={visible} transparent animationType="slide" onRequestClose={() => onClose()}>
@@ -148,7 +155,13 @@ function ReaderSettingsModal({
   );
 }
 
-export default function QuranScreen() {
+export default function QuranScreen({ route }) {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+  const { share } = useShare();
+
   const [chapters, setChapters] = useState([]);
   const [search, setSearch] = useState('');
   const [activeChapter, setActiveChapter] = useState(null);
@@ -181,6 +194,16 @@ export default function QuranScreen() {
   // status callback both need the current value, and state captured in those
   // closures would be stale by the time the user hits stop.
   const cancelledRef = useRef(false);
+  // Search results and deep links land here with `{ surah, ayah }`. The ayah
+  // is applied only once its verses have loaded, then cleared so a later
+  // manual scroll is not undone.
+  const readerListRef = useRef(null);
+  const [pendingAyah, setPendingAyah] = useState(null);
+  // Which surah `verses` currently belongs to. A deep link switches the
+  // chapter first and the fetch resolves later; without this the scroll
+  // effect saw the *previous* surah's verses, decided the ayah was out of
+  // range and threw the pending request away.
+  const [versesChapterId, setVersesChapterId] = useState(null);
 
   useEffect(() => {
     loadChapters();
@@ -189,7 +212,7 @@ export default function QuranScreen() {
 
   const loadData = async () => {
     try {
-      const hasToken = await AsyncStorage.getItem('qitab_auth_token');
+      const hasToken = await hasAuthToken();
       if (hasToken) {
         try {
           const [apiBookmarks, apiNotes] = await Promise.all([
@@ -226,6 +249,41 @@ export default function QuranScreen() {
     if (activeChapter) loadVerses(activeChapter.id);
   }, [activeChapter, langKey]);
 
+  // Open the surah named by a deep link or search result. Waits for the
+  // chapter list because `/quran/2` can arrive before it has downloaded.
+  useEffect(() => {
+    const surah = Number(route?.params?.surah);
+    if (!surah || !chapters.length) return;
+    const chapter = chapters.find(c => Number(c.id) === surah);
+    if (chapter) setActiveChapter(prev => (prev?.id === surah ? prev : chapter));
+  }, [chapters, route?.params?.surah]);
+
+  useEffect(() => {
+    const surah = Number(route?.params?.surah);
+    const ayah = Number(route?.params?.ayah);
+    if (!surah || !ayah) return;
+    setPendingAyah({ surah, ayah });
+  }, [route?.params?.surah, route?.params?.ayah]);
+
+  useEffect(() => {
+    if (!pendingAyah || !verses.length) return;
+    if (activeChapter?.id !== pendingAyah.surah) return;
+    // The array can still hold the chapter we just navigated away from.
+    if (versesChapterId !== pendingAyah.surah) return;
+    const index = pendingAyah.ayah - 1;
+    // Some modes page verses in; never scroll to a position the loaded page
+    // does not contain.
+    if (index < 0 || index >= verses.length) {
+      setPendingAyah(null);
+      return undefined;
+    }
+    const timer = setTimeout(() => {
+      readerListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.05 });
+      setPendingAyah(null);
+    }, 320);
+    return () => clearTimeout(timer);
+  }, [pendingAyah, verses, versesChapterId, activeChapter]);
+
   const loadChapters = async () => {
     setLoadingChapters(true);
     setError(null);
@@ -240,9 +298,11 @@ export default function QuranScreen() {
   const loadVerses = async (chId) => {
     setLoading(true);
     setVerses([]);
+    setVersesChapterId(null);
     try {
       const data = await quranService.getVersesByChapter(chId, TRANSLATIONS[langKey].id);
       setVerses(data);
+      setVersesChapterId(chId);
     } catch (e) {
       console.warn('Failed to load verses:', e);
     } finally { setLoading(false); }
@@ -415,7 +475,7 @@ export default function QuranScreen() {
     const next = bookmarks.includes(key) ? bookmarks.filter(b => b !== key) : [...bookmarks, key];
     setBookmarks(next);
     await setItem('qitab_bookmarks', JSON.stringify(next));
-    const hasToken = await AsyncStorage.getItem('qitab_auth_token');
+    const hasToken = await hasAuthToken();
     if (hasToken) {
       try {
         const [surah, ayah] = key.split(':');
@@ -427,6 +487,19 @@ export default function QuranScreen() {
         }
       } catch (e) { /* backend unavailable */ }
     }
+  };
+
+  const shareVerse = (verse, index) => {
+    const ayah = index + 1;
+    const ref = `${activeChapter?.name_simple || 'Quran'} ${activeChapter?.id}:${ayah}`;
+    const arabic = verse.text_uthmani
+      || (verse.words || []).map(w => w.text_uthmani).join(' ');
+    const translation = stripHtml(verse.translations?.[0]?.text);
+    share({
+      title: ref,
+      message: `${arabic}\n\n"${translation}"\n— ${ref}`,
+      url: APP_CONFIG.shareVerse(`${activeChapter?.id}:${ayah}`),
+    });
   };
 
   const onRefresh = async () => {
@@ -634,10 +707,22 @@ export default function QuranScreen() {
         </View>
 
         <FlatList
+          ref={readerListRef}
           data={verses}
           keyExtractor={v => v.id.toString()}
           contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
           ItemSeparatorComponent={() => <View style={styles.verseDivider} />}
+          // Variable-height verse cards cannot be measured ahead of time, so
+          // an exact jump can fail. Estimate the offset and let the user
+          // continue from there rather than throwing the scroll away.
+          onScrollToIndexFailed={info => {
+            setTimeout(() => {
+              readerListRef.current?.scrollToOffset({
+                offset: info.averageItemLength * info.index,
+                animated: true,
+              });
+            }, 120);
+          }}
           renderItem={({ item: verse, index }) => {
             const key = `${activeChapter.id}:${index + 1}`;
             const isBm = bookmarks.includes(key);
@@ -669,12 +754,23 @@ export default function QuranScreen() {
                     <TouchableOpacity onPress={() => toggleBookmark(key)}>
                       <Ionicons name={isBm ? 'bookmark' : 'bookmark-outline'} size={18} color={isBm ? COLORS.gold : COLORS.textSecondary} />
                     </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => shareVerse(verse, index)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Share verse ${index + 1}`}
+                    >
+                      <Ionicons name="share-outline" size={18} color={COLORS.textSecondary} />
+                    </TouchableOpacity>
                     <TouchableOpacity onPress={() => setSelectedVerse({ key, note: notes[key] || '' })}>
                       <Ionicons name="pencil-outline" size={18} color={notes[key] ? COLORS.emerald : COLORS.textSecondary} />
                     </TouchableOpacity>
                   </View>
                 </View>
-                <Text style={[styles.arabicVerse, { fontSize: prefs.quranFontSize, lineHeight: prefs.quranFontSize * 1.9 }]}>{verse.words?.map(w => w.text_uthmani).join(' ')}</Text>
+                <Text style={[styles.arabicVerse, { fontSize: prefs.quranFontSize, lineHeight: prefs.quranFontSize * 1.9 }]}>
+                  {verse.words?.length
+                    ? verse.words.map(w => w.text_uthmani).join(' ')
+                    : verse.text_uthmani}
+                </Text>
                 <View style={styles.translationBox}>
                   <Text style={styles.translationText}>{translation}</Text>
                   <Text style={styles.translationLabel}>{TRANSLATIONS[langKey]?.author}</Text>
@@ -721,7 +817,7 @@ export default function QuranScreen() {
                   else delete next[selectedVerse.key];
                   setNotes(next);
                   await setItem('qitab_notes', JSON.stringify(next));
-                  const hasToken = await AsyncStorage.getItem('qitab_auth_token');
+                  const hasToken = await hasAuthToken();
                   if (hasToken) {
                     try {
                       const [surah, ayah] = selectedVerse.key.split(':');
@@ -748,7 +844,7 @@ export default function QuranScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   audioBar: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 16, paddingVertical: 10,

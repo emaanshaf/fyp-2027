@@ -1,5 +1,10 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiUrl } from '../config/appConfig';
+import { clearAuthToken, getAuthToken, setAuthToken } from './authToken';
+
+// A request must not hang forever behind a captive portal or a TCP connection
+// that opened but never answers. The old AbortError branch could never fire
+// because no signal and no timer were ever attached.
+const DEFAULT_TIMEOUT_MS = 15000;
 
 class BackendService {
   constructor() {
@@ -9,69 +14,104 @@ class BackendService {
 
   async getToken() {
     if (this.token) return this.token;
-    this.token = await AsyncStorage.getItem('qitab_auth_token');
+    // The adapter keeps the token in the OS keystore on native and migrates
+    // an older AsyncStorage copy on first read.
+    this.token = await getAuthToken();
     return this.token;
   }
 
   async setToken(token) {
     this.token = token;
-    if (token) {
-      await AsyncStorage.setItem('qitab_auth_token', token);
-    } else {
-      await AsyncStorage.removeItem('qitab_auth_token');
-    }
+    if (token) await setAuthToken(token);
+    else await clearAuthToken();
   }
 
   async request(endpoint, options = {}) {
     const token = await this.getToken();
+    const {
+      timeoutMs = DEFAULT_TIMEOUT_MS,
+      signal: callerSignal,
+      ...fetchOptions
+    } = options;
+
     const headers = {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),
-      ...options.headers,
+      ...fetchOptions.headers,
     };
 
-    let response;
+    const effectiveTimeout = Number.isFinite(timeoutMs) && timeoutMs > 0
+      ? timeoutMs
+      : DEFAULT_TIMEOUT_MS;
+
+    const controller = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, effectiveTimeout);
+
+    const forwardAbort = () => controller.abort();
+    if (callerSignal) {
+      if (callerSignal.aborted) controller.abort();
+      else callerSignal.addEventListener('abort', forwardAbort);
+    }
+
     try {
-      response = await fetch(`${this.baseUrl}${endpoint}`, {
-        ...options,
-        headers,
-      });
-    } catch (error) {
-      // Only a transport failure reaches here. Previously this catch also
-      // wrapped the parsing and status checks below, so a caller could not
-      // tell "the network is down" from "the server said no".
-      if (error.name === 'AbortError') {
-        const aborted = new Error('Request timed out');
-        aborted.reason = 'timeout';
-        throw aborted;
+      let response;
+      try {
+        response = await fetch(`${this.baseUrl}${endpoint}`, {
+          ...fetchOptions,
+          headers,
+          signal: controller.signal,
+        });
+      } catch (error) {
+        // Only a transport failure reaches here. Previously this catch also
+        // wrapped the parsing and status checks below, so a caller could not
+        // tell "the network is down" from "the server said no".
+        if (timedOut) {
+          const aborted = new Error('Request timed out');
+          aborted.reason = 'timeout';
+          throw aborted;
+        }
+        if (error.name === 'AbortError') {
+          const cancelled = new Error('Request was cancelled');
+          cancelled.reason = 'cancelled';
+          throw cancelled;
+        }
+        const offline = new Error('Backend server not available');
+        offline.reason = 'offline';
+        throw offline;
       }
-      const offline = new Error('Backend server not available');
-      offline.reason = 'offline';
-      throw offline;
-    }
 
-    // A proxy or platform error page in front of the API answers with HTML,
-    // which used to surface to the caller as a JSON syntax error naming a
-    // character position — true, and useless.
-    let data = null;
-    try {
-      data = await response.json();
-    } catch {
-      data = null;
-    }
+      // A proxy or platform error page in front of the API answers with HTML,
+      // which used to surface to the caller as a JSON syntax error naming a
+      // character position — true, and useless.
+      let data = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
 
-    if (!response.ok) {
-      // The API sends a machine-readable `reason` alongside the human-readable
-      // `error`. Throwing only the message forced callers to match on the
-      // prose, so rewording a server message silently changed app behaviour.
-      const failure = new Error(data?.error || `Request failed (HTTP ${response.status})`);
-      failure.status = response.status;
-      failure.reason = data?.reason || null;
-      failure.data = data;
-      throw failure;
-    }
+      if (!response.ok) {
+        // The API sends a machine-readable `reason` alongside the
+        // human-readable `error`. Throwing only the message forced callers to
+        // match on the prose, so rewording a server message silently changed
+        // app behaviour.
+        const failure = new Error(data?.error || `Request failed (HTTP ${response.status})`);
+        failure.status = response.status;
+        failure.reason = data?.reason || null;
+        failure.data = data;
+        failure.requestId = response.headers?.get?.('x-request-id') || null;
+        throw failure;
+      }
 
-    return data;
+      return data;
+    } finally {
+      clearTimeout(timer);
+      callerSignal?.removeEventListener?.('abort', forwardAbort);
+    }
   }
 
   // Auth
@@ -99,6 +139,17 @@ class BackendService {
 
   async getMe() {
     return this.request('/auth/me');
+  }
+
+  /**
+   * Delete the signed-in account. The server re-checks the password, so a
+   * stolen session token alone cannot destroy the account.
+   */
+  async deleteAccount(password) {
+    return this.request('/auth/me', {
+      method: 'DELETE',
+      body: JSON.stringify({ password }),
+    });
   }
 
   async forgotPassword(email) {
@@ -346,6 +397,94 @@ class BackendService {
   async getUserRole() {
     const data = await this.request('/auth/me');
     return data.user?.role || 'user';
+  }
+
+  // Good Deeds
+  async getDeeds(date) {
+    const q = date ? `?date=${date}` : '';
+    return this.request(`/deeds${q}`);
+  }
+
+  async addDeed(deed) {
+    return this.request('/deeds', {
+      method: 'POST',
+      body: JSON.stringify(deed),
+    });
+  }
+
+  async getDeedStats() {
+    return this.request('/deeds/stats');
+  }
+
+  async deleteDeed(id) {
+    return this.request(`/deeds/${id}`, { method: 'DELETE' });
+  }
+
+  // Reflection Journal
+  async getJournalEntries() {
+    return this.request('/journal');
+  }
+
+  async addJournalEntry(entry) {
+    return this.request('/journal', {
+      method: 'POST',
+      body: JSON.stringify(entry),
+    });
+  }
+
+  async updateJournalEntry(id, data) {
+    return this.request(`/journal/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteJournalEntry(id) {
+    return this.request(`/journal/${id}`, { method: 'DELETE' });
+  }
+
+  // Khatm Planner
+  async getKhatmPlan() {
+    return this.request('/khatm');
+  }
+
+  async saveKhatmPlan(planData) {
+    return this.request('/khatm', {
+      method: 'PUT',
+      body: JSON.stringify(planData),
+    });
+  }
+
+  async deleteKhatmPlan() {
+    return this.request('/khatm', { method: 'DELETE' });
+  }
+
+  // Push token
+  async registerPushToken(token) {
+    return this.request('/auth/push-token', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
+  }
+
+  // Admin
+  async getAdminUsers() {
+    return this.request('/auth/users');
+  }
+
+  async getAdminStats() {
+    return this.request('/auth/stats');
+  }
+
+  async updateUserRole(userId, role) {
+    return this.request(`/auth/users/${userId}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ role }),
+    });
+  }
+
+  async deleteUser(userId) {
+    return this.request(`/auth/users/${userId}`, { method: 'DELETE' });
   }
 }
 

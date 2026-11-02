@@ -35,45 +35,84 @@ export const MODULES = [
   { name: 'Prayer', path: 'prayer', title: 'Prayer Times', icon: 'time-outline', accent: 'cyan', roles: ALL, tab: true, drawer: false },
   { name: 'Duas', path: 'duas', title: 'Duas', icon: 'rose-outline', accent: 'pink', roles: ALL, tab: true, drawer: false },
 
+  // Universal search. Reached from the Home header and by URL, not the
+  // drawer: it is a tool over the content, not another content section.
+  { name: 'Search', path: 'search', title: 'Search', icon: 'search-outline', accent: 'gold', roles: ALL, drawer: false },
+
   // ── Scripture & study ───────────────────────────────────────────────────
-  { name: 'Tafsir', path: 'tafsir', title: 'Tafsir', icon: 'reader-outline', accent: 'amber', roles: ALL },
-  { name: 'Hifz', path: 'hifz', title: 'Hifz / Memorisation', icon: 'mic-outline', accent: 'purple', roles: ALL },
-  { name: 'AIQuran', path: 'ai-quran', title: 'AI Quran Assistant', icon: 'sparkles-outline', accent: 'cyan', roles: ALL },
-  { name: 'AyahOfDay', path: 'ayah-of-day', title: 'Ayah of the Day', icon: 'sunny-outline', accent: 'gold', roles: ALL },
-  { name: 'Hadith', path: 'hadith', title: 'Authentic Hadith', icon: 'shield-checkmark-outline', accent: 'emerald', roles: ALL },
-  { name: 'HadithVerify', path: 'hadith/verify', title: 'Hadith Verification', icon: 'search-outline', accent: 'emerald', roles: ALL },
-  { name: 'NamesOfAllah', path: 'names-of-allah', title: '99 Names of Allah', icon: 'sparkles-outline', accent: 'gold', roles: ALL },
+  { name: 'Tafsir', path: 'tafsir', title: 'Tafsir', icon: 'reader-outline', accent: 'amber', roles: ALL, group: 'learn' },
+  { name: 'Hifz', path: 'hifz', title: 'Hifz / Memorisation', icon: 'mic-outline', accent: 'purple', roles: ALL, group: 'learn' },
+  // Built-in Quran search and study pointers, not a live AI model. The internal
+  // name stays AIQuran so old deep links keep working; the user-facing title
+  // must not imply generation.
+  { name: 'AIQuran', path: 'ai-quran', title: 'Quran Study', icon: 'reader-outline', accent: 'cyan', roles: ALL, group: 'learn' },
+  { name: 'AyahOfDay', path: 'ayah-of-day', title: 'Ayah of the Day', icon: 'sunny-outline', accent: 'gold', roles: ALL, group: 'learn' },
+  { name: 'Hadith', path: 'hadith', title: 'Authentic Hadith', icon: 'shield-checkmark-outline', accent: 'emerald', roles: ALL, group: 'learn' },
+  { name: 'HadithVerify', path: 'hadith/verify', title: 'Hadith Verification', icon: 'search-outline', accent: 'emerald', roles: ALL, group: 'learn' },
+  { name: 'NamesOfAllah', path: 'names-of-allah', title: '99 Names of Allah', icon: 'sparkles-outline', accent: 'gold', roles: ALL, group: 'learn' },
 
   // ── Worship ─────────────────────────────────────────────────────────────
-  { name: 'Calendar', path: 'calendar', title: 'Hijri Calendar', icon: 'calendar-outline', accent: 'blue', roles: ALL },
-  { name: 'PrayerTracker', path: 'prayer-tracker', title: 'Prayer Tracker', icon: 'checkbox-outline', accent: 'emerald', roles: ALL },
-  { name: 'DuaLibrary', path: 'dua-library', title: 'Dua & Azkar', icon: 'bookmarks-outline', accent: 'pink', roles: ALL },
-  { name: 'Qibla', path: 'qibla', title: 'Qibla Finder', icon: 'compass-outline', accent: 'cyan', roles: ALL },
-  { name: 'Ramadan', path: 'ramadan', title: 'Ramadan Mode', icon: 'moon-outline', accent: 'purple', roles: ALL },
-  { name: 'Zakat', path: 'zakat', title: 'Zakat & Ushr', icon: 'wallet-outline', accent: 'emerald', roles: ALL },
-  { name: 'Tasbih', path: 'tasbih', title: 'Tasbih Counter', icon: 'ellipse-outline', accent: 'amber', roles: ALL },
+  { name: 'Calendar', path: 'calendar', title: 'Hijri Calendar', icon: 'calendar-outline', accent: 'blue', roles: ALL, group: 'worship' },
+  { name: 'PrayerTracker', path: 'prayer-tracker', title: 'Prayer Tracker', icon: 'checkbox-outline', accent: 'emerald', roles: ALL, group: 'worship' },
+  { name: 'DuaLibrary', path: 'dua-library', title: 'Dua & Azkar', icon: 'bookmarks-outline', accent: 'pink', roles: ALL, group: 'worship' },
+  { name: 'Qibla', path: 'qibla', title: 'Qibla Finder', icon: 'compass-outline', accent: 'cyan', roles: ALL, group: 'worship' },
+  { name: 'Ramadan', path: 'ramadan', title: 'Ramadan Mode', icon: 'moon-outline', accent: 'purple', roles: ALL, group: 'worship' },
+  { name: 'Zakat', path: 'zakat', title: 'Zakat & Ushr', icon: 'wallet-outline', accent: 'emerald', roles: ALL, group: 'worship' },
+  { name: 'Tasbih', path: 'tasbih', title: 'Tasbih Counter', icon: 'ellipse-outline', accent: 'amber', roles: ALL, group: 'worship' },
+  { name: 'Hajj', path: 'hajj', title: 'Hajj & Umrah', icon: 'airplane-outline', accent: 'amber', roles: ALL, group: 'worship' },
+  { name: 'Istikhara', path: 'istikhara', title: 'Istikhara', icon: 'bulb-outline', accent: 'cyan', roles: ALL, group: 'worship' },
 
   // ── Learning ────────────────────────────────────────────────────────────
-  { name: 'Learning', path: 'learning', title: 'Learning Path', icon: 'school-outline', accent: 'blue', roles: ALL },
-  { name: 'ReviewSession', path: 'learning/review', title: 'Review Session', icon: 'refresh-outline', accent: 'blue', roles: ALL, drawer: false },
-  { name: 'QuranJourney', path: 'quran-journey', title: 'Quran Journey', icon: 'trophy-outline', accent: 'gold', roles: ALL },
-  { name: 'KhatmPlanner', path: 'khatm-planner', title: 'Khatm Planner', icon: 'map-outline', accent: 'purple', roles: ALL },
-  { name: 'Quiz', path: 'quiz', title: 'Islamic Quiz', icon: 'help-circle-outline', accent: 'amber', roles: ALL },
-  { name: 'Seerah', path: 'seerah', title: 'Seerah of the Prophet ﷺ', icon: 'footsteps-outline', accent: 'blue', roles: ALL },
-  { name: 'Prophets', path: 'prophets', title: 'Stories of the Prophets', icon: 'people-outline', accent: 'purple', roles: ALL },
-  { name: 'LearnWorship', path: 'learn-worship', title: 'Kalimas, Wudhu & Salah', icon: 'water-outline', accent: 'emerald', roles: ALL },
+  { name: 'Learning', path: 'learning', title: 'Learning Path', icon: 'school-outline', accent: 'blue', roles: ALL, group: 'learn' },
+  { name: 'ReviewSession', path: 'learning/review', title: 'Review Session', icon: 'refresh-outline', accent: 'blue', roles: ALL, drawer: false, group: 'learn' },
+  { name: 'QuranJourney', path: 'quran-journey', title: 'Quran Journey', icon: 'trophy-outline', accent: 'gold', roles: ALL, group: 'learn' },
+  { name: 'KhatmPlanner', path: 'khatm-planner', title: 'Khatm Planner', icon: 'map-outline', accent: 'purple', roles: ALL, group: 'learn' },
+  { name: 'Quiz', path: 'quiz', title: 'Islamic Quiz', icon: 'help-circle-outline', accent: 'amber', roles: ALL, group: 'learn' },
+  { name: 'Seerah', path: 'seerah', title: 'Seerah of the Prophet ﷺ', icon: 'footsteps-outline', accent: 'blue', roles: ALL, group: 'learn' },
+  { name: 'Prophets', path: 'prophets', title: 'Stories of the Prophets', icon: 'people-outline', accent: 'purple', roles: ALL, group: 'learn' },
+  { name: 'LearnWorship', path: 'learn-worship', title: 'Kalimas, Wudhu & Salah', icon: 'water-outline', accent: 'emerald', roles: ALL, group: 'learn' },
+  { name: 'Pillars', path: 'pillars', title: 'Pillars of Islam', icon: 'business-outline', accent: 'gold', roles: ALL, group: 'learn' },
+  { name: 'ELearning', path: 'e-learning', title: 'E-Learning Courses', icon: 'library-outline', accent: 'blue', roles: ALL, group: 'learn' },
+
+  // ── Community ───────────────────────────────────────────────────────────
+  { name: 'Communities', path: 'communities', title: 'Islamic Communities', icon: 'people-circle-outline', accent: 'purple', roles: ALL, group: 'community' },
+  { name: 'News', path: 'news', title: 'Islamic News', icon: 'newspaper-outline', accent: 'cyan', roles: ALL, group: 'community' },
 
   // ── Personal ────────────────────────────────────────────────────────────
-  { name: 'GoodDeeds', path: 'good-deeds', title: 'Good Deeds', icon: 'ribbon-outline', accent: 'emerald', roles: ALL },
-  { name: 'Journal', path: 'journal', title: 'Reflection Journal', icon: 'create-outline', accent: 'pink', roles: ALL },
-  { name: 'Reminders', path: 'reminders', title: 'Reminders', icon: 'notifications-outline', accent: 'amber', roles: ALL },
-  { name: 'Bookmarks', path: 'bookmarks', title: 'My Library', icon: 'bookmark-outline', accent: 'gold', roles: ALL },
-  { name: 'AIChat', path: 'ai-chat', title: 'Islamic AI Assistant', icon: 'chatbubbles-outline', accent: 'cyan', roles: ALL },
-  { name: 'Settings', path: 'settings', title: 'Settings', icon: 'settings-outline', accent: 'blue', roles: ALL },
+  { name: 'GoodDeeds', path: 'good-deeds', title: 'Good Deeds', icon: 'ribbon-outline', accent: 'emerald', roles: ALL, group: 'personal' },
+  { name: 'Journal', path: 'journal', title: 'Reflection Journal', icon: 'create-outline', accent: 'pink', roles: ALL, group: 'personal' },
+  { name: 'Reminders', path: 'reminders', title: 'Reminders', icon: 'notifications-outline', accent: 'amber', roles: ALL, group: 'personal' },
+  { name: 'Bookmarks', path: 'bookmarks', title: 'My Library', icon: 'bookmark-outline', accent: 'gold', roles: ALL, group: 'personal' },
+  { name: 'AIChat', path: 'ai-chat', title: 'Islamic AI Assistant', icon: 'chatbubbles-outline', accent: 'cyan', roles: ALL, group: 'personal' },
+  // Settings is pinned in the drawer footer instead of the scrollable list.
+  { name: 'Settings', path: 'settings', title: 'Settings', icon: 'settings-outline', accent: 'blue', roles: ALL, drawer: false },
+  // The app's own privacy policy and terms. Reached from Settings, not listed
+  // in the drawer: a legal document is not a content module.
+  { name: 'Legal', path: 'legal', title: 'Privacy & Terms', icon: 'document-text-outline', accent: 'emerald', roles: ALL, drawer: false },
+  // Developer-only tooling, reached from Settings rather than the drawer so it
+  // does not compete with the worship screens. Still deep-linkable at
+  // /developer/api for anyone debugging on a device.
+  { name: 'ApiConsole', path: 'developer/api', title: 'API Console', icon: 'terminal-outline', accent: 'blue', roles: ALL, drawer: false, group: 'tools' },
+  { name: 'Diagnostics', path: 'developer/health', title: 'System Health', icon: 'pulse-outline', accent: 'emerald', roles: ALL, drawer: false, group: 'tools' },
 
   // ── Restricted ──────────────────────────────────────────────────────────
   // Content authoring is a moderator capability, not a user one.
-  { name: 'Generator', path: 'generator', title: 'Content Creator', icon: 'color-wand-outline', accent: 'purple', roles: ['moderator', 'admin'] },
+  { name: 'Generator', path: 'generator', title: 'Content Creator', icon: 'color-wand-outline', accent: 'purple', roles: ['moderator', 'admin'], group: 'tools' },
+  { name: 'AdminPanel', path: 'admin', title: 'Admin Panel', icon: 'shield-checkmark-outline', accent: 'red', roles: ['admin'], group: 'tools' },
+];
+
+/**
+ * Drawer sections, in the order they appear. A module opts into one with its
+ * `group` field, so the drawer is generated rather than hand-listed. The
+ * order here is deliberate: worship first, then study, then the personal and
+ * social surfaces.
+ */
+export const DRAWER_GROUPS = [
+  { id: 'worship', labelKey: 'drawer.worship', fallback: 'Worship' },
+  { id: 'learn', labelKey: 'drawer.learn', fallback: 'Learn' },
+  { id: 'community', labelKey: 'drawer.community', fallback: 'Community' },
+  { id: 'personal', labelKey: 'drawer.personal', fallback: 'Personal' },
+  { id: 'tools', labelKey: 'drawer.tools', fallback: 'Tools' },
 ];
 
 /**
@@ -165,6 +204,55 @@ export function hasAccess(role, moduleName) {
   const allowed = MODULE_ROLES[moduleName];
   if (!allowed) return false;
   return allowed.includes(role || 'user');
+}
+
+/**
+ * Where `navigate()` must aim to reach a module from any screen.
+ *
+ * Tab screens are registered inside MainTabs, which is a sibling of the drawer
+ * screens. React Navigation only walks *up* the tree, so a drawer screen like
+ * Search cannot navigate to "Quran" or "Duas" by bare name — the action finds
+ * no handler and the tap silently does nothing. Wrapping tab targets in
+ * MainTabs makes the same call valid from either side.
+ */
+export function navigationTarget(routeName, params = {}) {
+  if (moduleByName(routeName)?.tab) {
+    return { name: 'MainTabs', params: { screen: routeName, params } };
+  }
+  return { name: routeName, params };
+}
+
+/**
+ * URL for a module plus its deep-link params, e.g. a Quran ayah or a dua.
+ * Without this the in-app URL stopped at `/quran`, so reloading or sharing it
+ * lost the selected verse even though the screen had opened at the right one.
+ */
+export function buildPath(routeName, params = {}) {
+  const base = ROUTE_PATHS[routeName];
+  if (!base) return '/';
+
+  switch (routeName) {
+    case 'Quran':
+      if (params.surah == null) return base;
+      return params.ayah == null
+        ? `${base}/${params.surah}`
+        : `${base}/${params.surah}/ayah/${params.ayah}`;
+    case 'Tafsir':
+      return params.surah != null && params.ayah != null
+        ? `${base}/${params.surah}/${params.ayah}`
+        : base;
+    case 'Hadith':
+      if (!params.collection) return base;
+      return params.number == null
+        ? `${base}/${params.collection}`
+        : `${base}/${params.collection}/${params.number}`;
+    case 'Duas':
+      return params.id == null ? base : `${base}/${params.id}`;
+    case 'Learning':
+      return params.level ? `${base}/${params.level}` : base;
+    default:
+      return base;
+  }
 }
 
 /** Route name for a URL path, or null when nothing matches (renders 404). */

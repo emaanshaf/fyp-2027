@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { Platform, Linking } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
-import { ROUTE_PATHS, MODULE_ROLES, pathToRoute, paramsFromPath } from '../config/routes';
+import { ROUTE_PATHS, MODULE_ROLES, buildPath, navigationTarget, pathToRoute, paramsFromPath } from '../config/routes';
 
 // Route data lives in src/config/routes.js. This file used to carry its own
 // copies of ROUTE_PATHS, pathToRoute and the role table; they had already
@@ -13,7 +13,7 @@ export function useNavigationUrl() {
   const isMountedRef = useRef(false);
   const previousRouteRef = useRef(null);
 
-  const updateUrl = useCallback((routeName) => {
+  const updateUrl = useCallback((routeName, params = {}) => {
     if (!isMountedRef.current) return;
     
     // Everything here is web-only. The URL used to be built *before* this
@@ -23,7 +23,7 @@ export function useNavigationUrl() {
     if (Platform.OS !== 'web') return;
     if (typeof window === 'undefined' || !window.location || !window.history) return;
 
-    const path = ROUTE_PATHS[routeName] || '/';
+    const path = buildPath(routeName, params);
     try {
       window.history.replaceState({}, '', `${window.location.origin}${path}`);
     } catch (e) {
@@ -32,8 +32,9 @@ export function useNavigationUrl() {
   }, []);
 
   const navigateTo = useCallback((routeName, params = {}) => {
-    updateUrl(routeName);
-    navigation.navigate(routeName, params);
+    updateUrl(routeName, params);
+    const target = navigationTarget(routeName, params);
+    navigation.navigate(target.name, target.params);
   }, [navigation, updateUrl]);
 
   useEffect(() => {

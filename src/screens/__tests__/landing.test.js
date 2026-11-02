@@ -90,7 +90,7 @@ describe('LandingScreen', () => {
     render(<LandingScreen onDone={() => {}} />);
 
     await waitFor(() => expect(screen.getByText(/AH$/)).toBeTruthy());
-    expect(screen.getByText('Today in the Islamic world')).toBeTruthy();
+    expect(screen.getByText('✦ Today in the Islamic World ✦')).toBeTruthy();
     expect(screen.getByLabelText('Enter Qitab-e-Noor')).toBeTruthy();
 
     // Provenance labels must be present even with no network.

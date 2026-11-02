@@ -5,7 +5,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 import { learning, GRADES, TOPICS } from '../services/learningEngine';
 import { allItems } from '../services/decks';
 
@@ -18,6 +18,11 @@ import { allItems } from '../services/decks';
  * whole thing into passive reading.
  */
 export default function ReviewSessionScreen({ navigation, route }) {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+
   const topic = route?.params?.topic ?? null;
   const mode = route?.params?.mode ?? 'due'; // 'due' | 'new'
 
@@ -255,7 +260,7 @@ export default function ReviewSessionScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   topBar: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingHorizontal: 16, paddingVertical: 12,

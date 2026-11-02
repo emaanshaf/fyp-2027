@@ -1,235 +1,141 @@
 # Qitab-e-Noor
 
-Islamic companion app built with Expo / React Native. Runs on Android, iOS and
-the web from one codebase, and keeps working with no connection.
+**Your Spiritual Companion** — a mobile-first Islamic companion app built with Expo SDK 57 / React Native, backed by a small Express API.
 
-## Features
+It combines Quran reading (with offline download), Hadith, Duas, prayer times, Qibla, Zakat, Hajj, Islamic news, communities, E-Learning, and an Islamic knowledge assistant. Android and iOS are the real targets; the react-native-web preview is secondary.
 
-**Scripture & study**
-- Quran — 114 surahs, 5 translations, 12 reciters, verse audio
-- Tafsir — Ibn Kathir, Ma'arif al-Qur'an, Tazkirul Quran, plus Urdu and Arabic commentaries
-- Hadith — the six authentic collections, fully searchable offline
-- Hadith verification — search every collection at once by text or number
-- Ayah of the Day, Quran Journey, Khatm planner, Hifz tracker
+## Principles
 
-**Worship**
-- Prayer times, prayer tracker and adhan reminders
-- Qibla compass
-- Tasbih counter
-- Zakat & Ushr calculator
-- Ramadan mode, Hijri calendar
+The product rules are binding and live in [`docs/PRODUCT_PRINCIPLES.md`](docs/PRODUCT_PRINCIPLES.md):
 
-**Learning** *(see [The learning model](#the-learning-model))*
-- Adaptive spaced-repetition review across everything you're memorising
-- A guided curriculum that unlocks by prerequisite
-- Islamic quiz, Seerah, the 25 prophets, the 99 Names
+1. No new top-level modules by default — improve what exists.
+2. Do not label templates, search or static content as "AI".
+3. No social network without moderation, reporting and blocking.
+4. The AI must not issue personal fatwas.
+5. Core worship stays free: Quran, prayer times, Qibla, Duas, reminders, offline Quran.
 
-**Other**
-- Duas & adhkar with text-to-speech and a personal dua library
-- Reflection journal, good deeds tracker
-- Bookmarks and notes
-- Islamic AI assistant (offline knowledge base, optional Claude API)
+Offline-first is a product requirement, not a bonus: downloaded Quran, the 161-topic knowledge base and local user data must keep working without a connection.
 
-## Running the app
+Two behaviours are worth knowing when testing:
 
-```
+- **Duas for where you are.** The Duas screen suggests a dua from the clock, an optional one-shot GPS fix whose label comes from the phone's own geocoder (Apple/Google — never our server), and manual chips for things GPS cannot know (rain, feeling unwell, study). See `src/services/contextDuas.js` and `src/services/placeLookup.js`.
+- **Today's reminders, in-app.** While the app is open, a card in the bottom-right corner of the main tabs appears when a reminder is due and stays there until you mark it done, snooze it for five minutes or close it. It plays the chime chosen in Reminders once per appearance, re-checks today's Quran and custom reminders every five minutes, and leaves the dashboard behind it fully usable. It is not an OS notification and cannot fire while the app is closed. The Home dashboard also carries a reminder card that always shows what is due, what is next, or how to add the first reminder. See `src/components/TodaysRemindersPopup.jsx` and `src/components/TodaysRemindersStrip.jsx`.
+- **Live weather on Home.** The hero shows the current conditions and the day's high/low for the city saved for prayer times, with a moon or sun icon for day and night. It uses the keyless Open-Meteo API, caches a reading for thirty minutes, falls back to the last one offline, and never sends coordinates. See `src/services/weather.js` and `src/components/HomeWeather.jsx`.
+- **Sky-aware hero.** The Home banner draws the sun or the moon for the current hour behind your name and the Hijri date, tinting the gradient from dawn through daylight, golden hour, dusk and night. Windows come from cached prayer times when available and the clock otherwise; the moon's phase comes from the Hijri day. See `src/utils/sky.js`.
+- **Live prayer countdown.** The next-prayer card carries a ring that fills from the previous prayer and ticks down to the second, then refreshes the card the moment the prayer arrives. See `src/components/PrayerCountdownRing.jsx`.
+
+## Requirements
+
+- Node.js 18+
+- PostgreSQL (local, Supabase or Neon) for accounts, bookmarks, notes and AI history
+- Expo Go or a development build for testing on a phone
+
+## Quick start
+
+```bash
+cp .env.example .env        # then fill in the values you need
 npm install
-npm run dev
+npm run server:migrate      # create the schema
+npm run server              # API on http://localhost:3001
+npm start                   # Expo dev server (separate terminal)
 ```
 
-`npm run dev` runs both tiers together — the API on **http://localhost:3001**
-and the app on **http://localhost:8081**.
+For the web preview use `npm run web` (port 8081), or `npm run dev` to start the API and Expo together.
 
-To run them separately:
+The API defaults to `http://localhost:3001/api`. On a physical phone the app resolves the dev machine's LAN address automatically; set `EXPO_PUBLIC_API_URL` to override.
 
-```
-npm run server   # API only, port 3001
-npm start        # app only  (a = Android, i = iOS, w = web)
-```
+**Never run `start.bat`** — it force-kills every `node.exe` on the machine. Use the npm scripts above.
 
-Useful checks:
+## Environment
 
-```
-npm run verify   # lint + tests + Expo health, all in one
-npm test         # unit tests
-npm run lint     # ESLint
-npm run doctor   # Expo dependency/config health
-npm run assets   # regenerate app icons and splash from code
-```
+All secrets stay in the server-side `.env`. Nothing sensitive belongs in `EXPO_PUBLIC_*`, because those values are compiled into the shipped bundle.
 
-## Routing
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` / `DB_*` | PostgreSQL connection |
+| `JWT_SECRET` | Session signing; enforced in production |
+| `CORS_ORIGIN` | Allowed origins; enforced in production |
+| `ANTHROPIC_API_KEY` | Optional live assistant key (`npm run ai:configure`) |
+| `EXPO_PUBLIC_API_URL` | Backend base URL |
+| `EXPO_PUBLIC_PRIVACY_URL` | Privacy policy link shown in Settings |
+| `EXPO_PUBLIC_TERMS_URL` | Terms of use link shown in Settings |
 
-`src/config/routes.js` is the single source of truth. Route paths, drawer
-entries, screen titles, role permissions and the React Navigation `linking`
-config are all derived from one `MODULES` table — these were previously four
-hand-maintained copies that had already drifted apart.
+See [`.env.example`](.env.example) for the full list and comments.
 
-Every module has a URL:
+## Legal pages
 
-```
-/dashboard/home        /tafsir              /learning
-/quran                 /hifz                /learning/review
-/prayer                /hadith              /quiz
-/duas                  /hadith/verify       /zakat
-/qibla                 /names-of-allah      /settings
-```
+The privacy policy and terms live in [`src/data/legal.js`](src/data/legal.js) and are rendered inside the app at Settings → Legal & Privacy, so they can be read offline.
 
-Nested and parameterised routes resolve to the right screen with their params
-parsed and cast:
+`npm run legal:export` generates self-contained HTML from the same source into `public/privacy/index.html` and `public/terms/index.html`. Deploy `public/` (or copy those two folders) to the address configured in `EXPO_PUBLIC_PRIVACY_URL` / `EXPO_PUBLIC_TERMS_URL` — the defaults are `https://qitabe-noor.app/privacy` and `/terms`. Both store listings should point at those published addresses.
 
-```
-/quran/2               ->  Quran      { surah: 2 }
-/quran/2/ayah/255      ->  Quran      { surah: 2, ayah: 255 }
-/tafsir/2/255          ->  Tafsir     { surah: 2, ayah: 255 }
-/hadith/bukhari/1      ->  Hadith     { collection: 'bukhari', number: 1 }
-```
+Edit the data, run the export, and commit both together; a test fails if the generated pages no longer match the app's copy. Set `LEGAL_BASE_URL` when the site lives somewhere other than `qitabe-noor.app`.
 
-Literal paths win over parameterised ones, so `/hadith/verify` reaches the
-verification screen rather than being swallowed by `/hadith/:collection`.
-Anything unmatched renders the 404 screen instead of failing silently.
+## Scripts
 
-Deep links work from `qitabe-noor://`, `https://qitabe-noor.app` and localhost,
-and browser back/forward plus refresh-in-place are handled by React
-Navigation's linking integration.
-
-Access is role-gated (`user` / `moderator` / `admin`) from the same table, and
-the API enforces the same permissions server-side — a route hidden in the
-drawer is also refused by the backend, not just hidden in the UI.
-
-## Offline-first
-
-Every remote read goes through `src/services/cache.js`, which uses a
-stale-while-revalidate strategy: cached content renders immediately, refreshes
-in the background, and falls back to the last saved copy when the network is
-gone. Anything opened once stays available.
-
-Large payloads (hadith collections run to several megabytes) are written to the
-filesystem rather than AsyncStorage, which is not built for values that size.
-
-**Settings → Offline & Storage** shows connection state and how much has been
-downloaded, and lets you clear it. Clearing never touches your bookmarks,
-notes, favourites or learning progress.
-
-## The learning model
-
-Anything you're trying to retain — a memorised ayah, a dua, one of the 99
-Names, a quiz fact — becomes a *card* scheduled by the engine in
-`src/services/learningEngine.js`.
-
-**Scheduling** is SM-2 with three deliberate departures:
-
-| Change | Why |
-|---|---|
-| A lapse halves the interval instead of resetting it | Dropping a long-held ayah back to day one after one slip is punishing enough that people abandon the habit |
-| Intervals carry ±15% jitter | Stops a freshly seeded deck from falling due all on the same morning |
-| "Hard" lowers ease without counting as a lapse | Separates *slow* recall from *failed* recall |
-
-**Mastery** per card is driven by interval length, tempered by lapse count, so
-a card that keeps breaking never reads as mastered.
-
-**Guidance** — the hub suggests what will help most, in order: clear the review
-backlog, shore up the weakest topic, then introduce new material.
-
-**The curriculum** (`src/data/curriculum.js`) is a prerequisite graph, not a
-checklist: Salah unlocks after Wudu, Hifz after Juz Amma and Tafsir basics.
-Progress is persisted. Tests assert the graph is acyclic, never gates a lesson
-behind a later level, and can always be walked to completion.
-
-Decks are built from content the app already ships (`src/services/decks.js`),
-with stable namespaced card ids, so re-seeding a deck after a content update
-never duplicates a card or resets its history.
-
-## Islamic AI Assistant
-
-The assistant works out of the box using a built-in offline knowledge base
-(`src/ai/islamicKnowledge.js`) — no setup required.
-
-For live, more detailed answers via the Claude API:
-
-1. Copy `.env.example` to `.env`
-2. Add `EXPO_PUBLIC_ANTHROPIC_API_KEY=sk-ant-...`
-3. Restart `npx expo start`
-
-If the key is missing, offline, or a request fails, the app falls back to the
-offline knowledge base — the assistant never breaks.
-
-> `EXPO_PUBLIC_` variables are compiled into the JS bundle and are visible to
-> anyone who inspects the shipped app. For a public release, proxy this call
-> through your own backend instead of shipping a key.
-
-## Accounts & data sync
-
-By default the app runs in **guest mode** — no login, everything on-device.
-
-**Firebase** (email/password accounts and cross-device sync):
-
-1. Create a project at https://console.firebase.google.com (the free Spark plan is enough)
-2. Add a "Web app" to get the config values
-3. Authentication → Sign-in method → enable **Email/Password**
-4. Firestore Database → create it, then paste `firestore.rules` into the Rules tab
-5. Fill in the six `EXPO_PUBLIC_FIREBASE_*` values in `.env`
-6. Restart `npx expo start`
-
-**The API server** (`server/`) is an alternative backend with JWT auth, bcrypt,
-rate limiting and role-based access.
-
-Security notes:
-
-- `JWT_SECRET` has **no insecure default**. Production refuses to boot without
-  a real one; development generates an ephemeral secret per process.
-- `CORS_ORIGIN` must list real origins in production — `*` is rejected there,
-  and it cannot be combined with credentialed requests anyway.
-- The credential limiter (10 per 15 min) covers login, register, password
-  reset and password change. Ordinary reads such as `/auth/me` are not
-  throttled, since opening the app ten times in fifteen minutes is normal use.
-- User responses are projected through a whitelist, so a password hash cannot
-  reach a client regardless of which storage backend answered.
-- Input sanitisation skips password fields — rewriting a credential silently
-  locks the user out.
-- Firestore rules scope each user to their own subtree, subcollections
-  included, with an explicit catch-all deny for everything else.
-
-It prefers PostgreSQL — set `DB_*` / `DATABASE_URL` in `.env` and run
-`node server/migrations/run.js`. Any of local Postgres,
-[Supabase](https://supabase.com) or [Neon](https://neon.tech) works.
-
-Without it, the server falls back to a file-backed local store in
-`server/.data/`. That fallback survives restarts and is fine for development,
-but it is not a production database — use PostgreSQL for anything real.
-
-Without any of this the app works fully in guest mode; no functionality is lost.
-
-## Building
-
-Build profiles live in `eas.json`.
-
-```
-npm run build:preview   # internal APK
-npm run build:prod      # Play Store app bundle
+```bash
+npm run server        # API on :3001
+npm start             # Expo
+npm run web           # web preview on :8081
+npm run dev           # API + Expo together
+npm run server:migrate
+npm test              # Jest (app + server projects)
+npm run lint
+npm run doctor        # expo-doctor
+npm run verify        # lint + tests + doctor
+npm run ai:configure  # write the Anthropic key to .env
+npm run ai:status     # check key + server state
+npm run legal:export  # regenerate the hosted privacy and terms pages
 ```
 
-`app.config.js` layers profile-specific settings over `app.json`. Notably,
-cleartext HTTP is enabled for development (the dev client talks to a local API
-over `http://`) and disabled for production builds, which Play Store review
-requires.
+Restarting the dev API rotates `JWT_SECRET`; old tokens then return 401 and users may need to sign in again.
 
-App icons and the splash screen are generated from code by
-`scripts/generate-assets.js` — edit the palette or geometry there and run
-`npm run assets` rather than hand-editing the PNGs.
+## AI
 
-## Project layout
+There is exactly one live model integration: Anthropic Claude through `POST /api/ai/chat` in [`server/routes/ai.js`](server/routes/ai.js). The app never calls Anthropic directly — it goes through [`src/ai/claudeClient.js`](src/ai/claudeClient.js).
 
-```
+The pipeline in [`src/ai/assistant.js`](src/ai/assistant.js) is: small talk → offline retrieval → optional live call → offline answer → Quran search → unavailable. Source labels stay honest: `claude+rag`, `claude`, `offline`, `offline+quran`, `unavailable`.
+
+The key is optional. Without it, `/api/ai/status` reports `configured: false` and the 161-topic offline knowledge base answers instead.
+
+Settings → Islamic AI Assistant shows a local usage summary: how many questions were answered by live AI, the offline knowledge base or a Quran search, plus the last seven days. Only counts are stored on the device — never question text — and they can be reset at any time.
+
+- [`docs/AI_USAGE.md`](docs/AI_USAGE.md) — complete inventory of where AI is and is not used
+- [`docs/LIVE_AI_SETUP.md`](docs/LIVE_AI_SETUP.md) — configuration
+- [`docs/CUSTOM_AI_TRAINING_GUIDE.md`](docs/CUSTOM_AI_TRAINING_GUIDE.md) — extending the knowledge base
+
+## News and text mining
+
+The Islamic News screen merges six publishers behind `GET /api/news`: Al Jazeera, Middle East Eye, Middle East Monitor, The Guardian's Islam feed, About Islam and Religion News Service. Al Jazeera is the lead publisher — its three newest stories open the feed, and the rest stay newest-first. Al Jazeera's own RSS is tried first; when the publisher blocks the server network, its headlines arrive through a site-scoped Google News feed and the source is marked `via: "fallback"`.
+
+Headlines are analysed on the server with deterministic text mining in [`server/services/newsTextMining.js`](server/services/newsTextMining.js): stop-word removal, a curated topic lexicon (Gaza, Palestine, Ramadan, Hajj, Quran, mosques, conflict, economy and others), per-story keywords and feed-wide trends. The News screen shows the trends as chips that filter the feed, and every card carries a few mined keywords. This is lexical analysis, not AI summarisation — no model is involved, and the screen says so.
+
+## Layout
+
+```text
 src/
-  ai/            offline knowledge base + Claude client
-  components/    shared UI primitives, error boundary, offline banner
-  config/        app config, theme definitions
-  data/          content datasets (duas, names, prophets, quiz, curriculum)
-  hooks/         theme and navigation hooks
-  navigation/    navigator, route table, role gating
-  screens/       33 feature screens
-  services/      cache, API clients, learning engine, storage, sync
-  theme/         theme entry point
-server/          optional Express API (JWT, RBAC, PostgreSQL)
-scripts/         asset generation
+  ai/           assistant, Claude client, 161-topic knowledge base
+  components/   shared UI
+  navigation/   screen registry and linking
+  screens/      one screen per module
+  services/     backend, cache, Quran, Hadith, storage, backup, notifications
+  utils/        share, citation links, formatting
+server/
+  routes/       auth, bookmarks, notes, modules, news, ai
+  middleware/   auth, validation, security, rate limits
+  migrations/   PostgreSQL schema
+docs/           product, AI, CI/CD documentation
+scripts/        asset, sound and AI configuration scripts
 ```
+
+## Documentation
+
+- [`AGENTS.md`](AGENTS.md) — operating rules for contributors and coding agents
+- [`docs/PRODUCT_PRINCIPLES.md`](docs/PRODUCT_PRINCIPLES.md)
+- [`docs/AI_USAGE.md`](docs/AI_USAGE.md)
+- [`docs/LIVE_AI_SETUP.md`](docs/LIVE_AI_SETUP.md)
+- [`docs/CUSTOM_AI_TRAINING_GUIDE.md`](docs/CUSTOM_AI_TRAINING_GUIDE.md)
+- [`docs/ci-cd.md`](docs/ci-cd.md)
+
+## Before finishing a change
+
+Run `npm run lint` and the relevant tests. Check the mobile path, and the web preview where relevant. Confirm the five guardrails still hold. Report verification gaps honestly instead of claiming a check that did not run.

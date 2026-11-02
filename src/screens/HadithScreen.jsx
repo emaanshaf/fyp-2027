@@ -1,14 +1,22 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet,
-  ActivityIndicator, Share
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 import { hadithService, HADITH_COLLECTIONS } from '../services/hadithApi';
+import { useShare } from '../context/ShareContext';
+import { APP_CONFIG } from '../config/appConfig';
 
 export default function HadithScreen() {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+  const { share } = useShare();
+
   const [selectedCollection, setSelectedCollection] = useState(null);
   const [hadiths, setHadiths] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -73,12 +81,12 @@ export default function HadithScreen() {
   };
 
   const shareHadith = async (h) => {
-    try {
-      const meta = hadithService.getCollectionMeta(selectedCollection);
-      await Share.share({
-        message: `${h.text}\n\n— ${meta?.name || ''} #${h.hadithnumber}`,
-      });
-    } catch {}
+    const meta = hadithService.getCollectionMeta(selectedCollection);
+    share({
+      title: meta?.name || 'Hadith',
+      message: `${h.text}\n\n— ${meta?.name || ''} #${h.hadithnumber}`,
+      url: APP_CONFIG.shareHadith(selectedCollection, h.hadithnumber),
+    });
   };
 
   // Collection selector view
@@ -218,7 +226,7 @@ export default function HadithScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   collectionCard: {
     flexDirection: 'row',
     alignItems: 'center',

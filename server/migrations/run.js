@@ -3,10 +3,6 @@ const path = require('path');
 const { query, ready, isDbAvailable } = require('../config/database');
 
 async function migrate() {
-  // The connection attempt is started at import time and is not instant. Without
-  // waiting for it, query() saw dbAvailable === false and ran the whole schema
-  // against the in-memory development store — which reported success and left
-  // the real database empty.
   await ready;
 
   if (!isDbAvailable()) {
@@ -17,22 +13,28 @@ async function migrate() {
     process.exit(1);
   }
 
-  const schema = fs.readFileSync(
-    path.join(__dirname, '001_create_schema.sql'),
-    'utf8'
-  );
+  const migrations = [
+    '001_create_schema.sql',
+    '002_personal_tracking.sql',
+  ];
 
-  try {
-    await query(schema);
-    console.log('Database migration completed successfully');
-    process.exit(0);
-  } catch (err) {
-    // This used to be logged and then swallowed, so the process exited 0. A
-    // deploy pipeline read that as success and started a server against a
-    // database with no tables.
-    console.error('Migration failed:', err.message);
-    process.exit(1);
+  for (const file of migrations) {
+    const sqlPath = path.join(__dirname, file);
+    if (!fs.existsSync(sqlPath)) {
+      console.log(`Skipping ${file} (not found)`);
+      continue;
+    }
+    const schema = fs.readFileSync(sqlPath, 'utf8');
+    try {
+      await query(schema);
+      console.log(`Migration ${file} completed successfully`);
+    } catch (err) {
+      console.error(`Migration ${file} failed:`, err.message);
+      process.exit(1);
+    }
   }
+
+  process.exit(0);
 }
 
 migrate();

@@ -10,9 +10,9 @@ const hapticImpact = (style) => Platform.OS !== 'web' && Haptics.impactAsync(sty
 const hapticNotify = (type) => Platform.OS !== 'web' && Haptics.notificationAsync(type);
 import { getItem, setItem } from '../firebase/syncedStorage';
 import Svg, { Circle } from 'react-native-svg';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 import { backend } from '../services/backend';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { hasAuthToken } from '../services/authToken';
 import { usePreferences } from '../hooks/usePreferences';
 import storage from '../services/storage';
 
@@ -32,6 +32,7 @@ const RADIUS = 110;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 function RingProgress({ count, target }) {
+  const COLORS = useColors();
   const progress = Math.min(count / target, 1);
   const strokeDashoffset = CIRCUMFERENCE * (1 - progress);
   return (
@@ -51,6 +52,11 @@ function RingProgress({ count, target }) {
 }
 
 export default function TasbihScreen() {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+
   const [preset, setPreset] = useState(DHIKR_PRESETS[0]);
   const [count, setCount] = useState(0);
   const [laps, setLaps] = useState(0);
@@ -71,7 +77,7 @@ export default function TasbihScreen() {
 
   const loadHistory = async () => {
     try {
-      const hasToken = await AsyncStorage.getItem('qitab_auth_token');
+      const hasToken = await hasAuthToken();
       if (hasToken) {
         try {
           const apiHistory = await backend.getTasbihHistory();
@@ -162,7 +168,7 @@ export default function TasbihScreen() {
     await setItem('qitab_tasbih_history', JSON.stringify(next));
 
     // Also save to backend if logged in
-    const hasToken = await AsyncStorage.getItem('qitab_auth_token');
+    const hasToken = await hasAuthToken();
     if (hasToken) {
       try {
         await backend.addTasbihSession({
@@ -348,7 +354,7 @@ export default function TasbihScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   actionRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
   dhikrBtn: {
     flexDirection: 'row',

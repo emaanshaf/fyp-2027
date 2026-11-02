@@ -11,6 +11,7 @@ jest.setTimeout(20000);
 // run against an in-memory implementation rather than mocking every call site.
 
 const mockStore = new Map();
+const mockSecureStore = new Map();
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(k => Promise.resolve(mockStore.has(k) ? mockStore.get(k) : null)),
@@ -28,18 +29,97 @@ jest.mock('@react-native-community/netinfo', () => ({
   fetch: jest.fn(() => Promise.resolve({ isConnected: true, isInternetReachable: true })),
 }));
 
-jest.mock('expo-file-system', () => ({
+// In-memory filesystem. The app persists large cache payloads and the
+// downloaded Quran through expo-file-system, so tests need to read back what
+// they write. SDK 57 exposes the classic API at `expo-file-system/legacy`;
+// the package root only exports the class-based API and throws on these
+// function names.
+const mockFiles = new Map();
+const mockFileSystem = {
+  documentDirectory: '/documents/',
   cacheDirectory: '/tmp/',
   makeDirectoryAsync: jest.fn(() => Promise.resolve()),
-  getInfoAsync: jest.fn(() => Promise.resolve({ exists: false })),
-  readAsStringAsync: jest.fn(() => Promise.resolve('')),
-  writeAsStringAsync: jest.fn(() => Promise.resolve()),
-  deleteAsync: jest.fn(() => Promise.resolve()),
-  readDirectoryAsync: jest.fn(() => Promise.resolve([])),
+  getInfoAsync: jest.fn(uri =>
+    Promise.resolve({
+      exists: mockFiles.has(uri),
+      size: (mockFiles.get(uri) || '').length,
+      isDirectory: false,
+    })
+  ),
+  readAsStringAsync: jest.fn(uri =>
+    mockFiles.has(uri)
+      ? Promise.resolve(mockFiles.get(uri))
+      : Promise.reject(new Error(`ENOENT: ${uri}`))
+  ),
+  writeAsStringAsync: jest.fn((uri, text) => {
+    mockFiles.set(uri, text);
+    return Promise.resolve();
+  }),
+  deleteAsync: jest.fn(uri => {
+    mockFiles.delete(uri);
+    for (const key of [...mockFiles.keys()]) {
+      if (key.startsWith(uri)) mockFiles.delete(key);
+    }
+    return Promise.resolve();
+  }),
+  readDirectoryAsync: jest.fn(dir => {
+    const prefix = dir.endsWith('/') ? dir : `${dir}/`;
+    const names = new Set();
+    for (const key of mockFiles.keys()) {
+      if (!key.startsWith(prefix)) continue;
+      names.add(key.slice(prefix.length).split('/')[0]);
+    }
+    return Promise.resolve([...names]);
+  }),
+  moveAsync: jest.fn(({ from, to }) => {
+    if (!mockFiles.has(from)) return Promise.reject(new Error(`ENOENT: ${from}`));
+    mockFiles.set(to, mockFiles.get(from));
+    mockFiles.delete(from);
+    return Promise.resolve();
+  }),
+};
+
+jest.mock('expo-file-system', () => mockFileSystem);
+jest.mock('expo-file-system/legacy', () => mockFileSystem);
+
+// expo-secure-store is native-only. The mock is an in-memory map with the
+// same surface the app uses, so token migration and the app lock can be
+// exercised without a device keystore.
+jest.mock('expo-secure-store', () => ({
+  getItemAsync: jest.fn(k => Promise.resolve(mockSecureStore.has(k) ? mockSecureStore.get(k) : null)),
+  setItemAsync: jest.fn((k, v) => { mockSecureStore.set(k, v); return Promise.resolve(); }),
+  deleteItemAsync: jest.fn(k => { mockSecureStore.delete(k); return Promise.resolve(); }),
+  WHEN_UNLOCKED_THIS_DEVICE_ONLY: 'WHEN_UNLOCKED_THIS_DEVICE_ONLY',
+  AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 'AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY',
 }));
 
-// Exposed so tests can start from a clean slate.
-global.__resetStorage = () => mockStore.clear();
+jest.mock('expo-local-authentication', () => ({
+  hasHardwareAsync: jest.fn(() => Promise.resolve(true)),
+  isEnrolledAsync: jest.fn(() => Promise.resolve(true)),
+  supportedAuthenticationTypesAsync: jest.fn(() => Promise.resolve([2])),
+  authenticateAsync: jest.fn(() => Promise.resolve({ success: true })),
+  AuthenticationType: { FINGERPRINT: 1, FACIAL_RECOGNITION: 2, IRIS: 3 },
+}));
+
+jest.mock('expo-crypto', () => {
+  const nodeCrypto = require('crypto');
+  return {
+    CryptoDigestAlgorithm: { SHA256: 'SHA-256', SHA1: 'SHA-1', MD5: 'MD5' },
+    digestStringAsync: jest.fn((algorithm, data) =>
+      Promise.resolve(nodeCrypto.createHash('sha256').update(data).digest('hex'))
+    ),
+    randomUUID: jest.fn(() => nodeCrypto.randomUUID()),
+  };
+});
+
+// Exposed so tests can start from a clean slate. Secure storage is cleared
+// too: a leftover lock from one suite must never lock another.
+global.__resetStorage = () => {
+  mockStore.clear();
+  mockSecureStore.clear();
+  mockFiles.clear();
+};
+global.__resetSecureStore = () => mockSecureStore.clear();
 
 // Firebase ships ESM that Jest will not transform, and none of these tests
 // exercise it — the app treats Firebase as optional at runtime anyway.
@@ -101,15 +181,20 @@ jest.mock('expo-notifications', () => ({
   cancelScheduledNotificationAsync: jest.fn(() => Promise.resolve()),
   cancelAllScheduledNotificationsAsync: jest.fn(() => Promise.resolve()),
   getAllScheduledNotificationsAsync: jest.fn(() => Promise.resolve([])),
+  setNotificationChannelAsync: jest.fn(() => Promise.resolve()),
   setNotificationHandler: jest.fn(),
   addNotificationReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
   addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
   AndroidImportance: { MAX: 5, HIGH: 4, DEFAULT: 3 },
-  SchedulableTriggerInputTypes: { DAILY: 'daily', DATE: 'date' },
+  AndroidNotificationPriority: { MAX: 'max', HIGH: 'high', DEFAULT: 'default' },
+  SchedulableTriggerInputTypes: { DAILY: 'daily', DATE: 'date', TIME_INTERVAL: 'timeInterval' },
 }));
 
 jest.mock('expo-location', () => ({
   requestForegroundPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
+  // The Duas context card checks the existing grant on mount so that opening
+  // the screen does not trigger a system dialog (see services/placeLookup.js).
+  getForegroundPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'undetermined' })),
   getCurrentPositionAsync: jest.fn(() =>
     Promise.resolve({ coords: { latitude: 31.5204, longitude: 74.3587 } })
   ),

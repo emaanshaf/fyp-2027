@@ -1,7 +1,7 @@
 import {
   MODULES, TAB_MODULES, DRAWER_MODULES, ROUTE_PATHS, MODULE_ROLES, SCREEN_TITLES,
   LINK_PATTERNS, hasAccess, pathToRoute, paramsFromPath, buildLinkingConfig,
-  moduleByName, normalisePath,
+  moduleByName, normalisePath, navigationTarget, buildPath,
 } from '../routes';
 import { SCREENS } from '../../navigation/screenRegistry';
 
@@ -194,6 +194,72 @@ describe('buildLinkingConfig', () => {
 
   it('routes anything unmatched to NotFound', () => {
     expect(screens.NotFound).toBe('*');
+  });
+});
+
+describe('navigationTarget', () => {
+  it('wraps tab screens in MainTabs so drawer screens can reach them', () => {
+    // Regression: Search navigated to 'Duas', which no drawer navigator
+    // handles, so tapping a dua result only changed the URL.
+    expect(navigationTarget('Duas', { id: 10 })).toEqual({
+      name: 'MainTabs',
+      params: { screen: 'Duas', params: { id: 10 } },
+    });
+    expect(navigationTarget('Quran', { surah: 7, ayah: 151 })).toEqual({
+      name: 'MainTabs',
+      params: { screen: 'Quran', params: { surah: 7, ayah: 151 } },
+    });
+  });
+
+  it('leaves drawer screens as direct targets', () => {
+    expect(navigationTarget('Hadith')).toEqual({ name: 'Hadith', params: {} });
+    expect(navigationTarget('Search')).toEqual({ name: 'Search', params: {} });
+  });
+
+  it('only wraps screens that are actually tabs', () => {
+    for (const m of MODULES) {
+      const target = navigationTarget(m.name);
+      expect(target.name).toBe(m.tab ? 'MainTabs' : m.name);
+    }
+  });
+});
+
+describe('buildPath', () => {
+  it('returns the bare section path without params', () => {
+    for (const [name, path] of Object.entries(ROUTE_PATHS)) {
+      expect(buildPath(name)).toBe(path);
+      expect(buildPath(name, { fromHome: true })).toBe(path);
+    }
+  });
+
+  it('keeps the readable Quran ayah form', () => {
+    expect(buildPath('Quran', { surah: 2, ayah: 255 })).toBe('/quran/2/ayah/255');
+    expect(buildPath('Quran', { surah: 18 })).toBe('/quran/18');
+  });
+
+  it('builds parameterised paths the linker can parse back', () => {
+    expect(buildPath('Duas', { id: 10 })).toBe('/duas/10');
+    expect(buildPath('Tafsir', { surah: 2, ayah: 255 })).toBe('/tafsir/2/255');
+    expect(buildPath('Hadith', { collection: 'bukhari' })).toBe('/hadith/bukhari');
+    expect(buildPath('Hadith', { collection: 'bukhari', number: 1 })).toBe('/hadith/bukhari/1');
+    expect(buildPath('Learning', { level: 'basics' })).toBe('/learning/basics');
+  });
+
+  it('round-trips every generated path through pathToRoute', () => {
+    const cases = [
+      ['Quran', { surah: 2, ayah: 255 }],
+      ['Duas', { id: 10 }],
+      ['Tafsir', { surah: 2, ayah: 255 }],
+      ['Hadith', { collection: 'bukhari', number: 1 }],
+      ['Learning', { level: 'basics' }],
+    ];
+    for (const [name, params] of cases) {
+      expect(pathToRoute(buildPath(name, params))).toBe(name);
+    }
+  });
+
+  it('falls back to root for unknown routes', () => {
+    expect(buildPath('Nope')).toBe('/');
   });
 });
 

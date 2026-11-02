@@ -16,7 +16,11 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
-import * as FileSystem from 'expo-file-system';
+// SDK 57 moved the classic function API behind `expo-file-system/legacy`.
+// Importing the package root now exposes only the File/Directory classes and
+// the old function names throw at runtime — which silently turned every
+// filesystem cache write into a failed write on a real phone.
+import * as FileSystem from 'expo-file-system/legacy';
 
 const CACHE_PREFIX = 'qitab_cache_';
 const META_KEY = 'qitab_cache_meta';
@@ -349,9 +353,19 @@ function formatBytes(n) {
  * `fetch` with a timeout and a JSON body. Without the timeout a captive-portal
  * Wi-Fi network leaves requests hanging indefinitely and the UI spins forever.
  */
-export async function fetchJson(url, { timeout = 15000, ...init } = {}) {
+export async function fetchJson(url, { timeout = 15000, signal, ...init } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
+
+  // Let callers cancel a long download without waiting for the timeout. The
+  // controller is local so the timeout and the caller's signal can both stop
+  // the same request.
+  const forwardAbort = () => controller.abort();
+  if (signal) {
+    if (signal.aborted) controller.abort();
+    else signal.addEventListener('abort', forwardAbort, { once: true });
+  }
+
   try {
     const res = await fetch(url, { ...init, signal: controller.signal });
     if (!res.ok) {
@@ -362,6 +376,7 @@ export async function fetchJson(url, { timeout = 15000, ...init } = {}) {
     return await res.json();
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener?.('abort', forwardAbort);
   }
 }
 

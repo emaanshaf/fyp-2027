@@ -6,7 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 
 const PLANS_KEY = 'hifz_plans';
 const PROGRESS_KEY = 'hifz_progress';
@@ -31,6 +31,11 @@ const TIPS = [
 ];
 
 export default function HifzScreen() {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+
   const [plans, setPlans] = useState([]);
   const [activePlan, setActivePlan] = useState(null);
   const [showNewPlan, setShowNewPlan] = useState(false);
@@ -257,7 +262,7 @@ export default function HifzScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   statsRow: {
     flexDirection: 'row', gap: 10, padding: 16, paddingBottom: 8,
   },

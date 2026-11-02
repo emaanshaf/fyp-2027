@@ -1,6 +1,37 @@
+const crypto = require('crypto');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
+const { isProduction } = require('../config/env');
+
+// A request id makes one failed call traceable from the app's Developer
+// Console to the server log. Inbound ids are only accepted in a narrow,
+// header-safe format; anything else is replaced rather than echoed.
+const REQUEST_ID_PATTERN = /^[A-Za-z0-9._-]{8,64}$/;
+
+function requestContext(req, res, next) {
+  const incoming = req.get('x-request-id');
+  req.requestId = REQUEST_ID_PATTERN.test(incoming || '')
+    ? incoming
+    : crypto.randomUUID();
+  res.setHeader('X-Request-Id', req.requestId);
+
+  const startedAt = process.hrtime.bigint();
+  res.on('finish', () => {
+    const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+    const slow = durationMs >= 1000;
+    // Successful requests are not worth a line each in production; errors and
+    // slow calls are exactly the ones someone will later look for.
+    if (isProduction && res.statusCode < 400 && !slow) return;
+
+    const path = req.originalUrl.split('?')[0];
+    const line = `[${req.requestId}] ${req.method} ${path} ${res.statusCode} ${durationMs.toFixed(1)}ms`;
+    if (res.statusCode >= 500) console.error(line);
+    else console.log(line);
+  });
+
+  next();
+}
 
 // Helmet - sets secure HTTP headers
 const securityHeaders = helmet({
@@ -110,6 +141,7 @@ function securityLogger(req, res, next) {
 }
 
 module.exports = {
+  requestContext,
   securityHeaders,
   generalLimiter,
   authLimiter,

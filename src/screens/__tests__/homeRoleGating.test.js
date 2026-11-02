@@ -30,9 +30,12 @@ function mountAs(role) {
   );
 }
 
-// The restricted modules the grid is allowed to offer, derived from the route
+// The restricted modules the dashboard grid offers, derived from the route
 // table so this test follows the table rather than a second hardcoded list.
-const restricted = MODULES.filter(m => !m.roles.includes('user'));
+// Admin Panel is restricted but deliberately lives in Settings, not the grid.
+const restricted = MODULES.filter(
+  m => !m.roles.includes('user') && m.name !== 'AdminPanel'
+);
 
 beforeEach(() => {
   global.__resetStorage();

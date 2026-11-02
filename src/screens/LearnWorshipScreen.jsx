@@ -6,12 +6,14 @@
 
 import React, { useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, Share,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Speech from 'expo-speech';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
+import { useShare } from '../context/ShareContext';
+import { APP_CONFIG } from '../config/appConfig';
 import { KALIMAS, KALIMAS_NOTE } from '../data/kalimas';
 import {
   SCHOOLS, WUDHU, SALAH, WUDHU_DIFFERENCES, SALAH_DIFFERENCES, FIQH_DISCLAIMER,
@@ -26,6 +28,12 @@ const TABS = [
 const KIND_LABEL = { fard: 'Obligatory', sunnah: 'Sunnah' };
 
 export default function LearnWorshipScreen() {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+  const { share } = useShare();
+
   const [tab, setTab] = useState('kalimas');
   const [school, setSchool] = useState('hanafi');
   const [openKalima, setOpenKalima] = useState(1);
@@ -158,9 +166,11 @@ export default function LearnWorshipScreen() {
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={styles.action}
-                          onPress={() => Share.share({
-                            message: `${k.arabic}\n\n${k.transliteration}\n\n${k.translation}\n\n— ${k.name} | Qitab-e-Noor`,
-                          }).catch(() => {})}
+                          onPress={() => share({
+                            title: k.name,
+                            message: `${k.arabic}\n\n${k.transliteration}\n\n${k.translation}\n\n— ${k.name}`,
+                            url: APP_CONFIG.shareUrl('/learn-worship'),
+                          })}
                           accessibilityRole="button"
                           accessibilityLabel={`Share ${k.name}`}
                         >
@@ -245,6 +255,8 @@ export default function LearnWorshipScreen() {
 
 /** Side-by-side comparison, so neither school is presented as the footnote. */
 function DiffTable({ rows }) {
+  const styles = useThemedStyles(makeStyles);
+
   return (
     <View style={styles.diff}>
       <Text style={styles.sectionTitle}>Where the schools differ</Text>
@@ -264,7 +276,7 @@ function DiffTable({ rows }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   tabs: { flexDirection: 'row', gap: 8, marginBottom: 14 },
   tab: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',

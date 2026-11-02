@@ -44,6 +44,9 @@ module.exports = ({ config }) => ({
   },
 
   plugins: [
+    // Registered here rather than in app.json so the icon and colour ship with
+    // standalone Android builds. Filtering it out of config.plugins below keeps
+    // a second copy from app.json from being applied.
     [
       'expo-notifications',
       {
@@ -53,8 +56,34 @@ module.exports = ({ config }) => ({
     ],
     ...(config.plugins || []).filter(p => {
       const name = Array.isArray(p) ? p[0] : p;
-      return name !== 'expo-notifications' && name !== 'expo-build-properties';
+      return ![
+        'expo-notifications',
+        'expo-build-properties',
+        // Added below with the options this app needs; filtering prevents a
+        // duplicate if app.json ever gains them too.
+        'expo-secure-store',
+        'expo-local-authentication',
+      ].includes(name);
     }),
+    [
+      'expo-secure-store',
+      {
+        // Also covers the Face ID prompt raised by the keystore itself.
+        faceIDPermission:
+          'Allow Qitab-e-Noor to use Face ID to unlock the app and protect your saved session.',
+        // Keeps SecureStore entries out of Android cloud backups.
+        configureAndroidBackup: true,
+      },
+    ],
+    [
+      'expo-local-authentication',
+      {
+        faceIDPermission: 'Allow Qitab-e-Noor to use Face ID to unlock the app.',
+      },
+    ],
+    // Declared so expo install can manage it. The plugin is a no-op unless its
+    // share-extension options are enabled; Share.share itself needs no config.
+    'expo-sharing',
     [
       'expo-build-properties',
       {

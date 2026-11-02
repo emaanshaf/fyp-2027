@@ -53,54 +53,33 @@ export const DUAS = [
 
   // ─── Special / Friday ────────────────────────────────────────────────────────
   { id: 30, title: 'Friday — Surah Al-Kahf Reminder', arabic: 'مَنْ قَرَأَ سُورَةَ الْكَهْفِ فِي يَوْمِ الْجُمُعَةِ أَضَاءَ لَهُ مِنَ النُّورِ مَا بَيْنَ الْجُمُعَتَيْنِ', transliteration: "Man qara'a Surata-l-Kahfi fi yawmi-l-Jumu'ati ada'a lahu minan-nuri ma bayna-l-Jumu'atayn.", translation: 'Whoever recites Surah Al-Kahf on Friday will have a light that shines for him between the two Fridays.', category: 'Special', contexts: ['friday'], benefit: 'Read Surah Al-Kahf today in the Quran module — it is Sunnah every Friday. (Al-Hakim, authenticated by Al-Albani)' },
+
+  // ─── Daily Life (places and weather) ─────────────────────────────────────────
+  { id: 31, title: 'Entering the Mosque', arabic: 'اللَّهُمَّ افْتَحْ لِي أَبْوَابَ رَحْمَتِكَ', transliteration: 'Allahumma-ftah li abwaba rahmatik.', translation: 'O Allah, open the gates of Your mercy for me.', category: 'Daily Life', contexts: ['mosque'], benefit: 'Said by the Prophet ﷺ when entering the mosque. (Muslim 713)' },
+  { id: 32, title: 'Leaving the Mosque', arabic: 'اللَّهُمَّ إِنِّي أَسْأَلُكَ مِنْ فَضْلِكَ', transliteration: "Allahumma inni as'aluka min fadlik.", translation: 'O Allah, I ask You from Your bounty.', category: 'Daily Life', contexts: ['mosque'], benefit: 'Said when leaving the mosque, asking Allah of His bounty. (Muslim 713)' },
+  { id: 33, title: 'Entering the Home', arabic: 'بِسْمِ اللَّهِ وَلَجْنَا، وَبِسْمِ اللَّهِ خَرَجْنَا، وَعَلَى اللَّهِ رَبِّنَا تَوَكَّلْنَا', transliteration: 'Bismillahi walajna, wa bismillahi kharajna, wa \'ala-llahi Rabbina tawakkalna.', translation: 'In the name of Allah we enter, in the name of Allah we leave, and upon our Lord we place our trust.', category: 'Daily Life', contexts: ['home'], benefit: 'Said on entering the home; it is a greeting and a protection for the household. (Abu Dawud 5096)' },
+  { id: 34, title: 'Entering the Market', arabic: 'لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ، يُحْيِي وَيُمِيتُ، وَهُوَ حَيٌّ لَا يَمُوتُ', transliteration: "La ilaha illallahu wahdahu la sharika lah, lahul-mulku wa lahul-hamdu, yuhyi wa yumitu, wa Huwa hayyun la yamut.", translation: 'None has the right to be worshipped but Allah alone, with no partner. His is the dominion and His is the praise. He gives life and causes death, and He is Ever-Living and does not die.', category: 'Daily Life', contexts: ['market'], benefit: 'The Prophet ﷺ said that whoever says this on entering the market has a million good deeds written for him. (Tirmidhi 3428, hasan)' },
+  { id: 35, title: 'When It Rains', arabic: 'اللَّهُمَّ صَيِّبًا نَافِعًا', transliteration: 'Allahumma sayyiban nafi\'a.', translation: 'O Allah, make it a beneficial rain.', category: 'Daily Life', contexts: ['rain'], benefit: 'The Prophet ﷺ would say this when he saw rain. (Bukhari 1032)' },
+  { id: 36, title: 'After the Rain', arabic: 'مُطِرْنَا بِفَضْلِ اللَّهِ وَرَحْمَتِهِ', transliteration: 'Mutirna bi fadli-llahi wa rahmatih.', translation: 'We have been given rain by the grace and mercy of Allah.', category: 'Daily Life', contexts: ['rain', 'gratitude'], benefit: 'The Prophet ﷺ corrected those who attributed rain to the stars, saying it is from Allah. (Bukhari 846)' },
+  { id: 37, title: 'Visiting the Graveyard', arabic: 'السَّلَامُ عَلَيْكُمْ أَهْلَ الدِّيَارِ مِنَ الْمُؤْمِنِينَ وَالْمُسْلِمِينَ، وَإِنَّا إِنْ شَاءَ اللَّهُ بِكُمْ لَاحِقُونَ', transliteration: "As-salamu 'alaykum ahlad-diyari minal-mu'minina wal-muslimin, wa inna in sha'a-llahu bikum lahiqun.", translation: 'Peace be upon you, people of this abode, among the believers and Muslims. Indeed, we, if Allah wills, are to join you.', category: 'Daily Life', contexts: ['graveyard'], benefit: 'The greeting the Prophet ﷺ taught when visiting graves. (Muslim 975)' },
 ];
 
-export const CATEGORIES = ['Morning', 'Evening', 'Travel', 'Sleep', 'Hardship', 'Gratitude', 'Forgiveness', 'Anxiety', 'Exams', 'Protection', 'Sustenance', 'Illness', 'Family', 'Eating', 'Favorites'];
+export const CATEGORIES = ['Morning', 'Evening', 'Travel', 'Sleep', 'Daily Life', 'Hardship', 'Gratitude', 'Forgiveness', 'Anxiety', 'Exams', 'Protection', 'Sustenance', 'Illness', 'Family', 'Eating', 'Favorites'];
+
+// "Daily Life" covers the short duas tied to a place or a moment (mosque,
+// home, market, rain, graveyard) rather than a time of day.
 
 export const CAT_ICONS = {
   Morning: 'sunny-outline', Evening: 'partly-sunny-outline', Travel: 'airplane-outline',
   Sleep: 'moon-outline', Hardship: 'hourglass-outline', Gratitude: 'happy-outline',
   Forgiveness: 'refresh-circle-outline', Anxiety: 'pulse-outline', Exams: 'school-outline',
   Protection: 'shield-checkmark-outline', Sustenance: 'wallet-outline', Illness: 'medkit-outline',
-  Family: 'people-outline', Eating: 'restaurant-outline', Special: 'star-outline', Favorites: 'heart-outline',
+  Family: 'people-outline', Eating: 'restaurant-outline', 'Daily Life': 'location-outline',
+  Special: 'star-outline', Favorites: 'heart-outline',
 };
 
 export const DUA_TITLES = DUAS.reduce((acc, d) => { acc[d.id] = d.title; return acc; }, {});
 
-// ─── Contextual recommendation engine ────────────────────────────────────────
-// Picks a relevant dua for "right now" based on time of day and day of week,
-// rotating daily through matching duas so it isn't the same one every time.
-export function getContextualDua({ date = new Date() } = {}) {
-  const hour = date.getHours();
-  const isFriday = date.getDay() === 5;
-  const dayIndex = date.getDate();
-
-  let contextTag, reason;
-  if (isFriday && hour < 19) {
-    contextTag = 'friday';
-    reason = "It's Jumu'ah (Friday) — a Sunnah reminder for you";
-  } else if (hour >= 4 && hour < 11) {
-    contextTag = 'morning';
-    reason = 'Good morning — start your day with remembrance';
-  } else if (hour >= 11 && hour < 15) {
-    contextTag = 'gratitude';
-    reason = 'Midday — a moment to give thanks';
-  } else if (hour >= 15 && hour < 18) {
-    contextTag = 'protection';
-    reason = 'Afternoon — seek Allah\'s protection for the rest of your day';
-  } else if (hour >= 18 && hour < 20) {
-    contextTag = 'evening';
-    reason = 'Evening has arrived';
-  } else if (hour >= 20 && hour < 23) {
-    contextTag = 'forgiveness';
-    reason = 'Night — a beautiful time for Istighfar';
-  } else {
-    contextTag = 'sleep';
-    reason = 'Late night — a dua before you rest';
-  }
-
-  const matches = DUAS.filter(d => d.contexts?.includes(contextTag));
-  const pool = matches.length ? matches : DUAS.filter(d => d.contexts?.includes('morning'));
-  const dua = pool[dayIndex % pool.length];
-  return { dua, reason };
-}
+// Time-of-day and place recommendations live in `src/services/contextDuas.js`,
+// which combines the clock with an optional device location and the user's own
+// chips. Keeping that logic in one place stops the two from disagreeing.

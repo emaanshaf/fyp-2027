@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 import { quranApi } from '../config/appConfig';
 
 const TOPICS = [
@@ -27,6 +27,11 @@ const SAMPLE_QA = [
 ];
 
 export default function AIQuranAssistantScreen({ navigation }) {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -37,7 +42,7 @@ export default function AIQuranAssistantScreen({ navigation }) {
     if (messages.length === 0) {
       setMessages([{
         id: '0', role: 'assistant',
-        text: 'Assalamu Alaikum! I am your Quran Assistant. Ask me anything about the Quran — concepts, verses, explanations, or guidance on any topic.',
+        text: 'Assalamu Alaikum! I am your Quran study companion. I search Quran translations for a topic and share short study notes. For detailed tafsir, open the Tafsir module.',
       }]);
     }
   }, []);
@@ -169,7 +174,7 @@ export default function AIQuranAssistantScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   topicsSection: { paddingVertical: 12 },
   sectionTitle: { color: COLORS.gold, fontSize: 15, fontWeight: '800', marginBottom: 10, paddingHorizontal: 16 },
   topicChip: {

@@ -194,6 +194,29 @@ describe('POST /api/ai/chat success path', () => {
     ]);
     expect(params.system).toContain('Islamic Knowledge Assistant');
   });
+
+  // The offline library now covers history, wellbeing, family and app usage as
+  // well as worship. The live prompt must make the same promise, with the
+  // boundaries that keep a broad assistant safe.
+  it('states the broad scope and its safety boundaries', async () => {
+    const { app, create } = buildApp();
+    create.mockResolvedValue(textReply('ok'));
+
+    await request(app)
+      .post('/api/ai/chat')
+      .set('Authorization', asUser())
+      .send({ question: 'How do I prepare for marriage?' });
+
+    const { system } = create.mock.calls[0][0];
+    expect(system).toMatch(/broad study companion/i);
+    expect(system).toMatch(/tafsir/i);
+    expect(system).toMatch(/Seerah\/history/i);
+    expect(system).toMatch(/parenting/i);
+    expect(system).toMatch(/qualified scholar/i);
+    expect(system).toMatch(/Never discourage someone from seeking urgent care/i);
+    expect(system).toMatch(/Jews, Christians/i);
+    expect(system).toMatch(/Do not provide instructions for violence, self-harm/i);
+  });
 });
 
 describe('POST /api/ai/chat retrieved context', () => {

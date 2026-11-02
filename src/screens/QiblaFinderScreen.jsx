@@ -29,7 +29,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Line, Path, G, Text as SvgText } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 import { useUserLocation } from '../hooks/useUserLocation';
 import { useDeviceHeading } from '../hooks/useDeviceHeading';
 import {
@@ -40,6 +40,7 @@ const DIAL = 260;
 
 /** The compass rose: ticks, cardinals, and the Qibla marker. */
 function Dial({ heading, bearing, aligned }) {
+  const COLORS = useColors();
   const c = DIAL / 2;
   const r = c - 14;
   const ticks = [];
@@ -104,6 +105,11 @@ function Dial({ heading, bearing, aligned }) {
 }
 
 export default function QiblaFinderScreen() {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+
   const {
     latitude, longitude, accuracy: gpsAccuracy, loading: locLoading,
     error: locError, permissionStatus, isAccuracyPoor: isGpsAccuracyPoor, refresh: locate,
@@ -317,7 +323,7 @@ export default function QiblaFinderScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   container: { flex: 1, alignItems: 'center', padding: 20 },
   centre: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 14 },
   muted: { color: COLORS.textSecondary, fontSize: 13, textAlign: 'center', lineHeight: 20 },

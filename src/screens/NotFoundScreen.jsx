@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 
 /**
  * Shown when a URL doesn't match any route.
@@ -12,6 +12,11 @@ import { COLORS, globalStyles } from '../theme';
  * since changed.
  */
 export default function NotFoundScreen({ navigation, route }) {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+
   const attempted = route?.params?.path;
 
   return (
@@ -48,7 +53,7 @@ export default function NotFoundScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   ring: {
     width: 92, height: 92, borderRadius: 46,
     alignItems: 'center', justifyContent: 'center',

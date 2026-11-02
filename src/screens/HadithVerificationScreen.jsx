@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 import { hadithService, HADITH_COLLECTIONS } from '../services/hadithApi';
 import {
   buildChain, collectorFor, graderFor, gradeMeaning,
@@ -32,6 +32,7 @@ const COLLECTIONS = HADITH_COLLECTIONS.map(c => ({
  * The printed reference is given so the reader can look the chain up.
  */
 function IsnadChain({ hadith }) {
+  const styles = useThemedStyles(makeStyles);
   const chain = buildChain({
     collectionId: hadith.book,
     companion: hadith.narrator,
@@ -97,6 +98,11 @@ function IsnadChain({ hadith }) {
 }
 
 export default function HadithVerificationScreen() {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -306,7 +312,7 @@ export default function HadithVerificationScreen() {
 }
 
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   resultCount: {
     color: COLORS.textSecondary, fontSize: 12, fontWeight: '600',
     marginBottom: 10, marginTop: 4,

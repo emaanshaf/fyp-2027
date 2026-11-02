@@ -6,8 +6,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 import { getAIAnswer } from '../ai/assistant';
+import { recordAIUsage } from '../services/aiUsage';
 import FormattedText from '../components/FormattedText';
 import ZakatBreakdown from '../components/ZakatBreakdown';
 
@@ -42,6 +43,11 @@ const USHR_RULES = [
 ];
 
 export default function ZakatScreen() {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+
   const [tab, setTab] = useState('zakat');
   const [values, setValues] = useState({ cash: '', gold: '', silver: '', silverTolas: '', investments: '', debts: '' });
   const [result, setResult] = useState(null);
@@ -125,6 +131,7 @@ export default function ZakatScreen() {
     setAiQuery('');
     try {
       const answer = await getAIAnswer(q);
+      recordAIUsage(answer?.source || 'unavailable').catch(() => {});
       setAiResponse(answer ? answer.text : FALLBACK_REPLY);
     } finally {
       setAiLoading(false);
@@ -395,7 +402,7 @@ export default function ZakatScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   priceBanner: {
     flexDirection: 'row',
     alignItems: 'center',

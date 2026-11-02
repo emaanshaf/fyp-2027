@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { backend } from './backend';
+import { hasAuthToken } from './authToken';
 import { StorageKeys } from './storage';
 import { apiUrl } from '../config/appConfig';
 
@@ -33,8 +34,7 @@ class SyncService {
   async syncAll() {
     if (this.isSyncing) return;
     
-    const token = await AsyncStorage.getItem('qitab_auth_token');
-    if (!token) return;
+    if (!(await hasAuthToken())) return;
 
     this.isSyncing = true;
     try {
@@ -67,8 +67,7 @@ class SyncService {
   }
 
   async pullAll() {
-    const token = await AsyncStorage.getItem('qitab_auth_token');
-    if (!token) return;
+    if (!(await hasAuthToken())) return;
 
     try {
       for (const [storageKey, config] of Object.entries(SYNCED_KEYS)) {

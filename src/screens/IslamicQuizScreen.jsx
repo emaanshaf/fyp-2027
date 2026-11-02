@@ -4,11 +4,16 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 import { QUIZ_CATEGORIES as CATEGORIES, QUIZ_DATA } from '../data/quiz';
 
 
 export default function IslamicQuizScreen() {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+
   const [selectedCat, setSelectedCat] = useState(null);
   const [quizActive, setQuizActive] = useState(false);
   const [currentQ, setCurrentQ] = useState(0);
@@ -176,7 +181,7 @@ export default function IslamicQuizScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   explainCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
     marginHorizontal: 16, marginBottom: 12, padding: 14, borderRadius: 14,

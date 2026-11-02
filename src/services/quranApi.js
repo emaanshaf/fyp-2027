@@ -9,6 +9,7 @@
 // runtime so the constants are a fast path, not a hard dependency.
 import { quranApi } from '../config/appConfig';
 import { cached, fetchJson, prefetch, TTL } from './cache';
+import { getOfflineChapters, readOfflineChapter } from './offlineLibrary';
 
 /**
  * The five reading languages, mapped to their quran.com translation ids.
@@ -119,6 +120,12 @@ export const quranService = {
 
   /** All 114 surahs. */
   async getChapters({ forceRefresh } = {}) {
+    // A completed offline download is the most reliable copy: it cannot be
+    // evicted by the LRU cache and works on a first launch with no network.
+    if (!forceRefresh) {
+      const offline = await getOfflineChapters();
+      if (offline?.length) return offline;
+    }
     return cached(
       'quran:chapters',
       async () => (await fetchJson(`${quranApi}/chapters?language=en`)).chapters,
@@ -153,6 +160,13 @@ export const quranService = {
    * translation-audio CDN is keyed by — it is carried through deliberately.
    */
   async getVersesByChapter(chapterId, translationId = 20, { forceRefresh } = {}) {
+    // Explicit downloads win over the ordinary cache. Pull-to-refresh
+    // (forceRefresh) deliberately bypasses them, so a reader can check for
+    // revised text without deleting the package.
+    if (!forceRefresh) {
+      const offline = await readOfflineChapter(chapterId, translationId);
+      if (offline?.length) return offline;
+    }
     return cached(
       versesKey(chapterId, translationId),
       async () => {

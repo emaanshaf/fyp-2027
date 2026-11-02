@@ -9,7 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { Magnetometer } from 'expo-sensors';
 import Svg, { Circle, Line, Polygon, G, Text as SvgText, Defs, RadialGradient, Stop, Path } from 'react-native-svg';
-import { COLORS, globalStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 import {
   FIQH_METHODS, DEFAULT_FIQH, fiqhByKey, fiqhQuery, fiqhCacheSuffix,
 } from '../data/prayerMethods';
@@ -66,6 +66,8 @@ const R_FACE  = 118;
 const R_INNER = 22;
 
 function LiveQiblaCompass({ qiblaAngle, heading, accuracy, distanceKm, location }) {
+  const COLORS = useColors();
+  const styles = useThemedStyles(makeStyles);
   const compassAnim = useRef(new Animated.Value(0)).current;
   const needleAnim  = useRef(new Animated.Value(0)).current;
   const compassAccum = useRef(0);
@@ -245,6 +247,11 @@ function LiveQiblaCompass({ qiblaAngle, heading, accuracy, distanceKm, location 
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function PrayerTimesScreen() {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+
   const [timings, setTimings]   = useState(null);
   const [fiqh, setFiqh]         = useState(DEFAULT_FIQH);
   const [loading, setLoading]   = useState(false);
@@ -712,7 +719,7 @@ export default function PrayerTimesScreen() {
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     padding: 16, paddingTop: 8, marginBottom: 4,

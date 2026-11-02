@@ -4,10 +4,11 @@ const { port, corsOrigin, isProduction } = require('./config/env');
 const { errorHandler } = require('./middleware/errorHandler');
 const { ready: dbReady } = require('./config/database');
 const {
-  securityHeaders, generalLimiter, writeLimiter,
+  requestContext, securityHeaders, generalLimiter, writeLimiter,
   sanitizeInput, securityLogger,
 } = require('./middleware/security');
 
+const catalogRoutes = require('./routes/catalog');
 const authRoutes = require('./routes/auth');
 const bookmarkRoutes = require('./routes/bookmarks');
 const noteRoutes = require('./routes/notes');
@@ -18,6 +19,10 @@ const tasbihRoutes = require('./routes/tasbih');
 const settingsRoutes = require('./routes/settings');
 const moduleRoutes = require('./routes/modules');
 const aiRoutes = require('./routes/ai');
+const deedsRoutes = require('./routes/deeds');
+const journalRoutes = require('./routes/journal');
+const khatmRoutes = require('./routes/khatm');
+const newsRoutes = require('./routes/news');
 
 const app = express();
 
@@ -26,7 +31,9 @@ const app = express();
 // a load balancer rate-limits everybody.
 app.set('trust proxy', isProduction ? 1 : false);
 
-// Security middleware
+// Request identity first, so every response — including rejected ones — can
+// be traced back to one line in the server log.
+app.use(requestContext);
 app.use(securityHeaders);
 app.use(
   cors({
@@ -34,12 +41,20 @@ app.use(
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    // Without this the browser hides the header from the app; native fetch
+    // does not impose that restriction.
+    exposedHeaders: ['X-Request-Id'],
   })
 );
 app.use(express.json({ limit: '100kb' }));
 app.use(sanitizeInput);
 app.use(securityLogger);
 app.use(generalLimiter);
+
+// The catalogue sits above the routers so GET /api is not answered by the
+// 404 handler. It is public, rate-limited like everything else, and reads
+// nothing from the database.
+app.use('/api', catalogRoutes);
 
 // Health check (no auth needed)
 app.get('/api/health', (req, res) => {
@@ -72,6 +87,12 @@ app.use('/api/modules', moduleRoutes);
 // The AI router applies its own auth and limiter per endpoint: /ai/status is
 // public so the app can explain an offline assistant without a login.
 app.use('/api/ai', aiRoutes);
+app.use('/api/deeds', writeLimiter, deedsRoutes);
+app.use('/api/journal', writeLimiter, journalRoutes);
+app.use('/api/khatm', writeLimiter, khatmRoutes);
+// Public and cache-backed: a feed refresh is one outbound fan-out server-side,
+// not one per reader.
+app.use('/api/news', newsRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -89,6 +110,7 @@ let server;
 dbReady.then(() => {
   server = app.listen(port, () => {
     console.log(`Qitabe Noor API running on http://localhost:${port}`);
+    console.log(`  catalogue: GET /api — every endpoint, grouped and documented`);
     console.log(`  security : helmet, rate limiting, input sanitisation`);
     console.log(`  auth     : JWT + bcrypt, RBAC (admin/moderator/user)`);
     const corsLabel = Array.isArray(corsOrigin)

@@ -5,7 +5,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { COLORS, globalStyles } from '../theme';
+import { COLORS, useColors, useGlobalStyles, useThemedStyles } from '../theme';
 
 export const LEVELS = [
   // 'seedling' and 'book-stars' are not Ionicons glyphs — both rendered as an
@@ -27,6 +27,11 @@ const SURAH_MILESTONES = [
 ];
 
 export default function QuranJourneyScreen() {
+  // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+
   const [totalPages, setTotalPages] = useState(0);
   const [streak, setStreak] = useState(0);
   const [khatmCount, setKhatmCount] = useState(0);
@@ -154,7 +159,7 @@ export default function QuranJourneyScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   levelCard: {
     margin: 16, padding: 24, borderRadius: 24, alignItems: 'center',
     backgroundColor: COLORS.glass, borderWidth: 1, borderColor: COLORS.glassBorder,
