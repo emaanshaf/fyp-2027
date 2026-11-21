@@ -115,6 +115,10 @@ export const hasRecitedTranslation = langKey => Boolean(TARJAMA_AUDIO[langKey]);
 
 const versesKey = (chapterId, translationId) => `quran:verses:${chapterId}:${translationId}`;
 
+/** The search API wraps matched words in <em>; render plain text instead. */
+const stripMarkup = text =>
+  String(text || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+
 export const quranService = {
   // ── Structure ───────────────────────────────────────────────────────────
 
@@ -336,6 +340,61 @@ export const quranService = {
           )
         ).search?.results || [],
       { ttl: TTL.SHORT, fallback: [] }
+    );
+  },
+
+  /**
+   * Search with everything the study screen renders attached: Arabic text, the
+   * first English translation, the surah name and the total match count.
+   *
+   * The raw `/search` result only carries a verse key and marked-up translation
+   * fragments. Mapping them here (and caching the mapped shape) keeps the
+   * screen from re-implementing parsing and lets an earlier search answer
+   * offline instead of showing a canned paragraph.
+   */
+  /**
+   * Verse search for the study screen. Unlike `search()`, this returns whole
+   * verses — Arabic text plus a translation — so the screen can show what the
+   * Quran actually says instead of guessing at a summary. The caller gets a
+   * rejected promise when there is no network and no cache, so an outage is
+   * never mistaken for "no results".
+   */
+  async searchVerses(query, { size = 8 } = {}) {
+    const q = String(query || '').trim();
+    if (!q) return { verses: [], total: 0 };
+
+    return cached(
+      `quran:searchverses:en:${q.toLowerCase()}:${size}`,
+      async () => {
+        const [data, chapters] = await Promise.all([
+          fetchJson(`${quranApi}/search?q=${encodeURIComponent(q)}&size=${size}&language=en`),
+          this.getChapters().catch(() => []),
+        ]);
+        const names = new Map((chapters || []).map(c => [Number(c.id), c.name_simple]));
+
+        const verses = (data.search?.results || [])
+          .map(result => {
+            const [surah, ayah] = String(result.verse_key || '').split(':').map(Number);
+            // Prefer the same Saheeh International text the reader shows;
+            // the search can also return other English translations.
+            const translation =
+              result.translations?.find(t => t.resource_id === TRANSLATIONS.en.id) ||
+              result.translations?.[0];
+            return {
+              key: result.verse_key,
+              surah,
+              ayah,
+              surahName: names.get(surah) || null,
+              arabic: stripMarkup(result.text || ''),
+              translation: stripMarkup(translation?.text || ''),
+              translator: translation?.name || null,
+            };
+          })
+          .filter(v => Number.isFinite(v.surah) && Number.isFinite(v.ayah));
+
+        return { verses, total: data.search?.total_results || verses.length };
+      },
+      { ttl: TTL.SHORT }
     );
   },
 

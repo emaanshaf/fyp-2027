@@ -1,5 +1,6 @@
 import React from 'react';
-import { render, waitFor, screen } from '@testing-library/react-native';
+import { render, waitFor, screen, fireEvent } from '@testing-library/react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { ThemeProvider } from '../../theme';
 import QiblaFinderScreen from '../QiblaFinderScreen';
@@ -133,5 +134,43 @@ describe('QiblaFinderScreen', () => {
     });
     mount();
     await waitFor(() => expect(screen.getByText(/could not correct for magnetic declination/)).toBeTruthy());
+  });
+
+  it('offers the saved prayer city when GPS is unavailable, clearly approximate', async () => {
+    // A desktop browser or a phone with location switched off still has the
+    // city saved for prayer times. Using it is useful, but it is not a device
+    // fix and the screen must say so.
+    await AsyncStorage.setItem('qitab_prayer_city', 'Islamabad');
+    await AsyncStorage.setItem('qitab_prayer_country', 'Pakistan');
+    Location.requestForegroundPermissionsAsync.mockResolvedValue({ status: 'denied' });
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: [
+          {
+            latitude: 33.6844,
+            longitude: 73.0479,
+            name: 'Islamabad',
+            admin1: 'Islamabad',
+            country: 'Pakistan',
+          },
+        ],
+      }),
+    });
+
+    mount();
+    fireEvent.press(await screen.findByLabelText('Use saved city Islamabad'));
+
+    const expected = Math.round(qiblaBearing(33.6844, 73.0479)); // ~256
+    await waitFor(() => expect(screen.getAllByText(`${expected}°`).length).toBeGreaterThan(0));
+    expect(screen.getByText(/not your GPS position/)).toBeTruthy();
+    expect(screen.getByText(/Use my GPS location/)).toBeTruthy();
+  });
+
+  it('keeps the honest no-position message when no city was saved', async () => {
+    Location.requestForegroundPermissionsAsync.mockResolvedValue({ status: 'denied' });
+    mount();
+    await waitFor(() => expect(screen.getByText(/cannot be shown without/)).toBeTruthy());
+    expect(screen.queryByLabelText(/Use saved city/)).toBeNull();
   });
 });

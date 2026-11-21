@@ -24,9 +24,11 @@ import { playReminderChime } from '../services/reminderSound';
  * reminder that returns after five minutes is audible again.
  *
  * It is not an OS notification: it can only appear while the app is open, and
- * it re-reads today's reminders every five minutes so a reminder that came due
- * while the screen was elsewhere still gets attention. "Done for today" is
- * remembered per day; "5 min" only hides it locally.
+ * it re-reads today's reminders every five minutes. A reminder that has passed
+ * stays due for the rest of the day, so the card keeps returning until the
+ * user marks it done or switches it off in Reminders. "Done for today" is
+ * remembered per day; "5 min" and the close button only hide it locally, and
+ * the card comes back when that timer runs out.
  */
 export default function TodaysRemindersPopup({ navigation }) {
   const COLORS = useColors();
@@ -75,6 +77,20 @@ export default function TodaysRemindersPopup({ navigation }) {
     )),
     [rows, dismissed, snoozedUntil, now],
   );
+
+  // The five-minute hide must end on its own schedule, not whenever the next
+  // storage refresh happens to run — otherwise "5 min" could return almost
+  // immediately. Wake up at the earliest snooze expiry and re-evaluate.
+  const snoozeExpiry = useMemo(() => {
+    const pending = Object.values(snoozedUntil).filter(at => at > now.getTime());
+    return pending.length ? Math.min(...pending) : null;
+  }, [snoozedUntil, now]);
+
+  useEffect(() => {
+    if (!snoozeExpiry) return;
+    const timer = setTimeout(() => setNow(new Date()), Math.max(0, snoozeExpiry - Date.now()) + 50);
+    return () => clearTimeout(timer);
+  }, [snoozeExpiry]);
 
   const active = due[0] || null;
   const activeKey = active?.key || null;

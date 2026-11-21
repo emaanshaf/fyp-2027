@@ -178,3 +178,84 @@ describe('fetching', () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 });
+
+describe('searchVerses', () => {
+  const ok = body => ({ ok: true, json: async () => body });
+
+  const mockSearch = (results, chapters = [{ id: 13, name_simple: "Ar-Ra'd" }]) =>
+    jest.fn(url => {
+      if (String(url).includes('/chapters')) {
+        return Promise.resolve(ok({ chapters }));
+      }
+      return Promise.resolve(ok({ search: { total_results: 195, results } }));
+    });
+
+  it('returns the whole verse, not just its reference', async () => {
+    // The study screen used to answer with "the most relevant verses are
+    // 2:153, 2:45" — a list of coordinates with no text. A reader cannot
+    // study that. This pins Arabic, translation and the surah name.
+    global.fetch = mockSearch([
+      {
+        verse_key: '13:28',
+        text: 'ٱلَّذِينَ ءَامَنُوا۟',
+        translations: [
+          { text: 'Those who have <em>believed</em>', resource_id: 84, name: 'T. Usmani' },
+        ],
+      },
+    ]);
+
+    const { verses, total } = await quranService.searchVerses('patience', { size: 6 });
+    expect(total).toBe(195);
+    expect(verses).toHaveLength(1);
+    expect(verses[0]).toMatchObject({
+      key: '13:28',
+      surah: 13,
+      ayah: 28,
+      surahName: "Ar-Ra'd",
+      arabic: 'ٱلَّذِينَ ءَامَنُوا۟',
+      translation: 'Those who have believed',
+      translator: 'T. Usmani',
+    });
+  });
+
+  it('prefers the Saheeh International text the reader shows', async () => {
+    // quran.com returns several English translations per hit; picking the
+    // first would quote a different translation from the reader's.
+    global.fetch = mockSearch([
+      {
+        verse_key: '2:153',
+        text: 'يَـٰٓأَيُّهَا ٱلَّذِينَ',
+        translations: [
+          { text: 'Other translation', resource_id: 84, name: 'T. Usmani' },
+          { text: 'Saheeh text', resource_id: 20, name: 'Saheeh International' },
+        ],
+      },
+    ]);
+
+    const { verses } = await quranService.searchVerses('patience');
+    expect(verses[0].translation).toBe('Saheeh text');
+    expect(verses[0].translator).toBe('Saheeh International');
+  });
+
+  it('marks the query in the cache key so two searches do not collide', async () => {
+    global.fetch = mockSearch([
+      { verse_key: '1:1', text: 'بِسْمِ', translations: [{ text: 'In the name', resource_id: 20 }] },
+    ]);
+    await quranService.searchVerses('mercy');
+    await quranService.searchVerses('justice');
+    expect(global.fetch.mock.calls.filter(([u]) => String(u).includes('/search')).length).toBe(2);
+  });
+
+  it('does not call the API for an empty query', async () => {
+    global.fetch = jest.fn();
+    expect(await quranService.searchVerses('   ')).toEqual({ verses: [], total: 0 });
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('rejects when the service is unreachable, so the screen can say so', async () => {
+    // No `fallback`: an empty result would be indistinguishable from "the
+    // Quran has nothing on this", which is a false religious claim.
+    global.fetch = jest.fn(() => Promise.reject(new Error('offline')));
+    await expect(quranService.searchVerses('patience')).rejects.toThrow();
+  });
+});

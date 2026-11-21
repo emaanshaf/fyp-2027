@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet,
   ActivityIndicator
@@ -9,8 +9,25 @@ import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 import { hadithService, HADITH_COLLECTIONS } from '../services/hadithApi';
 import { useShare } from '../context/ShareContext';
 import { APP_CONFIG } from '../config/appConfig';
+import { hadithOfDay } from '../data/daily';
 
-export default function HadithScreen() {
+/**
+ * The daily hadith is curated in `src/data/daily.js` with its printed
+ * reference. This maps that reference to the CDN collection id so the card can
+ * open the same hadith in the verification screen rather than asking to be
+ * taken on trust.
+ */
+function referenceToCollection(reference = '') {
+  if (/bukhari/i.test(reference)) return 'eng-bukhari';
+  if (/muslim/i.test(reference)) return 'eng-muslim';
+  if (/abu ?dawud/i.test(reference)) return 'eng-abudawud';
+  if (/tirmidhi/i.test(reference)) return 'eng-tirmidhi';
+  if (/ibn ?majah/i.test(reference)) return 'eng-ibnmajah';
+  if (/nasa/i.test(reference)) return 'eng-nasai';
+  return null;
+}
+
+export default function HadithScreen({ navigation, route }) {
   // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
   const COLORS = useColors();
   const globalStyles = useGlobalStyles();
@@ -25,6 +42,19 @@ export default function HadithScreen() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  // Set when a shared link names one hadith, so the list can show just it.
+  const [focusedNumber, setFocusedNumber] = useState(null);
+  const pendingNumber = useRef(null);
+
+  // Deep links (and the daily card) can open a specific collection directly.
+  useEffect(() => {
+    const id = route?.params?.collection;
+    if (!id || !HADITH_COLLECTIONS.some(c => c.id === id)) return;
+    if (route?.params?.number != null) {
+      pendingNumber.current = Number(route.params.number);
+    }
+    setSelectedCollection(id);
+  }, [route?.params?.collection, route?.params?.number]);
 
   useEffect(() => {
     if (selectedCollection) {
@@ -40,13 +70,36 @@ export default function HadithScreen() {
     setError(null);
     try {
       const data = await hadithService.getCollection(selectedCollection, pageNum, 50);
+      if (data.error) {
+        setError(
+          pageNum === 1
+            ? `Could not download ${hadithService.getCollectionMeta(selectedCollection)?.name}. Check your connection and try again.`
+            : 'Could not load more hadiths. Check your connection.'
+        );
+        return;
+      }
+
+      // A link like /hadith/eng-bukhari/1 should land on that hadith, not on
+      // page one of the collection with the number ignored.
+      const target = pageNum === 1 ? pendingNumber.current : null;
+      if (target != null) {
+        pendingNumber.current = null;
+        const one = await hadithService.getByNumber(selectedCollection, target);
+        if (one) {
+          setHadiths([one]);
+          setHasMore(false);
+          setFocusedNumber(one.hadithnumber);
+          return;
+        }
+      }
+
       if (pageNum === 1) {
         setHadiths(data.hadiths);
       } else {
         setHadiths(prev => [...prev, ...data.hadiths]);
       }
       setHasMore(pageNum < data.totalPages);
-    } catch (e) {
+    } catch {
       setError('Failed to load hadiths. Check your connection.');
     } finally {
       setLoading(false);
@@ -65,17 +118,24 @@ export default function HadithScreen() {
   const onSearch = async () => {
     if (!search.trim() || !selectedCollection) return;
     setLoading(true);
+    setFocusedNumber(null);
     try {
       const results = await hadithService.search(selectedCollection, search.trim());
       setHadiths(results);
       setHasMore(false);
-    } catch (e) {
+    } catch {
       setError('Search failed.');
     } finally { setLoading(false); }
   };
 
   const onClearSearch = () => {
     setSearch('');
+    setPage(1);
+    loadHadiths(1);
+  };
+
+  const showAllHadiths = () => {
+    setFocusedNumber(null);
     setPage(1);
     loadHadiths(1);
   };
@@ -88,6 +148,62 @@ export default function HadithScreen() {
       url: APP_CONFIG.shareHadith(selectedCollection, h.hadithnumber),
     });
   };
+
+  // Curated, referenced, and deterministic per day — the card is real content
+  // on a screen that otherwise opens with six empty collection cards.
+  const daily = hadithOfDay();
+  const dailyCollection = referenceToCollection(daily.reference);
+  const dailyNumber = Number((daily.reference.match(/(\d+)\s*$/) || [])[1]) || null;
+
+  const shareDaily = () => {
+    share({
+      title: 'Hadith of the Day',
+      message: `${daily.text}\n\n— ${daily.reference}`,
+      url:
+        dailyCollection && dailyNumber
+          ? APP_CONFIG.shareHadith(dailyCollection, dailyNumber)
+          : undefined,
+    });
+  };
+
+  const openDaily = () => {
+    if (!dailyCollection || !dailyNumber) return;
+    navigation?.navigate?.('HadithVerify', {
+      collection: dailyCollection,
+      number: dailyNumber,
+    });
+  };
+
+  const dailyCard = (
+    <View style={styles.dailyCard}>
+      <View style={styles.dailyHeader}>
+        <Ionicons name="sunny-outline" size={14} color={COLORS.gold} />
+        <Text style={styles.dailyLabel}>Hadith of the Day</Text>
+        <View style={{ flex: 1 }} />
+        <TouchableOpacity onPress={shareDaily} accessibilityLabel="Share hadith of the day">
+          <Ionicons name="share-outline" size={16} color={COLORS.textSecondary} />
+        </TouchableOpacity>
+      </View>
+      <Text style={styles.dailyText}>{daily.text}</Text>
+      <Text style={styles.dailySource}>
+        {daily.narrator ? `${daily.narrator}  ·  ` : ''}
+        {daily.reference}
+        {daily.grade ? `  ·  ${daily.grade}` : ''}
+      </Text>
+      {dailyCollection && dailyNumber ? (
+        <TouchableOpacity
+          style={styles.dailyVerify}
+          onPress={openDaily}
+          accessibilityRole="button"
+          accessibilityLabel="Open hadith of the day in verification"
+        >
+          <Ionicons name="shield-checkmark-outline" size={13} color={COLORS.gold} />
+          <Text style={styles.dailyVerifyText}>Open in verification</Text>
+          <Ionicons name="chevron-forward" size={12} color={COLORS.gold} />
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
 
   // Collection selector view
   if (!selectedCollection) {
@@ -105,6 +221,7 @@ export default function HadithScreen() {
           keyExtractor={c => c.id}
           contentContainerStyle={{ padding: 12, paddingBottom: 32 }}
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+          ListHeaderComponent={dailyCard}
           renderItem={({ item: col }) => (
             <TouchableOpacity
               onPress={() => setSelectedCollection(col.id)}
@@ -143,7 +260,7 @@ export default function HadithScreen() {
     <SafeAreaView style={globalStyles.screen} edges={['bottom']}>
       {/* Header — solid emerald banner, matching the dashboard hero. */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => { setSelectedCollection(null); setHadiths([]); setSearch(''); }}>
+        <TouchableOpacity onPress={() => { setSelectedCollection(null); setHadiths([]); setSearch(''); setFocusedNumber(null); pendingNumber.current = null; }}>
           <Ionicons name="arrow-back" size={22} color="#fff" />
         </TouchableOpacity>
         <View style={{ flex: 1, marginHorizontal: 12 }}>
@@ -202,6 +319,15 @@ export default function HadithScreen() {
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
           onEndReached={loadMore}
           onEndReachedThreshold={0.3}
+          ListHeaderComponent={focusedNumber != null ? (
+            <View style={styles.focusedBar}>
+              <Ionicons name="locate-outline" size={14} color={COLORS.gold} />
+              <Text style={styles.focusedText}>Showing hadith #{focusedNumber}</Text>
+              <TouchableOpacity onPress={showAllHadiths} accessibilityRole="button" accessibilityLabel="Show all hadiths">
+                <Text style={styles.focusedAction}>Show all</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
           ListFooterComponent={loadingMore ? (
             <View style={{ paddingVertical: 20 }}>
               <ActivityIndicator color={COLORS.gold} size="small" />
@@ -227,6 +353,26 @@ export default function HadithScreen() {
 }
 
 const makeStyles = (COLORS) => StyleSheet.create({
+  dailyCard: {
+    backgroundColor: COLORS.glass,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.gold + '55',
+    padding: 16,
+    marginBottom: 14,
+  },
+  dailyHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
+  dailyLabel: {
+    color: COLORS.gold, fontSize: 11, fontWeight: '800',
+    letterSpacing: 1, textTransform: 'uppercase',
+  },
+  dailyText: { color: COLORS.textPrimary, fontSize: 14.5, lineHeight: 23 },
+  dailySource: { color: COLORS.textSecondary, fontSize: 11.5, marginTop: 10, fontWeight: '600' },
+  dailyVerify: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12,
+    paddingTop: 10, borderTopWidth: 1, borderTopColor: COLORS.glassBorder,
+  },
+  dailyVerifyText: { color: COLORS.gold, fontSize: 12, fontWeight: '700', flex: 1 },
   collectionCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -294,7 +440,14 @@ const makeStyles = (COLORS) => StyleSheet.create({
   },
   hadithNumText: { color: COLORS.textPrimary, fontWeight: '800', fontSize: 12 },
   hadithText: {
-    color: '#f1f5f9', fontSize: 14,
+    color: COLORS.textPrimary, fontSize: 14,
     lineHeight: 22, marginTop: 12,
   },
+  focusedBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10,
+    paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12,
+    backgroundColor: COLORS.gold + '14', borderWidth: 1, borderColor: COLORS.gold + '40',
+  },
+  focusedText: { color: COLORS.textPrimary, fontSize: 12, fontWeight: '700', flex: 1 },
+  focusedAction: { color: COLORS.gold, fontSize: 12, fontWeight: '800' },
 });

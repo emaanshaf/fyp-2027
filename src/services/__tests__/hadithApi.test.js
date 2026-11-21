@@ -87,9 +87,13 @@ describe('getAllHadiths', () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it('returns an empty list rather than throwing when the CDN fails', async () => {
+  it('rejects when the CDN fails and nothing is cached, so the screen can retry', async () => {
+    // Returning [] here once made the app claim a collection contained no
+    // hadith at all. An empty result is a valid answer; a failed download is
+    // not, and the two must stay distinguishable.
     global.fetch = jest.fn(() => Promise.resolve({ ok: false, status: 502 }));
-    expect(await hadithService.getAllHadiths('eng-muslim')).toEqual([]);
+    await expect(hadithService.getAllHadiths('eng-muslim')).rejects.toThrow();
+    expect(await hadithService.getAllHadiths('eng-nonsense')).toEqual([]);
   });
 });
 
@@ -112,6 +116,17 @@ describe('getCollection paging', () => {
     const page = await hadithService.getCollection('eng-nasai', 1, 50);
     expect(page.totalPages).toBe(1);
     expect(page.hadiths).toEqual([]);
+    expect(page.error).toBe(true);
+  });
+
+  it('marks a successful empty page as not an error', async () => {
+    // An empty array from the CDN is a legitimate (if odd) response, and the
+    // screen must not offer a retry for it.
+    global.fetch = jest.fn(() =>
+      Promise.resolve({ ok: true, json: async () => ({ metadata: {}, hadiths: [] }) })
+    );
+    const page = await hadithService.getCollection('eng-nasai', 1, 50);
+    expect(page.error).toBe(false);
   });
 });
 
@@ -168,5 +183,18 @@ describe('searchAll', () => {
 
   it('returns nothing for an empty query', async () => {
     expect(await hadithService.searchAll('  ')).toEqual([]);
+  });
+
+  it('reports which collection it is working on', async () => {
+    // Six collections at ~5 MB each is a long wait. The screen needs to say
+    // where it has got to or it looks frozen.
+    const seen = [];
+    await hadithService.searchAll('faith', {
+      limit: 10,
+      onProgress: p => seen.push(`${p.index + 1}/${p.total}:${p.collection.id}`),
+    });
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen[0]).toBe('1/6:eng-bukhari');
+    expect(seen.every(s => /^\d\/6:eng-/.test(s))).toBe(true);
   });
 });

@@ -1,6 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  REMINDER_ACTIVE_WINDOW_MINUTES,
   customReminderRows,
   dismissReminderKeys,
   dueReminderRows,
@@ -66,10 +65,17 @@ describe('dueReminderRows', () => {
     expect(due.map(r => r.key)).toEqual(['custom:1']);
   });
 
-  it('stops treating a reminder as due once the window has gone', () => {
-    const later = new Date(2026, 9, 29, 7, REMINDER_ACTIVE_WINDOW_MINUTES + 5);
-    // The 7:00 reminder is now stale, but the 8:00 Quran slot is still fresh.
-    expect(dueReminderRows(rows, later).map(r => r.key)).toEqual(['quran:morning']);
+  it('keeps a passed reminder due for the rest of the day', () => {
+    const due = dueReminderRows(rows, at(23, 0));
+    // Both the 7:00 custom reminder and the 8:00 Quran slot stay due until the
+    // user marks them done or turns them off; only a new day clears them.
+    expect(due.map(r => r.key)).toEqual(['custom:1', 'quran:morning']);
+  });
+
+  it('drops a due reminder once it is marked done', () => {
+    const due = dueReminderRows(rows, at(23, 0))
+      .filter(row => !new Set(['custom:1']).has(row.key));
+    expect(due.map(r => r.key)).toEqual(['quran:morning']);
   });
 
   it('never shows a reminder before its time', () => {

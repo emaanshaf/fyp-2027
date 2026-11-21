@@ -20,7 +20,7 @@
 //   - warns rather than pretends when either GPS or compass accuracy is
 //     poor, using platform-aware thresholds (see compassAccuracyLevel).
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Animated,
   ActivityIndicator, Easing,
@@ -32,6 +32,7 @@ import * as Haptics from 'expo-haptics';
 import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 import { useUserLocation } from '../hooks/useUserLocation';
 import { useDeviceHeading } from '../hooks/useDeviceHeading';
+import { getSavedPrayerCity, geocodeCity } from '../services/geocode';
 import {
   qiblaBearing, distanceToKaaba, relativeAngle, compassPoint, alignment,
 } from '../utils/qibla';
@@ -121,20 +122,51 @@ export default function QiblaFinderScreen() {
   const wasAligned = useRef(false);
   const pulse = useRef(new Animated.Value(0)).current;
 
-  const hasFix = latitude !== null && longitude !== null;
-  const bearing = hasFix ? qiblaBearing(latitude, longitude) : null;
-  const distance = hasFix ? distanceToKaaba(latitude, longitude) : null;
+  // When GPS is unavailable, the city saved in Prayer Times is the only
+  // position the app already knows. It is looked up on demand, never assumed.
+  const [savedCity, setSavedCity] = useState(null);
+  const [cityPlace, setCityPlace] = useState(null);
+  const [cityLoading, setCityLoading] = useState(false);
+  const [cityError, setCityError] = useState(null);
+
+  useEffect(() => {
+    getSavedPrayerCity().then(setSavedCity).catch(() => {});
+  }, []);
+
+  const gpsFix = latitude !== null && longitude !== null;
+  // A real GPS fix always wins; once it arrives the approximate city is no
+  // longer used, without the user having to switch anything off.
+  const place = gpsFix ? { latitude, longitude } : cityPlace;
+  const usingApprox = !gpsFix && Boolean(cityPlace);
+
+  const bearing = place ? qiblaBearing(place.latitude, place.longitude) : null;
+  const distance = place ? distanceToKaaba(place.latitude, place.longitude) : null;
   // No compass reading yet, or none on this device: `heading` stays null and
   // the UI falls back to a numeric bearing rather than a needle that lies.
   const offset = bearing !== null && heading !== null ? relativeAngle(bearing, heading) : null;
   const align = offset !== null ? alignment(offset) : null;
   const isAligned = align?.state === 'aligned';
 
-  // Do not calculate/show a Qibla direction until a valid location exists.
-  const status = locLoading ? 'locating'
-    : !hasFix && permissionStatus === 'denied' ? 'denied'
-    : !hasFix ? 'error'
-    : 'ready';
+  const useSavedCity = async () => {
+    if (!savedCity?.city || cityLoading) return;
+    setCityLoading(true);
+    setCityError(null);
+    try {
+      setCityPlace(await geocodeCity(savedCity.city));
+    } catch {
+      setCityError(
+        `Could not look up ${savedCity.city}. Check your connection and try again.`
+      );
+    } finally {
+      setCityLoading(false);
+    }
+  };
+
+  // Do not calculate/show a Qibla direction until a valid position exists.
+  const status = place ? 'ready'
+    : locLoading ? 'locating'
+    : permissionStatus === 'denied' ? 'denied'
+    : 'error';
 
   // A short buzz the moment the user lines up, so the phone can be held at
   // prayer height without watching the screen.
@@ -181,12 +213,36 @@ export default function QiblaFinderScreen() {
             <Ionicons name="refresh" size={16} color="#000" />
             <Text style={styles.retryText}>Try again</Text>
           </TouchableOpacity>
-          {/* Never invent a direction: without a position there is no honest
-              bearing to show, so none is shown. */}
-          <Text style={styles.note}>
-            The Qibla depends on where you are, so it cannot be shown without
-            your location.
-          </Text>
+
+          {/* A desktop or a phone with location switched off can still get a
+              useful bearing from the city already saved for prayer times —
+              clearly labelled as approximate, never passed off as GPS. */}
+          {savedCity?.city ? (
+            <TouchableOpacity
+              onPress={useSavedCity}
+              disabled={cityLoading}
+              style={styles.cityBtn}
+              accessibilityRole="button"
+              accessibilityLabel={`Use saved city ${savedCity.city}`}
+            >
+              {cityLoading ? (
+                <ActivityIndicator size="small" color={COLORS.gold} />
+              ) : (
+                <Ionicons name="business-outline" size={16} color={COLORS.gold} />
+              )}
+              <Text style={styles.cityBtnText}>
+                {cityLoading ? 'Looking up your city…' : `Use ${savedCity.city} (approximate)`}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={styles.note}>
+              The Qibla depends on where you are, so it cannot be shown without
+              your location. You can also save your city in Prayer Times and
+              come back here.
+            </Text>
+          )}
+
+          {cityError ? <Text style={styles.cityError}>{cityError}</Text> : null}
         </View>
       </SafeAreaView>
     );
@@ -238,6 +294,18 @@ export default function QiblaFinderScreen() {
           </View>
         )}
 
+        {/* Approximate position: say exactly where it came from. */}
+        {usingApprox ? (
+          <View style={styles.approx}>
+            <Ionicons name="business-outline" size={15} color={COLORS.amber} />
+            <Text style={styles.approxText}>
+              Using {cityPlace.name}
+              {cityPlace.admin1 ? `, ${cityPlace.admin1}` : ''} — the city saved in
+              Prayer Times, not your GPS position. The bearing is approximate.
+            </Text>
+          </View>
+        ) : null}
+
         {/* Facts */}
         <View style={styles.facts}>
           <View style={styles.fact}>
@@ -259,16 +327,17 @@ export default function QiblaFinderScreen() {
         </View>
 
         <Text style={styles.coords}>
-          {latitude.toFixed(4)}°, {longitude.toFixed(4)}°
-          {gpsAccuracy ? `  ·  location accuracy ±${Math.round(gpsAccuracy)} m` : ''}
+          {usingApprox ? 'Approx. ' : ''}
+          {place.latitude.toFixed(4)}°, {place.longitude.toFixed(4)}°
+          {gpsFix && gpsAccuracy ? `  ·  location accuracy ±${Math.round(gpsAccuracy)} m` : ''}
           {compassAvailable && heading !== null
             ? `  ·  ${isTrueNorth ? 'true' : 'magnetic'} north` : ''}
         </Text>
 
         {/* GPS accuracy: the bearing itself is only as good as the fix it was
             computed from. A loose fix is disclosed rather than presented as
-            precise. */}
-        {isGpsAccuracyPoor ? (
+            precise. Never applies to the saved-city fallback. */}
+        {gpsFix && isGpsAccuracyPoor ? (
           <View style={styles.calibrate}>
             <Ionicons name="location-outline" size={14} color={COLORS.amber} />
             <Text style={styles.calibrateText}>
@@ -310,7 +379,9 @@ export default function QiblaFinderScreen() {
           accessibilityLabel="Update my location"
         >
           <Ionicons name="locate-outline" size={15} color={COLORS.cyan} />
-          <Text style={styles.refreshText}>Update location</Text>
+          <Text style={styles.refreshText}>
+            {usingApprox ? 'Use my GPS location' : 'Update location'}
+          </Text>
         </TouchableOpacity>
 
         <Text style={styles.note}>
@@ -333,6 +404,20 @@ const makeStyles = (COLORS) => StyleSheet.create({
     backgroundColor: COLORS.gold, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10,
   },
   retryText: { color: '#000', fontWeight: '800', fontSize: 13 },
+  cityBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2,
+    borderWidth: 1, borderColor: COLORS.gold + '80', borderRadius: 10,
+    paddingHorizontal: 16, paddingVertical: 10, backgroundColor: COLORS.gold + '14',
+  },
+  cityBtnText: { color: COLORS.gold, fontWeight: '800', fontSize: 13 },
+  cityError: { color: COLORS.amber, fontSize: 12, textAlign: 'center' },
+
+  approx: {
+    flexDirection: 'row', gap: 8, alignSelf: 'stretch', marginTop: 18,
+    padding: 12, borderRadius: 12,
+    backgroundColor: COLORS.amber + '12', borderWidth: 1, borderColor: COLORS.amber + '30',
+  },
+  approxText: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 18, flex: 1 },
 
   dialWrap: { width: DIAL, height: DIAL, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
   dialCentre: { position: 'absolute', alignItems: 'center' },

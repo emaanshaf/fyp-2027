@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, ActivityIndicator,
   ScrollView
@@ -97,7 +97,13 @@ function IsnadChain({ hadith }) {
   );
 }
 
-export default function HadithVerificationScreen() {
+/**
+ * Example queries are real words from the collections, not invented hadith
+ * text. Tapping one runs the search — nothing here is presented as a quote.
+ */
+const QUICK_SEARCHES = ['intentions', 'patience', 'charity', 'knowledge'];
+
+export default function HadithVerificationScreen({ route }) {
   // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
   const COLORS = useColors();
   const globalStyles = useGlobalStyles();
@@ -110,6 +116,10 @@ export default function HadithVerificationScreen() {
   const [error, setError] = useState(null);
   const [searchMode, setSearchMode] = useState('keyword'); // keyword | number
   const [openChain, setOpenChain] = useState(null);
+  const [progress, setProgress] = useState(null);
+  const [failed, setFailed] = useState([]);
+  const [hasSearched, setHasSearched] = useState(false);
+  const autoRan = useRef(false);
 
   /**
    * Normalises a hadith from the CDN into what this screen renders.
@@ -133,52 +143,104 @@ export default function HadithVerificationScreen() {
     };
   };
 
-  const searchHadith = async () => {
-    const q = query.trim();
-    if (!q) return;
+  const runSearch = async ({ q = query, mode = searchMode, collection = selectedCollection } = {}) => {
+    const text = String(q || '').trim();
+    if (!text) return;
+
     setLoading(true);
     setError(null);
     setResults([]);
+    setFailed([]);
+    setHasSearched(true);
+    setProgress('Preparing…');
+
+    const failedCollections = [];
+    const onFailure = c => failedCollections.push(c);
 
     try {
-      if (searchMode === 'number') {
-        const num = parseInt(q, 10);
+      if (mode === 'number') {
+        const num = parseInt(text, 10);
         if (!num) { setError('Please enter a valid hadith number.'); return; }
 
         // Without a collection chosen, look the number up in each in turn.
-        const targets = selectedCollection ? [selectedCollection] : COLLECTIONS.map(c => c.id);
+        const targets = collection ? [collection] : COLLECTIONS.map(c => c.id);
         const found = [];
-        for (const coll of targets) {
-          const h = await hadithService.getByNumber(coll, num);
-          if (h) found.push(toResult(h, coll));
+        for (let i = 0; i < targets.length; i++) {
+          const coll = targets[i];
+          const meta = COLLECTIONS.find(c => c.id === coll);
+          setProgress(`${meta?.name || coll} (${i + 1} of ${targets.length})…`);
+          try {
+            const all = await hadithService.getAllHadiths(coll);
+            const h = all.find(item => String(item.hadithnumber) === String(num));
+            if (h) found.push(toResult(h, coll));
+          } catch {
+            onFailure(meta || { id: coll, name: coll });
+          }
         }
         setResults(found);
+        setFailed(failedCollections);
         if (!found.length) {
-          setError(`No hadith numbered ${num} in ${selectedCollection ? 'that collection' : 'any collection'}.`);
+          setError(
+            failedCollections.length
+              ? 'Some collections could not be downloaded. Check your connection and try again.'
+              : `No hadith numbered ${num} in ${collection ? 'that collection' : 'any collection'}.`
+          );
         }
-      } else if (selectedCollection) {
-        const hits = await hadithService.search(selectedCollection, q);
-        setResults(hits.slice(0, 50).map(h => toResult(h, selectedCollection)));
+      } else if (collection) {
+        const hits = await hadithService.search(collection, text, { throwOnError: true });
+        setProgress('Preparing…');
+        setResults(hits.slice(0, 50).map(h => toResult(h, collection)));
         if (!hits.length) setError('No hadith matched that text in this collection.');
       } else {
         // Across all six collections — the actual "verification" case: does
         // this wording appear in an authentic book, and how is it graded?
-        const hits = await hadithService.searchAll(q, { limit: 50 });
+        const hits = await hadithService.searchAll(text, {
+          limit: 50,
+          onProgress: ({ collection: c, index, total }) =>
+            setProgress(`${c.name} (${index + 1} of ${total})…`),
+          onFailure,
+        });
         setResults(hits.map(h => toResult(h, h.collectionId)));
+        setFailed(failedCollections);
         if (!hits.length) {
           setError(
-            'No hadith matched that text. It may be worded differently, or it ' +
-            'may not appear in these six collections.'
+            failedCollections.length
+              ? `Could not download ${failedCollections.length === 1 ? 'a collection' : `${failedCollections.length} collections`}. Check your connection and try again.`
+              : 'No hadith matched that text. It may be worded differently, or it ' +
+                'may not appear in these six collections.'
           );
         }
       }
     } catch (e) {
       console.warn('Hadith search failed:', e?.message);
+      setFailed(failedCollections);
       setError('Could not search. The collection needs to download once — check your connection.');
     } finally {
       setLoading(false);
+      setProgress(null);
     }
   };
+
+  const searchHadith = () => runSearch();
+
+  // Opening a shared reference — or the Hadith of the Day card — lands here
+  // with the collection and number already known. Look that one hadith up
+  // instead of showing an empty form.
+  useEffect(() => {
+    const params = route?.params;
+    if (!params || autoRan.current) return;
+    const coll = COLLECTIONS.some(c => c.id === params.collection) ? params.collection : null;
+    if (coll) setSelectedCollection(coll);
+    if (params.number != null) {
+      autoRan.current = true;
+      setSearchMode('number');
+      setQuery(String(params.number));
+      runSearch({ q: String(params.number), mode: 'number', collection: coll });
+    } else if (params.query) {
+      setSearchMode('keyword');
+      setQuery(String(params.query));
+    }
+  }, [route?.params]);
 
   const getGradeColor = (grade) => {
     if (!grade) return COLORS.textSecondary;
@@ -234,16 +296,48 @@ export default function HadithVerificationScreen() {
           <View style={{ padding: 40, alignItems: 'center' }}>
             <ActivityIndicator color={COLORS.gold} size="large" />
             <Text style={{ color: COLORS.textSecondary, marginTop: 12 }}>
-              {selectedCollection ? 'Searching collection...' : 'Searching all six collections...'}
+              {progress || 'Searching…'}
             </Text>
-            <Text style={{ color: COLORS.textSecondary, marginTop: 6, fontSize: 11, opacity: 0.7 }}>
-              First search downloads the collection; afterwards it works offline.
+            <Text style={{ color: COLORS.textSecondary, marginTop: 6, fontSize: 11, opacity: 0.7, textAlign: 'center', paddingHorizontal: 24 }}>
+              The first search downloads each collection once (about 5 MB each); afterwards it works offline.
             </Text>
           </View>
         ) : error ? (
           <View style={styles.errorCard}>
             <Ionicons name="alert-circle" size={24} color={COLORS.amber} />
             <Text style={{ color: COLORS.textSecondary, fontSize: 13, textAlign: 'center' }}>{error}</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={searchHadith}>
+              <Ionicons name="refresh" size={14} color="#000" />
+              <Text style={styles.retryText}>Search again</Text>
+            </TouchableOpacity>
+          </View>
+        ) : results.length === 0 && !hasSearched ? (
+          <View style={styles.guideCard}>
+            <Ionicons name="shield-checkmark-outline" size={26} color={COLORS.emerald} />
+            <Text style={styles.guideTitle}>Check a hadith against the collections</Text>
+            <Text style={styles.guideText}>
+              Search the wording of a hadith across Sahih Bukhari, Sahih Muslim and the four
+              Sunan. Choose a collection above to narrow the search, or search by number.
+            </Text>
+            <Text style={styles.guideLabel}>Try a word</Text>
+            <View style={styles.quickRow}>
+              {QUICK_SEARCHES.map(word => (
+                <TouchableOpacity
+                  key={word}
+                  style={styles.quickChip}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Search for ${word}`}
+                  onPress={() => {
+                    setSearchMode('keyword');
+                    setQuery(word);
+                    runSearch({ q: word, mode: 'keyword' });
+                  }}
+                >
+                  <Ionicons name="search-outline" size={12} color={COLORS.gold} />
+                  <Text style={styles.quickText}>{word}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         ) : (
           <View style={{ paddingHorizontal: 12 }}>
@@ -253,6 +347,16 @@ export default function HadithVerificationScreen() {
                 {selectedCollection ? '' : ' across all collections'}
               </Text>
             )}
+            {results.length === 0 && hasSearched && !error ? (
+              <Text style={styles.guideText}>No results. Try different wording.</Text>
+            ) : null}
+            {failed.length > 0 && results.length > 0 ? (
+              <Text style={styles.partialNote}>
+                {failed.length === 1
+                  ? `${failed[0].name} could not be downloaded, so these results are partial.`
+                  : `${failed.length} collections could not be downloaded, so these results are partial.`}
+              </Text>
+            ) : null}
             {results.map((h, i) => (
               <View key={i} style={styles.resultCard}>
                 <View style={globalStyles.spaceBetween}>
@@ -343,6 +447,34 @@ const makeStyles = (COLORS) => StyleSheet.create({
   errorCard: {
     margin: 12, padding: 20, borderRadius: 16, backgroundColor: COLORS.glass,
     borderWidth: 1, borderColor: COLORS.glassBorder, alignItems: 'center', gap: 8,
+  },
+  retryBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6,
+    backgroundColor: COLORS.gold, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10,
+  },
+  retryText: { color: '#000', fontWeight: '800', fontSize: 12 },
+  guideCard: {
+    margin: 12, padding: 20, borderRadius: 18, backgroundColor: COLORS.glass,
+    borderWidth: 1, borderColor: COLORS.glassBorder, alignItems: 'center', gap: 8,
+  },
+  guideTitle: { color: COLORS.textPrimary, fontSize: 15, fontWeight: '800', textAlign: 'center' },
+  guideText: {
+    color: COLORS.textSecondary, fontSize: 12.5, lineHeight: 19,
+    textAlign: 'center', paddingHorizontal: 4,
+  },
+  guideLabel: {
+    alignSelf: 'flex-start', color: COLORS.textSecondary, fontSize: 10.5,
+    fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase', marginTop: 8,
+  },
+  quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignSelf: 'flex-start' },
+  quickChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: COLORS.glassBorder,
+  },
+  quickText: { color: COLORS.gold, fontSize: 12, fontWeight: '700' },
+  partialNote: {
+    color: COLORS.amber, fontSize: 11.5, lineHeight: 17, marginBottom: 10,
   },
   resultCard: {
     padding: 16, marginBottom: 10, borderRadius: 18, backgroundColor: COLORS.glass,

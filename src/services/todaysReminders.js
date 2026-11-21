@@ -16,9 +16,6 @@ import { QURAN_PRESETS, parseTimeInput } from '../data/quranReminder';
 
 export const REMINDER_POPUP_INTERVAL_MS = 5 * 60 * 1000;
 
-/** A reminder stays "due" for this long after its time, then counts as missed. */
-export const REMINDER_ACTIVE_WINDOW_MINUTES = 90;
-
 export const CUSTOM_REMINDERS_KEY = 'qitab_reminders';
 export const QURAN_SETTINGS_KEY = 'qitab_quran_reminder_settings';
 export const REMINDER_POPUP_DISMISSED_KEY = 'qitab_reminder_popup_dismissed';
@@ -92,13 +89,15 @@ export function todaysReminderRows({ customRaw, quranRaw } = {}) {
     .sort((a, b) => minutesOfDay(a.time) - minutesOfDay(b.time));
 }
 
-/** Rows whose time has arrived and is still recent enough to act on. */
+/**
+ * Rows whose time has arrived. Once due, a reminder stays due for the rest of
+ * the day: the card keeps returning every five minutes until the user acts on
+ * it — marked done for today, or switched off in Reminders. The list is rebuilt
+ * per day, so an unhandled reminder never fires a day late.
+ */
 export function dueReminderRows(rows, now = new Date()) {
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  return rows.filter(row => {
-    const start = minutesOfDay(row.time);
-    return nowMinutes >= start && nowMinutes - start <= REMINDER_ACTIVE_WINDOW_MINUTES;
-  });
+  return rows.filter(row => minutesOfDay(row.time) <= nowMinutes);
 }
 
 /** Rows strictly ahead today (a due reminder is never also "later"). */

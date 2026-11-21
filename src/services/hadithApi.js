@@ -33,6 +33,11 @@ export const hadithService = {
   /**
    * The full collection, cached to disk. Callers that only need a page should
    * use `getCollection` — this is the shared source both it and search read.
+   *
+   * No `fallback: []`: an empty array is a valid answer ("this collection has
+   * no matches"), so using it for a failed download made the UI say there was
+   * no hadith data at all. When nothing is cached and the fetch fails, this
+   * rejects and the screen shows a retry instead.
    */
   async getAllHadiths(collectionId, { forceRefresh } = {}) {
     if (!isValidCollection(collectionId)) return [];
@@ -46,45 +51,81 @@ export const hadithService = {
         const data = await res.json();
         return data.hadiths || [];
       },
-      { ttl: TTL.SCRIPTURE, forceRefresh, fallback: [] }
+      { ttl: TTL.SCRIPTURE, forceRefresh }
     );
   },
 
   async getCollection(collectionId, page = 1, perPage = 50, opts = {}) {
-    const all = await this.getAllHadiths(collectionId, opts);
-    const start = (page - 1) * perPage;
-    return {
-      hadiths: all.slice(start, start + perPage),
-      total: all.length,
-      totalPages: Math.max(1, Math.ceil(all.length / perPage)),
-      page,
-      // Lets the UI say "showing saved copy" rather than silently going stale.
-      offline: !isOnline() && all.length === 0,
-    };
+    try {
+      const all = await this.getAllHadiths(collectionId, opts);
+      const start = (page - 1) * perPage;
+      return {
+        hadiths: all.slice(start, start + perPage),
+        total: all.length,
+        totalPages: Math.max(1, Math.ceil(all.length / perPage)),
+        page,
+        offline: !isOnline(),
+        error: false,
+      };
+    } catch {
+      // First-ever load failed. Say so, rather than returning an empty list
+      // that reads as "this collection contains nothing".
+      return {
+        hadiths: [],
+        total: 0,
+        totalPages: 1,
+        page,
+        offline: !isOnline(),
+        error: true,
+      };
+    }
   },
 
-  async getByNumber(collectionId, number) {
-    const all = await this.getAllHadiths(collectionId);
-    return all.find(h => String(h.hadithnumber) === String(number)) || null;
+  async getByNumber(collectionId, number, { throwOnError = false } = {}) {
+    try {
+      const all = await this.getAllHadiths(collectionId);
+      return all.find(h => String(h.hadithnumber) === String(number)) || null;
+    } catch (err) {
+      if (throwOnError) throw err;
+      return null;
+    }
   },
 
-  async search(collectionId, query) {
+  async search(collectionId, query, { throwOnError = false } = {}) {
     const q = query.trim().toLowerCase();
     if (!q) return [];
-    const all = await this.getAllHadiths(collectionId);
-    return all.filter(
-      h => h.text?.toLowerCase().includes(q) || String(h.hadithnumber) === q
-    );
+    try {
+      const all = await this.getAllHadiths(collectionId);
+      return all.filter(
+        h => h.text?.toLowerCase().includes(q) || String(h.hadithnumber) === q
+      );
+    } catch (err) {
+      if (throwOnError) throw err;
+      return [];
+    }
   },
 
-  /** Searches every collection at once — powers Hadith verification. */
-  async searchAll(query, { limit = 60 } = {}) {
+  /**
+   * Searches every collection at once — powers Hadith verification.
+   *
+   * Each collection is a separate multi-megabyte download, so `onProgress`
+   * reports which one is being worked on. Without it the verification screen
+   * sat on a static spinner for minutes and looked broken. `onFailure` keeps a
+   * failed download from being reported as "no such hadith".
+   */
+  async searchAll(query, { limit = 60, onProgress, onFailure } = {}) {
     const q = query.trim().toLowerCase();
     if (!q) return [];
     const results = [];
-    for (const c of HADITH_COLLECTIONS) {
-      const hits = await this.search(c.id, q);
-      results.push(...hits.map(h => ({ ...h, collectionId: c.id, collection: c.name, grade: c.grade })));
+    for (let i = 0; i < HADITH_COLLECTIONS.length; i++) {
+      const c = HADITH_COLLECTIONS[i];
+      onProgress?.({ collection: c, index: i, total: HADITH_COLLECTIONS.length });
+      try {
+        const hits = await this.search(c.id, q, { throwOnError: true });
+        results.push(...hits.map(h => ({ ...h, collectionId: c.id, collection: c.name, grade: c.grade })));
+      } catch {
+        onFailure?.(c);
+      }
       if (results.length >= limit) break;
     }
     return results.slice(0, limit);

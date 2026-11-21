@@ -427,7 +427,7 @@ This distinction matters when auditing "where AI is used", because several scree
 
 | Feature | File | What it actually does |
 | --- | --- | --- |
-| **Quran Study** (`AIQuran` internal name) | `src/screens/AIQuranAssistantScreen.jsx` | Hard-coded `SAMPLE_QA` answers (lines 24-27), direct quran.com `/search` calls (lines 50-66), and templated responses built from search results (lines 68-86). No LLM, no knowledge base, no `getAIAnswer()`. |
+| **Quran Study** (`AIQuran` internal name) | `src/screens/AIQuranAssistantScreen.jsx` | Live translation search through `quranService.searchVerses()`; answers are the matched verses themselves (Arabic, translation, translator, surah:ayah) with a tap-through to the reader. No LLM, no knowledge base, no `getAIAnswer()`. |
 | **Hadith Verification** | `src/screens/HadithVerificationScreen.jsx` | Data lookup against authenticated sources. The screen itself states: "AI cannot verify hadith authenticity" (line 306). |
 | **Tafsir** | `src/screens/TafsirScreen.jsx` | Static/API commentary content, not generated. |
 | **Islamic News** | News screen + server RSS aggregator | RSS aggregation, normalisation and deterministic keyword/topic mining. No AI summarisation. |
@@ -436,7 +436,7 @@ This distinction matters when auditing "where AI is used", because several scree
 | **Reminders / Prayer Times / Qibla** | Various | Scheduling, time calculation, device sensors; no AI. |
 | **Communities / E-Learning** | Various | Local-first user content and progress; no AI recommendation engine. |
 
-If you are looking for "the AI", the answer is `AIChatScreen` → `getAIAnswer` → `/api/ai/chat` → Claude, with `ZakatScreen` as the second consumer. The `Quran Study` module (internal name `AIQuran`) is a local template + Quran-search companion, now labelled accurately.
+If you are looking for "the AI", the answer is `AIChatScreen` → `getAIAnswer` → `/api/ai/chat` → Claude, with `ZakatScreen` as the second consumer. The `Quran Study` module (internal name `AIQuran`) is a verse-search companion that shows the matched translation, now labelled accurately.
 
 ---
 
@@ -557,7 +557,7 @@ AI behavior is covered by both Jest projects.
 3. **No server-side conversation memory.** Each request is a single turn plus retrieved context. Chat history stays on the device and is not sent to Claude.
 4. **No embeddings or semantic vector search.** Retrieval is lexical; paraphrases outside the synonym/stemming map may miss the best topic.
 5. **The Zakat AI is not a calculator.** It explains rules but does not compute Zakat from the user's assets or connect to the calculator tab.
-6. **The Quran Study module is not AI.** It is hard-coded samples plus quran.com search; it has been renamed from "AI Quran Assistant" so the label matches the behaviour.
+6. **The Quran Study module is not AI.** It searches the quran.com translation and returns the matched verses verbatim; it has been renamed from "AI Quran Assistant" so the label matches the behaviour. Search matches wording, not meaning, and the screen says so.
 7. **No dedicated moderation model.** Safety relies on the system prompt and Anthropic's own refusal behavior, plus the app's offline content curation.
 8. **A configured-but-unauthenticated client may attempt one live call** before learning `no_auth` and falling back.
 9. **Mixed-language retrieval is limited.** Arabic/Urdu queries work best when they match the curated transliterations or English keywords.
@@ -647,4 +647,4 @@ The binding product rules for all future work are in [`PRODUCT_PRINCIPLES.md`](.
 
 ## 15. One-paragraph answer
 
-AI in Qitab-e-Noor is used at exactly **one live integration point** — the authenticated `POST /api/ai/chat` endpoint that calls Anthropic Claude — consumed by the **Islamic AI Assistant** and the **Zakat AI** tab through the shared `getAIAnswer()` orchestrator. When that endpoint is unavailable, the app falls back to a deterministic **161-topic, 8-category offline knowledge base** with keyword retrieval and quran.com translation search. The Home screen links to the assistant, and Settings/Diagnostics report whether live AI is configured. The **Quran Study** module (internal name `AIQuran`, formerly AI Quran Assistant) is not AI; it uses hard-coded samples and Quran search. No AI key ships in the app, no chat transcripts are stored on the server, and no on-device machine-learning model is used.
+AI in Qitab-e-Noor is used at exactly **one live integration point** — the authenticated `POST /api/ai/chat` endpoint that calls Anthropic Claude — consumed by the **Islamic AI Assistant** and the **Zakat AI** tab through the shared `getAIAnswer()` orchestrator. When that endpoint is unavailable, the app falls back to a deterministic **161-topic, 8-category offline knowledge base** with keyword retrieval and quran.com translation search. The Home screen links to the assistant, and Settings/Diagnostics report whether live AI is configured. The **Quran Study** module (internal name `AIQuran`, formerly AI Quran Assistant) is not AI; it searches the Quran translation and shows the matched verses with their references. No AI key ships in the app, no chat transcripts are stored on the server, and no on-device machine-learning model is used.

@@ -44,7 +44,7 @@ These five rules exist because Qitab-e-Noor is a worship companion, not a generi
 
 **Review question:** *Does a model generate this response? If not, why is it called AI?*
 
-**Current status:** The former "AI Quran Assistant" has been renamed **Quran Study**. It remains a template + Quran-search feature and is described as such. The live assistant remains the only feature labelled AI.
+**Current status:** The former "AI Quran Assistant" has been renamed **Quran Study**. It searches the quran.com translation and shows the matched verses with references — no model, no templated religious claim — and is described as such. The live assistant remains the only feature labelled AI.
 
 ---
 
