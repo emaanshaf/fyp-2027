@@ -20,9 +20,9 @@ exists.
   and never prove the app assembles; this runs every module through the real
   Metro graph, which is what catches an unresolved import or a Babel plugin
   that moved between SDK versions.
-- **api** — starts the server and runs `scripts/verify-deployment.js` against
+- **api** — starts the server and runs `backend/scripts/verify-deployment.js` against
   it. Catches a broken require chain or a route that fails to mount.
-- **docker** — builds `server/Dockerfile`, then runs the image against a real
+- **docker** — builds `backend/Dockerfile`, then runs the image against a real
   Postgres in production mode and verifies it serves. The image sets
   `NODE_ENV=production`, and production refuses to start without a database,
   so a database is the only way to smoke test what actually ships.

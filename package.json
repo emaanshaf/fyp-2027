@@ -1,133 +1,37 @@
 {
   "name": "qitabe-noor",
   "version": "1.0.0",
-  "main": "App.js",
+  "private": true,
+  "description": "Qitab-e-Noor monorepo. frontend/ is the Expo app, backend/ is the Express API.",
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "doctor": "expo-doctor",
-    "assets": "node scripts/generate-assets.js",
-    "server": "node server/server.js",
-    "ai:configure": "node scripts/configure-ai.js",
-    "ai:status": "node scripts/configure-ai.js --check",
-    "sounds": "node scripts/generate-reminder-sounds.js",
-    "build:preview": "eas build --profile preview --platform android",
-    "build:prod": "eas build --profile production --platform android",
+    "start": "npm --prefix frontend start",
+    "setup": "npm install && npm --prefix frontend install && npm --prefix backend install",
+    "android": "npm --prefix frontend run android",
+    "ios": "npm --prefix frontend run ios",
+    "web": "npm --prefix frontend run web",
+    "server": "npm --prefix backend start",
+    "server:migrate": "npm --prefix backend run migrate",
     "dev": "concurrently --names \"API,APP\" --prefix-colors \"cyan,magenta\" \"npm:server\" \"npm:start\"",
-    "server:migrate": "node server/migrations/run.js",
+    "test": "npm run test:app && npm run test:api",
+    "test:app": "npm --prefix frontend test",
+    "test:api": "npm --prefix backend test",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "doctor": "npm --prefix frontend run doctor",
     "verify": "npm run lint && npm test && npm run doctor",
-    "verify:deploy": "node scripts/verify-deployment.js",
-    "web": "expo start --web",
-    "legal:export": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/export-legal.mjs"
-  },
-  "dependencies": {
-    "@expo/metro-runtime": "~57.0.15",
-    "@expo/vector-icons": "^15.0.2",
-    "@react-native-async-storage/async-storage": "2.2.0",
-    "@react-native-community/netinfo": "12.0.1",
-    "@react-navigation/bottom-tabs": "^7.0.0",
-    "@react-navigation/drawer": "^7.0.0",
-    "@react-navigation/native": "^7.0.0",
-    "@react-navigation/native-stack": "^7.0.0",
-    "axios": "^1.7.2",
-    "expo": "~57.0.31",
-    "expo-av": "~15.0.2",
-    "expo-blur": "~57.0.3",
-    "expo-build-properties": "~57.0.22",
-    "expo-clipboard": "~57.0.2",
-    "expo-crypto": "~57.0.4",
-    "expo-device": "~57.0.2",
-    "expo-document-picker": "~57.0.3",
-    "expo-file-system": "~57.0.6",
-    "expo-font": "~57.0.3",
-    "expo-haptics": "~57.0.3",
-    "expo-linear-gradient": "~57.0.2",
-    "expo-local-authentication": "~57.0.3",
-    "expo-location": "~57.0.22",
-    "expo-notifications": "~57.0.24",
-    "expo-secure-store": "~57.0.4",
-    "expo-sensors": "~57.0.3",
-    "expo-sharing": "~57.0.24",
-    "expo-speech": "~57.0.3",
-    "expo-splash-screen": "~57.0.10",
-    "expo-status-bar": "~57.0.1",
-    "firebase": "^12.15.0",
-    "lodash.throttle": "^4.1.1",
-    "metro-source-map": "^0.87.1",
-    "nodemailer": "^10.0.13",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "react-native": "0.86.3",
-    "react-native-gesture-handler": "~2.32.0",
-    "react-native-reanimated": "4.5.1",
-    "react-native-safe-area-context": "~5.7.0",
-    "react-native-screens": "~4.26.0",
-    "react-native-svg": "15.15.4",
-    "react-native-web": "^0.21.2",
-    "react-native-worklets": "0.10.1",
-    "source-map": "^0.8.0"
+    "verify:deploy": "node backend/scripts/verify-deployment.js",
+    "ai:configure": "node backend/scripts/configure-ai.js",
+    "ai:status": "node backend/scripts/configure-ai.js --check",
+    "assets": "npm --prefix frontend run assets",
+    "sounds": "npm --prefix frontend run sounds",
+    "legal:export": "npm --prefix frontend run legal:export",
+    "build:preview": "npm --prefix frontend run build:preview",
+    "build:prod": "npm --prefix frontend run build:prod"
   },
   "devDependencies": {
-    "@babel/core": "^7.25.2",
-    "@react-native/jest-preset": "^0.86.3",
-    "@testing-library/react-native": "^13.3.3",
-    "babel-preset-expo": "^57.0.10",
     "concurrently": "^10.0.5",
     "eslint": "^9.39.5",
-    "eslint-config-expo": "~57.0.2",
-    "jest": "~29.7.0",
-    "jest-expo": "~57.0.6",
-    "react-refresh": "^0.14.2",
-    "react-test-renderer": "19.2.3",
-    "supertest": "^7.2.2"
-  },
-  "private": true,
-  "expo": {
-    "doctor": {
-      "reactNativeDirectoryCheck": {
-        "exclude": [
-          "expo-av",
-          "firebase"
-        ],
-        "listUnknownPackages": false
-      }
-    }
-  },
-  "jest": {
-    "projects": [
-      {
-        "displayName": "app",
-        "preset": "jest-expo",
-        "setupFilesAfterEnv": [
-          "<rootDir>/jest.setup.js"
-        ],
-        "transformIgnorePatterns": [
-          "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg)"
-        ],
-        "testPathIgnorePatterns": [
-          "<rootDir>/node_modules/",
-          "<rootDir>/server/"
-        ]
-      },
-      {
-        "displayName": "server",
-        "testEnvironment": "node",
-        "testMatch": [
-          "<rootDir>/server/**/__tests__/**/*.test.js"
-        ],
-        "setupFilesAfterEnv": [
-          "<rootDir>/server/jest.setup.js"
-        ]
-      }
-    ],
-    "collectCoverageFrom": [
-      "src/services/**/*.js",
-      "src/data/curriculum.js"
-    ]
+    "globals": "14.0.0",
+    "eslint-plugin-react": "7.37.5"
   }
 }

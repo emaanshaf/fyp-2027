@@ -2,8 +2,8 @@
 //
 // Post-deploy smoke test for the Qitab-e-Noor API.
 //
-//   node scripts/verify-deployment.js https://api.qitabe-noor.app/api
-//   node scripts/verify-deployment.js            # defaults to localhost:3001
+//   node backend/scripts/verify-deployment.js https://api.qitabe-noor.app/api
+//   node backend/scripts/verify-deployment.js            # defaults to localhost:3001
 //
 // A deploy that returns 200 on the home page can still be broken in ways that
 // only show up in the app: the AI route unauthenticated, CORS left wide open,

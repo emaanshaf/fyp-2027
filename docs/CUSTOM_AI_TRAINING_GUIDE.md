@@ -34,7 +34,7 @@ use a tool like **Axolotl** or **Unsloth** to run a LoRA/QLoRA fine-tune of
 an open model, then serve it yourself with **vLLM** or **Ollama**.
 
 - Pros: full control, cheaper at scale, no vendor lock-in
-- Cons: requires ML engineering knowledge, you manage the server/uptime
+- Cons: requires ML engineering knowledge, you manage the backend/uptime
 
 ## Data requirements
 
@@ -45,7 +45,7 @@ particular style/scope) typically needs:
 - **For robust, reliable behavior:** several thousand+ pairs, ideally
   covering edge cases and varied phrasings of the same question
 
-**This app's `src/ai/islamicKnowledge.js`** (161 entries across 8 categories) is
+**This app's `frontend/src/ai/islamicKnowledge.js`** (161 entries across 8 categories) is
 a good seed but
 far too small on its own — it would need to be expanded significantly, and
 each entry reformatted from the current `{keywords, topic, answer,
@@ -79,16 +79,16 @@ spot-checked against scholarly sources before being shown to real users.
    automatically; self-hosted needs vLLM/Ollama running on a server you
    control).
 7. **Wire it into this app** — add a new client file alongside
-   `src/ai/claudeClient.js` (e.g. `src/ai/customModelClient.js`) that calls
+   `frontend/src/ai/claudeClient.js` (e.g. `frontend/src/ai/customModelClient.js`) that calls
    your new endpoint, and either replace or chain it with Claude inside
-   `src/ai/assistant.js`'s `getAIAnswer()` — the existing RAG retrieval step
+   `frontend/src/ai/assistant.js`'s `getAIAnswer()` — the existing RAG retrieval step
    (`searchKnowledgeBase`) would still be useful as grounding context for
    your custom model too.
 
 ## Where this app already helps
 
-- `src/ai/islamicKnowledge.js` is your dataset seed.
-- `src/ai/assistant.js`'s `getAIAnswer()` already has the shape (retrieve →
+- `frontend/src/ai/islamicKnowledge.js` is your dataset seed.
+- `frontend/src/ai/assistant.js`'s `getAIAnswer()` already has the shape (retrieve →
   call a model → fall back to offline) that a custom model would slot into
   with minimal changes — you'd add a third branch trying your custom
   endpoint before or after Claude.

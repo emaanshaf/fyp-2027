@@ -2,10 +2,9 @@
 # host's would both bloat the context and ship binaries built for the wrong
 # platform.
 node_modules
-server/node_modules
 
-# Build output and native project dirs — the web build regenerates dist/, and
-# android/ios are irrelevant to a web or API image.
+# Build output and native project dirs. The web build regenerates dist/, and
+# android/ios are irrelevant to a web image.
 dist
 web-build
 android
@@ -18,12 +17,9 @@ ios
 .env.*
 !.env.example
 
-server/.data
-
 # Nothing here affects the built image.
 .git
 .github
-docs
 *.md
 npm-debug.log*
 .DS_Store

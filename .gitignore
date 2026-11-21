@@ -18,7 +18,7 @@ web-build
 .env.*
 !.env.example
 # The development file-backed store holds real local accounts.
-server/.data/
+backend/.data/
 
 # Expo
 .expo
@@ -27,6 +27,9 @@ server/.data/
 # Native
 android
 ios
+
+# Per-user Claude Code settings (paths are machine-specific).
+.claude/settings.local.json
 
 # Editor directories and files
 .vscode/*
@@ -39,5 +42,5 @@ ios
 *.sln
 *.sw?
 
-# Local dev database fallback (server/config/database.js)
-server/.data
+# Local dev database fallback (backend/config/database.js)
+backend/.data

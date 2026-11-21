@@ -1,6 +1,6 @@
 # Render blueprint for the Qitab-e-Noor API.
 #
-# Render builds server/Dockerfile on its own machines, so this deploys without
+# Render builds backend/Dockerfile on its own machines, so this deploys without
 # a working Docker install locally.
 #
 # To use it: Render dashboard -> New -> Blueprint -> pick this repo. Render
@@ -30,9 +30,9 @@ services:
     runtime: docker
 
     # The API is a self-contained project inside this repo: its Dockerfile
-    # expects server/ as the build context, not the repo root.
-    dockerfilePath: ./server/Dockerfile
-    dockerContext: ./server
+    # expects backend/ as the build context, not the repo root.
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
 
     # Free is enough to prove the deployment. It sleeps after 15 minutes of
     # inactivity, so the first request after a idle period takes ~30s to wake

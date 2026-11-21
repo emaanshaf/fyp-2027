@@ -1,4 +1,4 @@
-# src/ — Frontend (Mobile App)
+# frontend/src/ — Frontend (Mobile App)
 
 This is the **React Native / Expo mobile app** source code for Qitab-e-Noor.
 Built with Expo SDK 57 and React Native 0.86, targeting Android and iOS.
@@ -95,6 +95,6 @@ Each file in `screens/` is a self-contained module screen:
 ## Important Rules
 
 - Use `useColors()`, `useThemedStyles()`, `useGlobalStyles()` — never hardcode colour constants.
-- Screens must call `src/ai/claudeClient.js` through the backend — never call Anthropic directly.
+- Screens must call `frontend/src/ai/claudeClient.js` through the backend — never call Anthropic directly.
 - Every new feature must degrade gracefully when offline.
 - Core worship features (Quran, prayer times, Qibla, Duas) must remain free.

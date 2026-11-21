@@ -1,461 +1,510 @@
-# Qitab-e-Noor — Complete File Map
+# Qitab-e-Noor: purpose of every file
 
-> **Purpose**: This document describes the purpose of every file in the project.
-> It is kept up to date as the codebase evolves.
-> Last updated: November 2026
+> Last updated: 2026-11-21. 308 tracked files: 245 in `frontend/` (the mobile app), 43 in `backend/` (the API), 20 at the root.
+> Generated from the repository so that every file is listed. Regenerate it whenever files are added or removed.
 
----
+## 1. Layout
 
-## Project Architecture at a Glance
-
-```
+```text
 Qitabe Noor/
-├── App.js                   ← Mobile app entry point
-├── app.config.js            ← Expo configuration (dynamic)
-├── app.json                 ← Expo configuration (static)
-├── babel.config.js          ← Babel transpiler config
-├── eas.json                 ← EAS Build profiles (Android/iOS)
-├── eslint.config.js         ← ESLint rules
-├── jest.setup.js            ← Global Jest test setup
-├── package.json             ← All npm dependencies and scripts
-├── package-lock.json        ← Locked dependency tree
-├── render.yaml              ← Render.com deployment config
-├── docker-compose.yml       ← Docker orchestration (web + server)
-├── Dockerfile.web           ← Docker image for web preview
-├── firestore.rules          ← Firebase Firestore security rules
-├── README.md                ← Project introduction and quick-start
-├── AGENTS.md                ← Binding rules for all contributors & AI agents
-├── stop.bat                 ← Windows: gracefully stops the dev server
-│
-├── assets/                  ← Static app assets
-├── docs/                    ← All project documentation
-├── public/                  ← Static web files (legal pages)
-├── scripts/                 ← Developer utility scripts
-├── server/                  ← Express API backend
-└── src/                     ← React Native mobile app source
+├── frontend/   Expo + React Native mobile app (Android, iOS, web preview)
+├── backend/    Express API (Node, PostgreSQL)
+├── docs/       product, AI, CI/CD and this file map
+├── .github/    GitHub Actions workflows and the PR template
+├── scripts/    Windows firewall helpers for testing on a phone
+└── (root)      shared tooling, Docker and Render deployment, README, AGENTS
 ```
 
----
+Each half is a self-contained npm project with its own `package.json` and `node_modules`. The root `package.json` only holds tooling that spans both halves and delegates the rest with `npm --prefix`.
 
-## Root Files
+## 2. Mobile-app scope
 
-| File | Purpose |
-|------|---------|
-| `App.js` | Root React Native component. Loads fonts, wires all Context providers (Theme, Language, AppLock, PrayerLock, Share), initialises notification service, Quran reminder system, and mounts `AppNavigator`. |
-| `app.config.js` | Dynamic Expo config — sets app name, slug, icons, permissions, Android package ID, iOS bundle ID, and plugin list. Reads from `.env` via `dotenv`. |
-| `app.json` | Static Expo config fallback. Used when `app.config.js` is not present. |
-| `babel.config.js` | Babel preset for Expo (`babel-preset-expo`) plus any transforms needed for React Native Reanimated. |
-| `eas.json` | EAS Build profiles: `development` (simulator), `preview` (APK), `production` (store-ready). |
-| `eslint.config.js` | ESLint flat-config with `eslint-config-expo` rules, plus project-specific overrides. |
-| `jest.setup.js` | Jest global setup: mocks for `expo-modules-core`, `AsyncStorage`, `expo-notifications`, `react-native-reanimated`, `expo-location`, `expo-sensors`, Firebase, and all native modules. |
-| `package.json` | All npm dependencies, dev dependencies, npm scripts (`npm start`, `npm run server`, `npm test`, `npm run lint`, etc.), Jest project config, and Expo doctor exclusions. |
-| `package-lock.json` | Auto-generated lockfile — exact resolved versions of every transitive dependency. Do not edit manually. |
-| `README.md` | Project introduction, feature list, quick-start instructions, architecture diagram, and contribution guide. |
-| `AGENTS.md` | **Binding operating rules** for all contributors and AI coding agents. Defines hard rules, guardrails, AI rules, folder layout, and verification requirements. |
-| `render.yaml` | Render.com infrastructure-as-code: defines the web service (Expo web) and the API service (Express), environment variables, and health check path. |
-| `docker-compose.yml` | Docker Compose file: `web` service (Expo web preview) and `api` service (Express server) with shared network and volumes. |
-| `Dockerfile.web` | Multi-stage Docker build for the Expo web preview. Stage 1: build; Stage 2: serve static files with `serve`. |
-| `firestore.rules` | Firebase Firestore security rules — controls read/write access to Firestore collections per authenticated user. |
-| `stop.bat` | Windows batch script: kills the Node server process on port 3001 (safe alternative to `start.bat` which is banned). |
-| `.env` | **Secret** — API keys, DB URL, JWT secret. Never committed to git. See `.env.example`. |
-| `.env.example` | Template showing all supported environment variables with example values and documentation. |
-| `.gitignore` | Patterns for files/folders excluded from git: `node_modules`, `.env`, `dist`, logs, etc. |
-| `.dockerignore` | Patterns excluded from Docker build context (same idea as `.gitignore` but for Docker). |
+The product is a mobile app. Android and iOS are the real targets, and the React Native web preview is secondary but kept working. Everything else exists to support the mobile app:
 
----
+| Item | Why it is in the repo |
+| --- | --- |
+| `frontend/src/**` | The app: screens, components, services, offline data and the AI pipeline. |
+| `backend/` | The API the app calls for accounts, sync, AI, news and the API console. The app is designed to work without it for core worship, which runs offline. |
+| `frontend/Dockerfile.web`, `frontend/public/`, `docker-compose.yml` web service | The react-native-web preview and the legal pages that store listings link to. Secondary, not mobile. |
+| `frontend/firestore.rules`, `frontend/src/firebase/` | Firebase: anonymous sign-in at startup and Firestore sync. |
+| `render.yaml`, `backend/Dockerfile`, `.github/workflows/cd.yml` | Deploys the API. Not part of the mobile binary. |
+| `scripts/*.bat` | Windows-only dev helpers for reaching the dev servers from a phone. |
 
-## `assets/` — Static App Assets
+## 3. Folder-by-folder reference
+
+Paths are relative to the repository root. `node_modules/`, `.expo/`, `dist*/` and the local `.env` files are not tracked, and are created by installs or the developer.
+
+
+### `(repository root)`
 
 | File | Purpose |
-|------|---------|
-| `assets/icon.png` | App icon (1024×1024) used by Expo for all platforms. |
-| `assets/adaptive-icon.png` | Android adaptive icon foreground layer. |
-| `assets/splash.png` | Splash screen image shown at app launch. |
-| `assets/favicon.png` | Favicon for the Expo web preview. |
-| `assets/notification-icon.png` | Small icon shown in Android system notification bar. |
-| `assets/fonts/` | Bundled font files (e.g., Amiri for Arabic text, Inter for UI). Loaded at startup via `useFonts()`. |
-| `assets/sounds/` | Reminder chime audio files played by `reminderSound.js`. |
+| --- | --- |
+| `.gitignore` | Files Git must never track: dependencies, build output, secrets (.env files), local data (backend/.data), editor junk and per-user Claude settings. |
+| `AGENTS.md` | Binding operating rules for contributors and coding agents: hard rules, AI rules, layout and the pre-finish checklist. |
+| `docker-compose.yml` | Local stack in containers: PostgreSQL, the API (backend/) and the web preview (frontend/Dockerfile.web). |
+| `eslint.config.js` | Flat ESLint config for the whole repo: frontend/ is linted as React Native code, backend/ as Node CommonJS. |
+| `package-lock.json` | Locked dependency tree for the root manifest, so installs are reproducible. |
+| `package.json` | Root manifest. Holds only the cross-cutting tooling (concurrently, eslint and its plugins) and scripts that delegate to frontend/ and backend/. |
+| `README.md` | Project introduction, quick start, environment table, scripts and layout. |
+| `render.yaml` | Render.com blueprint that deploys the API from backend/Dockerfile with a managed database. |
 
----
-
-## `docs/` — Project Documentation
+### `frontend (root)`
 
 | File | Purpose |
-|------|---------|
-| `docs/PRODUCT_PRINCIPLES.md` | Detailed product guardrails, monetisation rules, scholar boundary definition, and design philosophy. |
-| `docs/AI_USAGE.md` | Complete inventory of every AI touchpoint: what calls the AI, what data is sent, how offline fallback works, source label meanings. |
-| `docs/LIVE_AI_SETUP.md` | Step-by-step guide to configure the Anthropic API key and enable live Claude responses. |
-| `docs/CUSTOM_AI_TRAINING_GUIDE.md` | Guide for adding topics to the 161-topic knowledge base used by the offline AI. |
-| `docs/ci-cd.md` | CI/CD pipeline documentation: GitHub Actions workflows, EAS build triggers, deployment flow. |
-| `docs/FILE_MAP.md` | **This file** — complete purpose-of-every-file reference. |
+| --- | --- |
+| `frontend/.dockerignore` | Files left out of the web image build context (node_modules, native folders, secrets, docs). |
+| `frontend/.env.example` | Template for frontend/.env: the EXPO_PUBLIC_* values (API URL and Firebase web config). These are public by design and are compiled into the bundle. |
+| `frontend/app.config.js` | Dynamic Expo config layered over app.json. Varies cleartext HTTP, notification icon and secure-store options by build profile. |
+| `frontend/App.js` | App entry point. Loads fonts, wires the provider tree (theme, language, app lock, prayer lock, share), starts notifications and mounts the navigator. |
+| `frontend/app.json` | Static Expo configuration: name, slug, icons, Android and iOS identifiers, permissions and plugins. |
+| `frontend/babel.config.js` | Babel config: babel-preset-expo plus the react-native-worklets plugin that Reanimated 4 needs. |
+| `frontend/Dockerfile.web` | Container image for the react-native-web preview: exports the web bundle and serves it with a static server. |
+| `frontend/eas.json` | EAS Build profiles (development, preview, production), the API URL per profile and the store submit track. |
+| `frontend/firestore.rules` | Firebase Firestore security rules: a signed-in user may read and write only their own /users/{uid} subtree. |
+| `frontend/jest.setup.js` | Global Jest setup for the app. Replaces AsyncStorage, NetInfo, the file system and secure storage with in-memory versions. |
+| `frontend/package-lock.json` | Locked dependency tree for the Expo app. |
+| `frontend/package.json` | Frontend manifest: Expo SDK 57 and React Native dependencies, app scripts, EAS helpers and the Jest configuration for the app. |
 
----
+### `backend (root)`
 
-## `public/` — Static Web Files
+| File | Purpose |
+| --- | --- |
+| `backend/.dockerignore` | Files left out of the API image build context (node_modules, .data, secrets). |
+| `backend/.env.example` | Template for backend/.env: database, JWT, CORS, port and the optional Anthropic key. |
+| `backend/Dockerfile` | Production image for the API. Runs as an unprivileged user with a health check. |
+| `backend/jest.setup.js` | Jest setup for the API test suites. |
+| `backend/package-lock.json` | Locked dependency tree for the API. |
+| `backend/package.json` | Backend manifest: Express, the PostgreSQL driver, the Anthropic SDK, security middleware and the Jest config for the API. |
+| `backend/README.md` | Guide to the API: folder roles, endpoints and how to run it. |
+| `backend/server.js` | API entry point. Applies security middleware, mounts every route under /api, and starts listening once the database is ready. |
+
+### `.github`
+
+| File | Purpose |
+| --- | --- |
+| `.github/PULL_REQUEST_TEMPLATE.md` | Checklist shown on every pull request: guardrails, tests, lint and documentation. |
+
+### `.github/workflows`
+
+| File | Purpose |
+| --- | --- |
+| `.github/workflows/cd.yml` | Continuous delivery on push to main or a v* tag: publishes the API Docker image and starts EAS builds. |
+| `.github/workflows/ci.yml` | Continuous integration on every push and pull request: lint, tests, Expo bundle export for Android and iOS, and API and Docker smoke tests. Needs no secrets. |
+| `.github/workflows/eas-submit.yml` | Manual-only release workflow: preflight checks, EAS production build and optional store submission. |
+
+### `backend/__tests__`
+
+| File | Purpose |
+| --- | --- |
+| `backend/__tests__/aiRoute.test.js` | Automated tests for the `aiRoute` module. |
+| `backend/__tests__/apiCatalog.test.js` | Automated tests for the `apiCatalog` module. |
+| `backend/__tests__/authDeletion.test.js` | Automated tests for the `authDeletion` module. |
+| `backend/__tests__/newsRoute.test.js` | Automated tests for the `newsRoute` module. |
+| `backend/__tests__/newsTextMining.test.js` | Automated tests for the `newsTextMining` module. |
+
+### `backend/config`
+
+| File | Purpose |
+| --- | --- |
+| `backend/config/apiCatalog.js` | Machine-readable map of the API surface, served by the catalogue route. |
+| `backend/config/database.js` | PostgreSQL connection with TLS handling. Falls back to a file-backed local store in development. |
+| `backend/config/email.js` | Nodemailer transport for password-reset email. |
+| `backend/config/env.js` | Loads backend/.env and validates settings. Refuses weak secrets and wildcard CORS in production. |
+
+### `backend/middleware`
+
+| File | Purpose |
+| --- | --- |
+| `backend/middleware/auth.js` | JWT authentication, role checks and ownership checks. |
+| `backend/middleware/errorHandler.js` | Central error handler: maps failures to machine-readable reasons without leaking internals. |
+| `backend/middleware/security.js` | Security headers, request IDs, input sanitising and the per-route rate limits (including aiLimiter). |
+| `backend/middleware/validate.js` | Input validation using express-validator. |
+
+### `backend/migrations`
+
+| File | Purpose |
+| --- | --- |
+| `backend/migrations/001_create_schema.sql` | Base PostgreSQL schema: users and the core content tables. |
+| `backend/migrations/002_personal_tracking.sql` | Tables for good deeds, the reflection journal and the khatm planner. |
+| `backend/migrations/run.js` | Applies the SQL migrations in order. Exits non-zero if the database is unreachable. |
+
+### `backend/routes`
+
+| File | Purpose |
+| --- | --- |
+| `backend/routes/ai.js` | Live Claude endpoints /ai/status and /ai/chat. Holds the system prompt and maps upstream errors to safe reasons. |
+| `backend/routes/auth.js` | Register, login, password reset and account deletion. |
+| `backend/routes/bookmarks.js` | Bookmarks CRUD. |
+| `backend/routes/catalog.js` | Serves the API catalogue. |
+| `backend/routes/deeds.js` | Good deeds endpoints. |
+| `backend/routes/favorites.js` | Favourites CRUD. |
+| `backend/routes/journal.js` | Reflection journal endpoints. |
+| `backend/routes/khatm.js` | Khatm planner endpoints. |
+| `backend/routes/modules.js` | Module content endpoints, such as the Hifz content. |
+| `backend/routes/news.js` | Public headline feed for the Islamic News screen. |
+| `backend/routes/notes.js` | Notes CRUD. |
+| `backend/routes/prayerToggles.js` | Prayer completion toggles for the prayer tracker. |
+| `backend/routes/reminders.js` | Reminder endpoints. |
+| `backend/routes/settings.js` | User settings endpoints. |
+| `backend/routes/tasbih.js` | Tasbih count history endpoints. |
+
+### `backend/scripts`
+
+| File | Purpose |
+| --- | --- |
+| `backend/scripts/configure-ai.js` | Writes the Anthropic key to backend/.env through a hidden prompt, and checks status (npm run ai:configure and ai:status). |
+| `backend/scripts/verify-deployment.js` | Post-deploy smoke test for the API. Exits non-zero when a load-bearing check fails (npm run verify:deploy). |
+
+### `backend/services`
+
+| File | Purpose |
+| --- | --- |
+| `backend/services/islamicNews.js` | Aggregates headlines from trusted publishers, with a fallback source. |
+| `backend/services/newsTextMining.js` | Deterministic keyword and topic mining for headlines. Not a model. |
+
+### `docs`
+
+| File | Purpose |
+| --- | --- |
+| `docs/AI_USAGE.md` | Complete inventory of how AI is used and not used: the answer pipeline, source labels, endpoints, prompts and tests. |
+| `docs/ci-cd.md` | The GitHub Actions workflows: what each runs, which secrets it needs and when it spends build minutes. |
+| `docs/CUSTOM_AI_TRAINING_GUIDE.md` | Options for training a custom Islamic AI model, and how one would plug into the existing retrieval step. |
+| `docs/FILE_MAP.md` | This document: the purpose of every file in the repository. |
+| `docs/LIVE_AI_SETUP.md` | How to enable the optional live Claude assistant: key setup, server configuration and status checks. |
+| `docs/PRODUCT_PRINCIPLES.md` | Product guardrails: no new top-level modules, no AI labels on static content, moderation before social features, the scholar boundary, free core worship. |
+
+### `frontend/assets`
+
+| File | Purpose |
+| --- | --- |
+| `frontend/assets/adaptive-icon.png` | Android adaptive icon foreground. |
+| `frontend/assets/favicon.png` | Browser favicon for the web preview. |
+| `frontend/assets/fonts/AmiriQuran-Regular.ttf` | Arabic Quran typeface, bundled so Arabic text renders offline. |
+| `frontend/assets/fonts/NotoNastaliqUrdu.ttf` | Urdu Nastaliq typeface for Urdu interface and religious content. |
+| `frontend/assets/icon.png` | App icon for the store and the home screen. |
+| `frontend/assets/notification-icon.png` | Status-bar icon for notifications. |
+| `frontend/assets/sounds/quran-chime.wav` | Reminder chime option. |
+| `frontend/assets/sounds/reminder-bright-bells.wav` | Reminder chime option (bright bells). |
+| `frontend/assets/sounds/reminder-soft-kalimba.wav` | Reminder chime option (soft kalimba). |
+| `frontend/assets/sounds/reminder-warm-bell.wav` | Reminder chime option (warm bell). |
+| `frontend/assets/splash.png` | Splash screen image shown while the app loads. |
+
+### `frontend/public`
+
+| File | Purpose |
+| --- | --- |
+| `frontend/public/privacy/index.html` | Generated static privacy policy page for the store listing. Produced by scripts/export-legal.mjs. |
+| `frontend/public/terms/index.html` | Generated static terms of use page for the store listing. Produced by scripts/export-legal.mjs. |
+
+### `frontend/scripts`
+
+| File | Purpose |
+| --- | --- |
+| `frontend/scripts/export-legal.mjs` | Writes public/privacy and public/terms from src/data/legal.js, so the hosted and in-app copies match. |
+| `frontend/scripts/generate-assets.js` | Regenerates the brand images in assets/ (icon, adaptive icon, splash, favicon) from code, with no image dependencies. |
+| `frontend/scripts/generate-reminder-sounds.js` | Generates the alternate reminder chimes in assets/sounds/. |
+
+### `frontend/src (root)`
+
+| File | Purpose |
+| --- | --- |
+| `frontend/src/README.md` | Guide to the app source: the role of each folder. |
+
+### `frontend/src/ai`
+
+| File | Purpose |
+| --- | --- |
+| `frontend/src/ai/__tests__/assistant.test.js` | Automated tests for the `assistant` module. |
+| `frontend/src/ai/__tests__/claudeClient.test.js` | Automated tests for the `claudeClient` module. |
+| `frontend/src/ai/__tests__/islamicKnowledge.test.js` | Automated tests for the `islamicKnowledge` module. |
+| `frontend/src/ai/assistant.js` | Answer pipeline getAIAnswer(): small talk, then retrieval, then the optional live call, then the offline answer, Quran search and finally "unavailable". |
+| `frontend/src/ai/claudeClient.js` | Client for the backend AI endpoints (/ai/status and /ai/chat). Maps server reasons to readable status text. Screens never call Anthropic directly. |
+| `frontend/src/ai/islamicKnowledge.js` | Offline knowledge base of 161 topics, with the retrieval engine (synonyms, stemming, categories) the assistant uses without a connection. |
+
+### `frontend/src/components`
+
+| File | Purpose |
+| --- | --- |
+| `frontend/src/components/__tests__/homeWeather.test.jsx` | Automated tests for the `homeWeather` module. |
+| `frontend/src/components/__tests__/pinModal.test.jsx` | Automated tests for the `pinModal` module. |
+| `frontend/src/components/__tests__/prayerCountdownRing.test.jsx` | Automated tests for the `prayerCountdownRing` module. |
+| `frontend/src/components/__tests__/skyBackdrop.test.jsx` | Automated tests for the `skyBackdrop` module. |
+| `frontend/src/components/__tests__/todaysRemindersPopup.test.jsx` | Automated tests for the `todaysRemindersPopup` module. |
+| `frontend/src/components/__tests__/todaysRemindersStrip.test.jsx` | Automated tests for the `todaysRemindersStrip` module. |
+| `frontend/src/components/__tests__/topicBrowser.test.jsx` | Automated tests for the `topicBrowser` module. |
+| `frontend/src/components/AppLockGate.jsx` | Gate that shows the PIN or biometric lock before app content is visible. |
+| `frontend/src/components/ErrorBoundary.jsx` | Catches render errors so one broken screen shows a message instead of a blank app. |
+| `frontend/src/components/FormattedText.jsx` | Renders plain text with **bold** spans, used for AI and knowledge-base answers. |
+| `frontend/src/components/HomeWeather.jsx` | Current conditions and the day's high and low on the Home hero. |
+| `frontend/src/components/MoonPhase.jsx` | Drawn moon showing the real lunar phase for a Hijri day. |
+| `frontend/src/components/OfflineBanner.jsx` | Banner shown while the device is offline, so users know cached content is in use. |
+| `frontend/src/components/PinModal.jsx` | PIN entry and setup modal used by the app lock. |
+| `frontend/src/components/PrayerCountdownRing.jsx` | Ring that fills between prayers and counts down to the next one, to the second. |
+| `frontend/src/components/PrayerLockOverlay.jsx` | Full-screen cover shown while the prayer lock is active. |
+| `frontend/src/components/QuranReminderBanner.jsx` | In-app popup shown when a Quran reminder is due. |
+| `frontend/src/components/ShareSheet.jsx` | Share sheet with WhatsApp, Instagram, Copy Link and the system share sheet (guardrail 5). |
+| `frontend/src/components/SkyBackdrop.jsx` | Sun or moon backdrop behind the Home hero, following the current hour. |
+| `frontend/src/components/TodaysRemindersPopup.jsx` | Card that appears while the app is open when a reminder is due. Offers done, snooze and close. |
+| `frontend/src/components/TodaysRemindersStrip.jsx` | Home card that always shows what is due, what is next, or how to add the first reminder. |
+| `frontend/src/components/TopicBrowserModal.jsx` | Searchable, category-filtered browser for the 161 offline assistant topics. |
+| `frontend/src/components/ZakatBreakdown.jsx` | Shows where the zakat figure came from, line by line. |
+
+### `frontend/src/config`
+
+| File | Purpose |
+| --- | --- |
+| `frontend/src/config/__tests__/appConfig.test.js` | Automated tests for the `appConfig` module. |
+| `frontend/src/config/__tests__/designSystem.test.js` | Automated tests for the `designSystem` module. |
+| `frontend/src/config/__tests__/icons.test.js` | Automated tests for the `icons` module. |
+| `frontend/src/config/__tests__/linkingValidation.test.js` | Automated tests for the `linkingValidation` module. |
+| `frontend/src/config/__tests__/routes.test.js` | Automated tests for the `routes` module. |
+| `frontend/src/config/__tests__/theme.test.js` | Automated tests for the `theme` module. |
+| `frontend/src/config/appConfig.js` | Central app configuration: the API base URL (EXPO_PUBLIC_API_URL) and external base URLs. |
+| `frontend/src/config/routes.js` | Route table: the single source of truth for module labels, icons, screens and role gating, used by Home and navigation. |
+| `frontend/src/config/theme.config.js` | Shared theme tokens that every theme builds on. |
+| `frontend/src/config/themes/default.js` | Default dark Islamic theme. |
+| `frontend/src/config/themes/highContrast.js` | High-contrast theme for accessibility. |
+| `frontend/src/config/themes/index.js` | Registry of the available themes. |
+| `frontend/src/config/themes/light.js` | Light theme variant. |
+| `frontend/src/config/themes/palettes.js` | Additional colour palettes built on the dark base. |
+
+### `frontend/src/context`
+
+| File | Purpose |
+| --- | --- |
+| `frontend/src/context/__tests__/appLock.test.jsx` | Automated tests for the `appLock` module. |
+| `frontend/src/context/__tests__/prayerLock.test.js` | Automated tests for the `prayerLock` module. |
+| `frontend/src/context/AppLockContext.jsx` | Shares the app-lock state (PIN set, locked or unlocked) across the tree. |
+| `frontend/src/context/LanguageContext.jsx` | English and Urdu language state. Module names stay English. |
+| `frontend/src/context/PrayerLockContext.jsx` | Shares the prayer-lock state that drives PrayerLockOverlay. |
+| `frontend/src/context/RoleContext.jsx` | Signed-in user's role, used to show or hide role-gated screens. |
+| `frontend/src/context/ShareContext.jsx` | Shares the open share sheet across screens. |
+| `frontend/src/context/ThemeContext.jsx` | Runtime theme switching: provides the active theme and its setter. |
+
+### `frontend/src/data`
+
+| File | Purpose |
+| --- | --- |
+| `frontend/src/data/__tests__/curriculum.test.js` | Automated tests for the `curriculum` module. |
+| `frontend/src/data/__tests__/isnad.test.js` | Automated tests for the `isnad` module. |
+| `frontend/src/data/__tests__/legal.test.js` | Automated tests for the `legal` module. |
+| `frontend/src/data/__tests__/legalPages.test.js` | Automated tests for the `legalPages` module. |
+| `frontend/src/data/__tests__/quranReminder.test.js` | Automated tests for the `quranReminder` module. |
+| `frontend/src/data/__tests__/worship.test.js` | Automated tests for the `worship` module. |
+| `frontend/src/data/communities.js` | Starter circles shown on the Communities screen. |
+| `frontend/src/data/courses.js` | Structured self-study course content for E-Learning. |
+| `frontend/src/data/curriculum.js` | Learning path as a prerequisite graph rather than a flat checklist. |
+| `frontend/src/data/daily.js` | Curated pools for the daily cards on the landing page. |
+| `frontend/src/data/duas.js` | Shared Duas dataset and the contextual recommendation rules. |
+| `frontend/src/data/fiqh.js` | How to perform wudhu and salah, per school of fiqh. |
+| `frontend/src/data/hajj.js` | Hajj and Umrah guide content. |
+| `frontend/src/data/hijriMonths.js` | Significance of each Hijri month. |
+| `frontend/src/data/isnad.js` | Chains of transmission (isnad) and the narrators in them, for hadith. |
+| `frontend/src/data/istikhara.js` | Istikhara prayer guidance content. |
+| `frontend/src/data/kalimas.js` | The six Kalimas. |
+| `frontend/src/data/legal.js` | Privacy policy and terms of use text. Read in the app and exported to public/ by the legal script. |
+| `frontend/src/data/librarySamples.js` | Starter content for My Library. |
+| `frontend/src/data/names.js` | The 99 Names of Allah. |
+| `frontend/src/data/pillars.js` | The five pillars of Islam and the six articles of faith. |
+| `frontend/src/data/prayerMethods.js` | Prayer-time calculation methods by school of fiqh. |
+| `frontend/src/data/prophets.js` | The twenty-five prophets named in the Quran, in canonical order. |
+| `frontend/src/data/quiz.js` | Question bank shared by the Islamic Quiz and the learning engine. |
+| `frontend/src/data/quranReminder.js` | Quran reminder slots and their default times. |
+| `frontend/src/data/seerah.js` | The Seerah as a dated timeline. |
+
+### `frontend/src/firebase`
+
+| File | Purpose |
+| --- | --- |
+| `frontend/src/firebase/config.js` | Firebase initialisation from the EXPO_PUBLIC_FIREBASE_* values. Starts the anonymous sign-in and the Firestore connection used for sync. |
+| `frontend/src/firebase/syncedStorage.js` | Drop-in replacement for AsyncStorage get and set that also mirrors data to Firestore for signed-in users. |
+
+### `frontend/src/hooks`
+
+| File | Purpose |
+| --- | --- |
+| `frontend/src/hooks/useDeviceHeading.js` | Compass heading from the device sensors, used by the Qibla finder. |
+| `frontend/src/hooks/useNavigationUrl.js` | Builds the shareable URL for the current route. |
+| `frontend/src/hooks/usePreferences.js` | Reads and writes user preferences, with live updates. |
+| `frontend/src/hooks/useTheme.js` | Hook returning the active theme values. |
+| `frontend/src/hooks/useUserLocation.js` | One-shot GPS fix for prayer times and Qibla. The fix stays on the device. |
+
+### `frontend/src/i18n`
+
+| File | Purpose |
+| --- | --- |
+| `frontend/src/i18n/__tests__/translations.test.js` | Automated tests for the `translations` module. |
+| `frontend/src/i18n/translations.js` | App-shell translations (English and Urdu) for labels that are not module names. |
+
+### `frontend/src/navigation`
+
+| File | Purpose |
+| --- | --- |
+| `frontend/src/navigation/__tests__/appNavigatorBoot.test.jsx` | Automated tests for the `appNavigatorBoot` module. |
+| `frontend/src/navigation/AppNavigator.jsx` | Root navigator: tabs, drawer and stacks. Filters modules by role and guards the splash and loading state. |
+| `frontend/src/navigation/screenRegistry.js` | Maps route names to screen components. |
+
+### `frontend/src/screens`
+
+| File | Purpose |
+| --- | --- |
+| `frontend/src/screens/__tests__/apiConsole.test.jsx` | Automated tests for the `apiConsole` module. |
+| `frontend/src/screens/__tests__/homeRoleGating.test.js` | Automated tests for the `homeRoleGating` module. |
+| `frontend/src/screens/__tests__/islamicNewsScreen.test.jsx` | Automated tests for the `islamicNewsScreen` module. |
+| `frontend/src/screens/__tests__/landing.test.js` | Automated tests for the `landing` module. |
+| `frontend/src/screens/__tests__/qiblaScreen.test.js` | Automated tests for the `qiblaScreen` module. |
+| `frontend/src/screens/__tests__/quranLanguages.test.js` | Automated tests for the `quranLanguages` module. |
+| `frontend/src/screens/__tests__/remindersScheduling.test.js` | Automated tests for the `remindersScheduling` module. |
+| `frontend/src/screens/__tests__/remindersSoundPicker.test.jsx` | Automated tests for the `remindersSoundPicker` module. |
+| `frontend/src/screens/__tests__/screens.smoke.test.js` | Automated tests for the `screens.smoke` module. |
+| `frontend/src/screens/AdminPanelScreen.jsx` | Admin tools, visible only to admin roles. |
+| `frontend/src/screens/AIChatScreen.jsx` | Islamic AI Assistant chat: source labels, history, suggestions and the topic browser. |
+| `frontend/src/screens/AIQuranAssistantScreen.jsx` | Quran Study: searches Quran translations and shows the matched verses. Uses no LLM. |
+| `frontend/src/screens/ApiConsoleScreen.jsx` | Developer console that lists the backend API catalogue and can test the status endpoints. |
+| `frontend/src/screens/AyahOfDayScreen.jsx` | Ayah of the day with its translation. |
+| `frontend/src/screens/BookmarksScreen.jsx` | Bookmarks and favourites, in tabs. |
+| `frontend/src/screens/CommunitiesScreen.jsx` | Local-first community circles. Nothing is shared with other users yet. |
+| `frontend/src/screens/DiagnosticsScreen.jsx` | System health report: network, backend, AI status and storage. |
+| `frontend/src/screens/DuaLibraryScreen.jsx` | Full dua library with search and sharing. |
+| `frontend/src/screens/DuasScreen.jsx` | Duas for the time of day, the place (optional GPS) and manual context chips. |
+| `frontend/src/screens/ELearningScreen.jsx` | E-Learning course library: lessons, review questions and progress. |
+| `frontend/src/screens/GeneratorScreen.jsx` | Manual content-card creator with sharing. No generation. |
+| `frontend/src/screens/GoodDeedsScreen.jsx` | Good deeds tracker. |
+| `frontend/src/screens/HadithScreen.jsx` | Browser for the six authentic hadith collections. |
+| `frontend/src/screens/HadithVerificationScreen.jsx` | Hadith lookup against the published collections. It states that AI cannot verify authenticity. |
+| `frontend/src/screens/HajjGuideScreen.jsx` | Hajj and Umrah companion: types, day-by-day rites, duas and ihram. |
+| `frontend/src/screens/HifzScreen.jsx` | Hifz (memorisation) tracker. |
+| `frontend/src/screens/HomeScreen.jsx` | Home dashboard: hero with weather and sky, next prayer, reminders, the AI card and the module grid. |
+| `frontend/src/screens/IslamicCalendarScreen.jsx` | Hijri calendar with significant days. |
+| `frontend/src/screens/IslamicNewsScreen.jsx` | Islamic news reader for headlines from trusted publishers, with trend lines. |
+| `frontend/src/screens/IslamicQuizScreen.jsx` | Islamic knowledge quiz. |
+| `frontend/src/screens/IstikharaScreen.jsx` | Istikhara guide and a private decision journal. |
+| `frontend/src/screens/KhatmPlannerScreen.jsx` | Quran completion (khatm) planner. |
+| `frontend/src/screens/LandingScreen.jsx` | First screen a new user sees: the brand, the tagline and Explore Modules. |
+| `frontend/src/screens/LearningPathScreen.jsx` | Guided learning path that follows the curriculum graph. |
+| `frontend/src/screens/LearnWorshipScreen.jsx` | Kalimas, wudhu and salah, with the Hanafi and Ja'fari methods side by side. |
+| `frontend/src/screens/LegalScreen.jsx` | Shows the privacy policy and terms inside the app. |
+| `frontend/src/screens/LoginScreen.jsx` | Sign-in and account screen. |
+| `frontend/src/screens/NamesOfAllahScreen.jsx` | The 99 Names with meanings and recitation audio, one file per name. |
+| `frontend/src/screens/NotFoundScreen.jsx` | Fallback for an unknown route. |
+| `frontend/src/screens/PillarsScreen.jsx` | Five pillars and six articles of faith. |
+| `frontend/src/screens/PrayerTimesScreen.jsx` | Prayer times for the saved city and calculation method, with the next-prayer countdown. |
+| `frontend/src/screens/PrayerTrackerScreen.jsx` | Daily prayer tracker. |
+| `frontend/src/screens/ProphetsStoriesScreen.jsx` | Stories of the prophets. |
+| `frontend/src/screens/QiblaFinderScreen.jsx` | Qibla direction and distance to the Kaaba, using the compass and location. |
+| `frontend/src/screens/QuranJourneyScreen.jsx` | Quran reading journey and progress. |
+| `frontend/src/screens/QuranScreen.jsx` | Quran reader with translations, recitation audio and offline download. |
+| `frontend/src/screens/RamadanModeScreen.jsx` | Ramadan mode with daily worship prompts. |
+| `frontend/src/screens/ReflectionJournalScreen.jsx` | Private reflection journal. |
+| `frontend/src/screens/RemindersScreen.jsx` | Reminders settings: Quran and custom reminders, chimes and schedules. |
+| `frontend/src/screens/ReviewSessionScreen.jsx` | Review session that drills learning-engine cards. |
+| `frontend/src/screens/SearchScreen.jsx` | Universal search across the app content, grouped by module. |
+| `frontend/src/screens/SeerahScreen.jsx` | Seerah timeline. |
+| `frontend/src/screens/SettingsScreen.jsx` | Settings: theme, language, app lock, reminders, AI status and the local AI usage summary. |
+| `frontend/src/screens/TafsirScreen.jsx` | Tafsir (commentary) for a verse, fetched from the quran.com API. |
+| `frontend/src/screens/TasbihScreen.jsx` | Digital tasbih counter with history. |
+| `frontend/src/screens/ZakatScreen.jsx` | Zakat and Ushr calculator, with a Zakat AI tab that reuses the same answer pipeline. |
+
+### `frontend/src/services`
+
+| File | Purpose |
+| --- | --- |
+| `frontend/src/services/__tests__/aiUsage.test.js` | Automated tests for the `aiUsage` module. |
+| `frontend/src/services/__tests__/apiCatalog.test.js` | Automated tests for the `apiCatalog` module. |
+| `frontend/src/services/__tests__/appLock.test.js` | Automated tests for the `appLock` module. |
+| `frontend/src/services/__tests__/authToken.test.js` | Automated tests for the `authToken` module. |
+| `frontend/src/services/__tests__/backend.test.js` | Automated tests for the `backend` module. |
+| `frontend/src/services/__tests__/backupFormat.test.js` | Automated tests for the `backupFormat` module. |
+| `frontend/src/services/__tests__/backupRestore.test.js` | Automated tests for the `backupRestore` module. |
+| `frontend/src/services/__tests__/cache.test.js` | Automated tests for the `cache` module. |
+| `frontend/src/services/__tests__/contextDuas.test.js` | Automated tests for the `contextDuas` module. |
+| `frontend/src/services/__tests__/diagnosticsFormat.test.js` | Automated tests for the `diagnosticsFormat` module. |
+| `frontend/src/services/__tests__/geocode.test.js` | Automated tests for the `geocode` module. |
+| `frontend/src/services/__tests__/globalSearch.test.js` | Automated tests for the `globalSearch` module. |
+| `frontend/src/services/__tests__/hadithApi.test.js` | Automated tests for the `hadithApi` module. |
+| `frontend/src/services/__tests__/islamicNews.test.js` | Automated tests for the `islamicNews` module. |
+| `frontend/src/services/__tests__/learningEngine.test.js` | Automated tests for the `learningEngine` module. |
+| `frontend/src/services/__tests__/notifications.test.js` | Automated tests for the `notifications` module. |
+| `frontend/src/services/__tests__/offlineLibrary.test.js` | Automated tests for the `offlineLibrary` module. |
+| `frontend/src/services/__tests__/placeLookup.test.js` | Automated tests for the `placeLookup` module. |
+| `frontend/src/services/__tests__/preferences.test.js` | Automated tests for the `preferences` module. |
+| `frontend/src/services/__tests__/quranApi.test.js` | Automated tests for the `quranApi` module. |
+| `frontend/src/services/__tests__/reciters.test.js` | Automated tests for the `reciters` module. |
+| `frontend/src/services/__tests__/reminderSound.test.js` | Automated tests for the `reminderSound` module. |
+| `frontend/src/services/__tests__/todaysReminders.test.js` | Automated tests for the `todaysReminders` module. |
+| `frontend/src/services/__tests__/weather.test.js` | Automated tests for the `weather` module. |
+| `frontend/src/services/aiUsage.js` | Device-only counters of AI answers by source and day. No question text is stored. |
+| `frontend/src/services/apiCatalog.js` | Reads the backend API catalogue for the developer console. |
+| `frontend/src/services/appLock.js` | PIN and biometric app lock: setup, verification and lock state. |
+| `frontend/src/services/authToken.js` | Keeps the session token in secure storage and removes any older plaintext copy. |
+| `frontend/src/services/backend.js` | Authenticated HTTP client for the backend, with timeouts and reason preservation. |
+| `frontend/src/services/backup.js` | Backup and restore: file input and output. |
+| `frontend/src/services/backupFormat.js` | Backup envelope format and validation. |
+| `frontend/src/services/cache.js` | Offline-first data layer. Serves cached data when the network fails and refreshes it when the connection returns. |
+| `frontend/src/services/contextDuas.js` | Picks duas from the time of day, the optional place and the manual context chips. |
+| `frontend/src/services/decks.js` | Turns shipped content (Names, duas, quiz bank, Hifz) into review cards for the learning engine. |
+| `frontend/src/services/diagnostics.js` | Collects the system health data shown on the Diagnostics screen. |
+| `frontend/src/services/diagnosticsFormat.js` | Pure formatting and analysis of the diagnostics report. |
+| `frontend/src/services/geocode.js` | City geocoding for the Qibla and prayer fallback, using the phone's own geocoder. |
+| `frontend/src/services/globalSearch.js` | Search across the app's own content, ranked on the device. |
+| `frontend/src/services/hadithApi.js` | Hadith service for the six collections, served from a CDN. |
+| `frontend/src/services/islamicNews.js` | News feed client and the on-device cache of headlines. |
+| `frontend/src/services/learningEngine.js` | Adaptive review engine that schedules learning items with spaced intervals. |
+| `frontend/src/services/notifications.js` | Notifications for prayer times, reminders and Quran recitation, plus the in-app reminder subscriber. |
+| `frontend/src/services/offlineLibrary.js` | Downloaded Quran library for reading without a connection. |
+| `frontend/src/services/placeLookup.js` | Turns a one-shot GPS fix into a place label through the phone's own geocoder (never the server). |
+| `frontend/src/services/preferences.js` | User preferences storage. |
+| `frontend/src/services/quranApi.js` | Quran service backed by the quran.com v4 API, including translations and recitation audio. |
+| `frontend/src/services/reminderSound.js` | Plays the chosen reminder chime and primes audio on the first tap. |
+| `frontend/src/services/storage.js` | Typed local storage wrapper over AsyncStorage. |
+| `frontend/src/services/sync.js` | Syncs signed-in user bookmarks, notes, favourites, prayer toggles and reminders with the backend API. |
+| `frontend/src/services/tafsirApi.js` | Tafsir service backed by the quran.com v4 API. |
+| `frontend/src/services/todaysReminders.js` | Works out which reminders are due today and keeps them due until they are marked done. |
+| `frontend/src/services/weather.js` | Keyless Open-Meteo weather for the saved city, cached for thirty minutes with an offline fallback. |
+
+### `frontend/src/theme`
+
+| File | Purpose |
+| --- | --- |
+| `frontend/src/theme/__tests__/themeSwitching.test.jsx` | Automated tests for the `themeSwitching` module. |
+| `frontend/src/theme/fonts.js` | Font asset registry (Amiri Quran and Noto Nastaliq Urdu). |
+| `frontend/src/theme/globalStyles.js` | Global styles as a factory over the active theme. |
+| `frontend/src/theme/index.js` | Theme exports: ThemeProvider, useColors, useThemedStyles and useGlobalStyles. |
+
+### `frontend/src/utils`
+
+| File | Purpose |
+| --- | --- |
+| `frontend/src/utils/__tests__/citationLinks.test.js` | Automated tests for the `citationLinks` module. |
+| `frontend/src/utils/__tests__/hijri.test.js` | Automated tests for the `hijri` module. |
+| `frontend/src/utils/__tests__/nextPrayer.test.js` | Automated tests for the `nextPrayer` module. |
+| `frontend/src/utils/__tests__/qibla.test.js` | Automated tests for the `qibla` module. |
+| `frontend/src/utils/__tests__/sky.test.js` | Automated tests for the `sky` module. |
+| `frontend/src/utils/__tests__/webAlerts.test.js` | Automated tests for the `webAlerts` module. |
+| `frontend/src/utils/citationLinks.js` | Turns reference strings in an assistant answer into Quran links. |
+| `frontend/src/utils/externalLink.js` | Opens an external address in the browser. |
+| `frontend/src/utils/hijri.js` | Hijri date calculation shared by the calendar, Home and the landing page. |
+| `frontend/src/utils/nextPrayer.js` | Finds the next prayer from the cached timings. |
+| `frontend/src/utils/qibla.js` | Qibla bearing and distance to the Kaaba. |
+| `frontend/src/utils/share.js` | Sharing helpers used by every screen. |
+| `frontend/src/utils/sky.js` | Sun and moon window calculation for the Home hero. |
+| `frontend/src/utils/themeUtils.js` | Theme helper functions. |
+| `frontend/src/utils/webAlerts.js` | Browser dialog fallback so confirmations work on the web preview. |
+
+### `scripts`
+
+| File | Purpose |
+| --- | --- |
+| `scripts/allow-dev-ports.bat` | Windows helper, run as administrator. Opens ports 8081 and 3001 so a phone on the same private network can reach the dev servers. |
+| `scripts/remove-dev-ports.bat` | Windows helper, run as administrator. Removes the firewall rules added by allow-dev-ports.bat. |
+
+## 4. Not tracked by Git (created locally)
 
 | Path | Purpose |
-|------|---------|
-| `public/privacy/` | Privacy policy static HTML served at `/privacy` on the web preview. |
-| `public/terms/` | Terms of service static HTML served at `/terms`. |
+| --- | --- |
+| `frontend/.env`, `backend/.env` | Real secrets and configuration. Never committed. Templates are the `.env.example` files. |
+| `frontend/node_modules/`, `backend/node_modules/`, `node_modules/` | Installed dependencies. Created by `npm run setup`. |
+| `frontend/.expo/` | Expo's local cache. |
+| `backend/.data/` | The development file-backed store, which holds local accounts. Never committed. |
+| `frontend/android/`, `frontend/ios/` | Native projects generated by Expo prebuild when needed. |
 
----
-
-## `scripts/` — Developer Utility Scripts
-
-| File | Purpose |
-|------|---------|
-| `scripts/configure-ai.js` | Interactive CLI to write the Anthropic API key to `.env`. Run with `npm run ai:configure`. Use `--check` flag (`npm run ai:status`) to verify status. |
-| `scripts/generate-assets.js` | Generates app icon, splash, and adaptive icon from source SVG/template. Run with `npm run assets`. |
-| `scripts/generate-reminder-sounds.js` | Generates reminder chime audio files using `expo-av` synthesis. Run with `npm run sounds`. |
-| `scripts/export-legal.mjs` | Exports legal content (privacy policy, terms) from `src/data/legal.js` to static HTML in `public/`. Run with `npm run legal:export`. |
-| `scripts/fix-theme.js` | One-off migration script: updates old hardcoded colour constants across all files to use the ThemeProvider pattern. |
-| `scripts/verify-deployment.js` | Pre-deployment checklist: checks env vars, server health, build output. Run with `npm run verify:deploy`. |
-| `scripts/allow-dev-ports.bat` | Windows: opens firewall rules for ports 3001 and 8081 (dev ports). |
-| `scripts/remove-dev-ports.bat` | Windows: removes the firewall rules opened by `allow-dev-ports.bat`. |
-
----
-
-## `server/` — Express API Backend
-
-### Entry Point
-
-| File | Purpose |
-|------|---------|
-| `server/server.js` | Express application entry point. Creates the app, applies security middleware, mounts all route handlers under `/api`, starts HTTP server on `PORT` (default 3001). |
-
-### `server/config/`
-
-| File | Purpose |
-|------|---------|
-| `server/config/env.js` | Loads `.env` via `dotenv`, validates required variables, exports a typed config object used throughout the server. |
-| `server/config/database.js` | Creates a PostgreSQL connection pool using `pg`. Exports a `query()` helper. Gracefully degrades if `DATABASE_URL` is not set (server still starts; DB-dependent routes return 503). |
-| `server/config/email.js` | Creates a Nodemailer transporter for sending account emails (password reset, welcome). Falls back to logging emails if SMTP credentials are missing. |
-| `server/config/apiCatalog.js` | Registry of all external APIs the server integrates with: names, base URLs, auth methods, and usage limits. Used by the catalog route. |
-
-### `server/middleware/`
-
-| File | Purpose |
-|------|---------|
-| `server/middleware/auth.js` | Verifies JWT Bearer tokens on protected routes. Attaches `req.user` with user ID and role. Returns `401` on missing/invalid/expired tokens. |
-| `server/middleware/security.js` | Applies `helmet` security headers, CORS configuration (restricts origins), and `express-rate-limit` to prevent abuse. |
-| `server/middleware/validate.js` | Thin wrapper around request body validation — returns `400` with field errors if required fields are missing or invalid. |
-| `server/middleware/errorHandler.js` | Global Express error handler. Formats all unhandled errors into a consistent `{ error, reason }` JSON response. Never leaks stack traces in production. |
-
-### `server/routes/`
-
-| File | Endpoints | Purpose |
-|------|-----------|---------|
-| `server/routes/auth.js` | `POST /api/auth/register` `POST /api/auth/login` `POST /api/auth/logout` `POST /api/auth/refresh` `POST /api/auth/reset-password` | User authentication — register, login, JWT refresh, password reset. Issues JWT access tokens. |
-| `server/routes/ai.js` | `POST /api/ai/chat` `GET /api/ai/status` | Proxies questions to Anthropic Claude. Applies scholar boundary, injects up to 3 RAG entries, enforces context limits, and labels source (`claude+rag`, `claude`). `/status` reports whether a key is configured. |
-| `server/routes/bookmarks.js` | `GET/POST/DELETE /api/bookmarks` | Stores and retrieves user bookmarks (Quran ayahs, Hadith, Duas, etc.). Requires auth. |
-| `server/routes/notes.js` | `GET/POST/PUT/DELETE /api/notes` | Personal notes tied to Islamic content. Requires auth. |
-| `server/routes/modules.js` | `GET/POST /api/modules` `GET/PUT /api/modules/:id/progress` | Tracks which modules a user has visited, time spent, and feature-specific progress. Requires auth. |
-| `server/routes/news.js` | `GET /api/news` | Fetches and caches Islamic news from the news service. No auth required. |
-| `server/routes/catalog.js` | `GET /api/catalog` | Returns the full API catalog from `server/config/apiCatalog.js`. |
-| `server/routes/deeds.js` | CRUD `/api/deeds` | Good deeds tracker — log and retrieve acts of worship. Requires auth. |
-| `server/routes/favorites.js` | CRUD `/api/favorites` | Save favourite content items. Requires auth. |
-| `server/routes/journal.js` | CRUD `/api/journal` | Reflection journal entries. Requires auth. |
-| `server/routes/khatm.js` | CRUD `/api/khatm` | Quran completion (Khatm) plans — start date, target date, daily page count. Requires auth. |
-| `server/routes/reminders.js` | CRUD `/api/reminders` | Server-side reminder sync for logged-in users. Local reminders on device are primary; this is the cloud sync layer. Requires auth. |
-| `server/routes/settings.js` | `GET/PUT /api/settings` | User preferences sync (theme, language, notification prefs) for logged-in users. Requires auth. |
-| `server/routes/tasbih.js` | CRUD `/api/tasbih` | Tasbih session history. Requires auth. |
-| `server/routes/prayerToggles.js` | `GET/PUT /api/prayer-toggles` | Records which prayers a user has marked as completed per day. Requires auth. |
-
-### `server/services/`
-
-| File | Purpose |
-|------|---------|
-| `server/services/islamicNews.js` | Fetches Islamic news from multiple RSS feeds and news APIs. Parses, deduplicates, filters for Islamic relevance, and caches results for 30 minutes. |
-| `server/services/newsTextMining.js` | Text mining helpers used by the news service: keyword extraction, sentiment scoring, Islamic topic relevance scoring. |
-
-### `server/migrations/`
-
-| File | Purpose |
-|------|---------|
-| `server/migrations/001_create_schema.sql` | Core PostgreSQL schema: `users`, `bookmarks`, `notes`, `module_progress` tables with indexes. |
-| `server/migrations/002_personal_tracking.sql` | Adds personal tracking tables: `deeds`, `journal`, `khatm_plans`, `reminders`, `settings`, `tasbih_sessions`, `prayer_toggles`. |
-| `server/migrations/run.js` | Migration runner: reads SQL files in numeric order and executes them against the configured database. |
-
----
-
-## `src/` — React Native Mobile App
-
-### `src/ai/` — AI Assistant Pipeline
-
-| File | Purpose |
-|------|---------|
-| `src/ai/assistant.js` | Main AI pipeline: `getAIAnswer(question)`. Pipeline order: small-talk check → 161-topic knowledge retrieval → live Claude call (if key present) → offline answer → Quran search → "unavailable" fallback. Labels source on every response. |
-| `src/ai/claudeClient.js` | HTTP client for `POST /api/ai/chat`. Sends only the current question + up to 3 RAG entries. Never sends chat history. Handles timeouts and network errors gracefully. |
-| `src/ai/islamicKnowledge.js` | 161-topic offline Islamic knowledge base (~200 KB). Structured entries covering aqeedah, fiqh, seerah, Quran sciences, duas, Islamic ethics, and more. Used for RAG retrieval without a network connection. |
-
-### `src/components/` — Shared UI Components
-
-| File | Purpose |
-|------|---------|
-| `src/components/AppLockGate.jsx` | Wraps the entire app. If app lock (PIN/biometric) is enabled, shows the lock screen and waits for authentication before mounting children. |
-| `src/components/ErrorBoundary.jsx` | React error boundary — catches JS errors anywhere in the tree and renders a user-friendly "something went wrong" fallback with a retry button. |
-| `src/components/FormattedText.jsx` | Text component that handles mixed Arabic (RTL) and Latin (LTR) content, applying correct font and direction. |
-| `src/components/HomeWeather.jsx` | Small weather widget on the Home screen — shows current temperature and condition. Uses device location via `useUserLocation`. |
-| `src/components/MoonPhase.jsx` | Displays the current Hijri moon phase icon on the Home screen. Calculates phase from the Hijri date. |
-| `src/components/OfflineBanner.jsx` | Persistent top banner shown when the device has no internet connection. Subscribes to `NetInfo`. |
-| `src/components/PinModal.jsx` | Full-screen PIN entry modal used by AppLock. Supports 4–6 digit PINs, biometric fallback, and wrong-PIN shake animation. |
-| `src/components/PrayerCountdownRing.jsx` | Circular countdown ring on the Home screen showing time remaining to the next prayer. Uses `Animated` for smooth ring fill. |
-| `src/components/PrayerLockOverlay.jsx` | Optional overlay shown at prayer time to remind the user to pray. Rendered by `PrayerLockContext`. |
-| `src/components/QuranReminderBanner.jsx` | Animated slide-in banner shown when a Quran recitation reminder fires (native notification while foregrounded, or web timer). Has Open, Snooze, and Dismiss actions. |
-| `src/components/ShareSheet.jsx` | Reusable share bottom-sheet used across all modules. Provides WhatsApp, Instagram, Copy Link, and system share options. |
-| `src/components/SkyBackdrop.jsx` | Animated sky gradient background used on the Prayer Times screen and Home screen. Changes colour based on time of day. |
-| `src/components/TodaysRemindersPopup.jsx` | Modal popup listing all reminders due today. Shown on Home screen. |
-| `src/components/TodaysRemindersStrip.jsx` | Horizontal scrollable strip of today's reminders shown on the Home screen. |
-| `src/components/TopicBrowserModal.jsx` | Bottom-sheet modal for browsing the 161-topic knowledge base. Used in the AI chat screen. |
-| `src/components/ZakatBreakdown.jsx` | Renders an itemised Zakat calculation breakdown with nisab thresholds and categories. Used in `ZakatScreen`. |
-
-### `src/config/`
-
-| File | Purpose |
-|------|---------|
-| `src/config/appConfig.js` | App-wide constants: API base URL, feature flags, default values, platform checks, version info. |
-| `src/config/routes.js` | Complete route/module map — every screen's name, icon, component reference, tab visibility, drawer order, and access control. |
-| `src/config/theme.config.js` | Defines all available themes (light, dark, forest, ocean, etc.) with their base settings. The `ThemeProvider` reads this to build colour palettes. |
-| `src/config/themes/` | Individual theme files — each exports a colour palette object. |
-
-### `src/context/` — React Context Providers
-
-| File | Purpose |
-|------|---------|
-| `src/context/ThemeContext.jsx` | Provides current theme colours and `setTheme()` to the whole app. Persists theme choice to `AsyncStorage`. |
-| `src/context/LanguageContext.jsx` | Provides current language (`en`/`ur`) and `setLanguage()`. Persists to `AsyncStorage`. Used by `i18n/translations.js`. |
-| `src/context/AppLockContext.jsx` | Manages app lock state: PIN storage in `expo-secure-store`, biometric auth via `expo-local-authentication`, lock/unlock events. |
-| `src/context/PrayerLockContext.jsx` | Manages the optional prayer-time reminder overlay: schedule, dismiss, and snooze logic. Integrates with `notifications.js`. |
-| `src/context/ShareContext.jsx` | Provides a global `share(content)` function accessible to all screens. Wraps `expo-sharing` and system share sheet. |
-| `src/context/RoleContext.jsx` | Provides the current user role (`guest`, `user`, `admin`). Used by admin-only screens. |
-
-### `src/data/` — Static Islamic Content
-
-| File | Purpose |
-|------|---------|
-| `src/data/communities.js` | Local Islamic community data: mosques, Islamic centres. Used by `CommunitiesScreen`. |
-| `src/data/courses.js` | E-learning course catalogue with lessons, quizzes, and progress tracking structure. Used by `ELearningScreen`. |
-| `src/data/curriculum.js` | Structured learning curriculum: topic order, prerequisites, and learning objectives. Used by `LearningPathScreen`. |
-| `src/data/daily.js` | Daily Islamic content: rotating Ayah of the Day selections, Hadith of the Day, and Dua of the Day. |
-| `src/data/duas.js` | Comprehensive Dua library: 100+ duas with Arabic text, transliteration, translation, and occasion. |
-| `src/data/fiqh.js` | Islamic jurisprudence (Fiqh) reference data: rulings, categories, school differences. |
-| `src/data/hajj.js` | Detailed Hajj and Umrah step-by-step guide data with rites, duas, and maps. Used by `HajjGuideScreen`. |
-| `src/data/hijriMonths.js` | Hijri calendar data: month names (Arabic and English), significant events per month, day calculation helpers. |
-| `src/data/isnad.js` | Hadith chain of narration (isnad) data used by `HadithVerificationScreen` for authenticity checking. |
-| `src/data/istikhara.js` | Istikhara guide content: steps, dua text, explanation, and scholarly guidance. Used by `IstikharaScreen`. |
-| `src/data/kalimas.js` | The six Kalimas with Arabic text, transliteration, and meaning. |
-| `src/data/legal.js` | Privacy policy and terms of service content (source of truth). Exported to `public/` by `scripts/export-legal.mjs`. |
-| `src/data/librarySamples.js` | Sample content for the offline library feature: preview ayahs, hadith, and duas shown before full download. |
-| `src/data/names.js` | 99 Names of Allah (Asma-ul-Husna) with Arabic, transliteration, meaning, and benefits. Used by `NamesOfAllahScreen`. |
-| `src/data/pillars.js` | Five Pillars of Islam content: detailed explanation, virtues, and scholarly references. Used by `PillarsScreen`. |
-| `src/data/prayerMethods.js` | Prayer calculation method definitions (ISNA, MWL, Karachi, etc.) with Fajr/Isha angle parameters. |
-| `src/data/prophets.js` | Stories of the Prophets content. Used by `ProphetsStoriesScreen`. |
-| `src/data/quiz.js` | Islamic knowledge quiz questions bank: 200+ questions across categories with difficulty levels. Used by `IslamicQuizScreen`. |
-| `src/data/quranReminder.js` | Quran recitation reminder templates: motivational messages used as notification body text. |
-| `src/data/seerah.js` | Seerah (Life of the Prophet ﷺ) content: chronological events, battles, key dates. Used by `SeerahScreen`. |
-
-### `src/firebase/`
-
-| File | Purpose |
-|------|---------|
-| `src/firebase/config.js` | Firebase app initialisation. Reads config from `app.config.js` extra fields. Used for Firestore cloud sync (optional). |
-| `src/firebase/syncedStorage.js` | Storage wrapper that writes to both `AsyncStorage` (local) and Firestore (cloud) when a user is signed in. Falls back to local-only when offline or not signed in. |
-
-### `src/hooks/` — Custom React Hooks
-
-| File | Purpose |
-|------|---------|
-| `src/hooks/useDeviceHeading.js` | Returns live compass heading in degrees using `expo-sensors`. Used by `QiblaFinderScreen`. Updates via subscription with throttling. |
-| `src/hooks/useNavigationUrl.js` | Parses deep-link URLs and returns the target screen name + params. Used by `AppNavigator` for linking. |
-| `src/hooks/usePreferences.js` | Reads user preferences from `src/services/preferences.js` and returns them synchronously from cache. |
-| `src/hooks/useTheme.js` | Convenience hook combining `useColors()`, `useThemedStyles()`, and `useGlobalStyles()` into one import. |
-| `src/hooks/useUserLocation.js` | Returns current GPS coordinates using `expo-location`. Requests permission on first use, caches result, falls back to last-known location. |
-
-### `src/i18n/`
-
-| File | Purpose |
-|------|---------|
-| `src/i18n/translations.js` | English and Urdu translation strings for all UI text. Exports a `t(key, lang)` function. Used by screens that respect the current language setting. |
-
-### `src/navigation/`
-
-| File | Purpose |
-|------|---------|
-| `src/navigation/AppNavigator.jsx` | Root navigation structure: `Stack.Navigator` (root) → Drawer navigator (`Main`) → Bottom Tab navigator (`MainTabs`). Defines the full navigation hierarchy, linking config, and deep-link patterns. |
-| `src/navigation/screenRegistry.js` | Maps string screen names to their component imports. Loaded by `AppNavigator` to avoid circular imports. |
-
-### `src/screens/` — Screen Components (47 Screens)
-
-| File | Purpose |
-|------|---------|
-| `HomeScreen.jsx` | Main dashboard. Shows prayer countdown ring, today's reminders strip, Ayah of the Day, weather widget, moon phase, and module shortcuts. |
-| `QuranScreen.jsx` | Full Quran reader. Surah list, verse navigation, Arabic text with transliteration and translation, audio playback via `expo-av`, offline mode via `offlineLibrary.js`, bookmarking, sharing. |
-| `TafsirScreen.jsx` | Quran commentary. Shows tafsir (exegesis) for selected ayah from multiple scholars. Data via `tafsirApi.js`. |
-| `PrayerTimesScreen.jsx` | Live prayer time calculation using device location and selected calculation method. Shows countdown to next prayer, sky backdrop that changes with time of day, weekly view. |
-| `PrayerTrackerScreen.jsx` | Personal salah (prayer) tracker. Mark each of the 5 daily prayers as completed. Shows weekly/monthly completion statistics. |
-| `QiblaFinderScreen.jsx` | Compass-based Qibla direction finder. Uses `useDeviceHeading` + `useUserLocation` to calculate direction to Mecca with an animated compass needle. |
-| `DuasScreen.jsx` | Duas browser by category and occasion. Shows Arabic text, transliteration, and translation. Integrates `contextDuas.js` for situation-based suggestions. |
-| `DuaLibraryScreen.jsx` | Full Dua library with search, filters, and favourites. |
-| `HadithScreen.jsx` | Hadith browser — searches and displays hadith from Bukhari, Muslim, etc. via `hadithApi.js`. |
-| `HadithVerificationScreen.jsx` | Checks hadith authenticity using `isnad.js` chain-of-narration data and AI assistance. |
-| `ZakatScreen.jsx` | Zakat calculator. Accepts gold, silver, cash, and livestock values. Calculates nisab threshold and payable Zakat. Shows `ZakatBreakdown` component. |
-| `HajjGuideScreen.jsx` | Step-by-step Hajj and Umrah guide with rites, duas, and interactive timeline. Data from `src/data/hajj.js`. |
-| `IslamicCalendarScreen.jsx` | Hijri calendar view. Shows current Hijri month with significant dates highlighted. Data from `src/data/hijriMonths.js`. |
-| `RemindersScreen.jsx` | Full-featured reminder manager. Create prayer reminders, Quran reminders, custom reminders. Integrates `expo-notifications` and `reminderSound.js`. Largest screen in the project (~52 KB). |
-| `TasbihScreen.jsx` | Digital tasbih (dhikr counter). Select dhikr text, tap to count, vibration feedback via `expo-haptics`, session history. |
-| `NamesOfAllahScreen.jsx` | 99 Names of Allah browser with Arabic calligraphy, transliteration, meaning, and audio pronunciation. |
-| `HifzScreen.jsx` | Quran memorisation (Hifz) tracker. Mark surahs/juz as memorised. Track overall progress. |
-| `ReviewSessionScreen.jsx` | Spaced-repetition review session for Hifz — shows verses to review based on the learning engine. |
-| `KhatmPlannerScreen.jsx` | Plan a Quran Khatm (complete reading). Set target date, calculates daily pages needed. |
-| `IslamicNewsScreen.jsx` | Islamic news feed. Fetches from `src/services/islamicNews.js` → `server/routes/news.js`. Shows articles with image, title, source. |
-| `ELearningScreen.jsx` | E-learning platform. Course catalogue, lesson player, progress tracking, quizzes. Data from `src/data/courses.js`. |
-| `CommunitiesScreen.jsx` | Local Islamic communities directory. Browse mosques and Islamic centres. Device-local data. |
-| `AIChatScreen.jsx` | AI Islamic assistant chat. Calls `getAIAnswer()` from `assistant.js`. Shows source label, scholar boundary notice, and topic browser. |
-| `AIQuranAssistantScreen.jsx` | AI + Quran search integration. Ask questions and get ayah references alongside AI answers. |
-| `IslamicQuizScreen.jsx` | Multiple-choice Islamic knowledge quiz. Questions from `src/data/quiz.js`. Shows score and explanations. |
-| `IstikharaScreen.jsx` | Istikhara (guidance prayer) guide. Steps, dua, and scholarly explanation from `src/data/istikhara.js`. |
-| `GoodDeedsScreen.jsx` | Good deeds tracker. Log acts of worship and charity. Shows streak and history. |
-| `RamadanModeScreen.jsx` | Ramadan-specific features: Suhoor/Iftar countdown, Tarawih tracker, Nightly Quran goal. |
-| `PillarsScreen.jsx` | Interactive guide to the Five Pillars of Islam. Data from `src/data/pillars.js`. |
-| `ProphetsStoriesScreen.jsx` | Stories of the Prophets. Data from `src/data/prophets.js`. |
-| `SeerahScreen.jsx` | Seerah (Prophetic biography) timeline. Data from `src/data/seerah.js`. |
-| `AyahOfDayScreen.jsx` | Full-screen Ayah of the Day with sharing options. |
-| `GeneratorScreen.jsx` | Islamic content generator — produces du'a suggestions, reflection prompts, and content based on occasion/mood. |
-| `SearchScreen.jsx` | Global search across all modules. Uses `globalSearch.js` to query Quran, Hadith, Duas, Names, and more. |
-| `BookmarksScreen.jsx` | Shows all bookmarked ayahs, hadiths, duas, and other content. |
-| `SettingsScreen.jsx` | Comprehensive settings: theme, language, prayer method, notifications, app lock, account, backup/restore, diagnostics. Largest file (~70 KB). |
-| `LandingScreen.jsx` | Animated onboarding / landing screen for first-time users. Shows app features and Get Started button. |
-| `LoginScreen.jsx` | User authentication screen (sign in / sign up). Calls `src/services/backend.js` auth endpoints. |
-| `LearnWorshipScreen.jsx` | Learn how to perform acts of worship (wudu, salah, etc.) with step-by-step guides. |
-| `LearningPathScreen.jsx` | Structured Islamic learning path. Uses `src/data/curriculum.js` and `learningEngine.js`. |
-| `ReflectionJournalScreen.jsx` | Personal Islamic reflection journal. Write and review entries. |
-| `AdminPanelScreen.jsx` | Admin-only panel: manage users, content moderation flags, feature toggles. |
-| `ApiConsoleScreen.jsx` | Developer API testing console — shows all API calls the app makes and lets you re-run them. |
-| `DiagnosticsScreen.jsx` | App diagnostics: storage usage, cached data size, server connectivity, notification status. Uses `diagnostics.js`. |
-| `NotFoundScreen.jsx` | Fallback 404 screen shown when navigation hits an unknown route. |
-| `LegalScreen.jsx` | Displays privacy policy and terms of service from `src/data/legal.js`. |
-| `QuranJourneyScreen.jsx` | Tracks overall Quran reading journey: pages read per day, cumulative progress. |
-
-### `src/services/` — Business Logic Layer
-
-| File | Purpose |
-|------|---------|
-| `src/services/backend.js` | Central HTTP client for all calls to the Express backend (`/api/*`). Wraps `axios`, attaches JWT auth header, handles 401 token refresh, and maps error `reason` codes to user-facing messages. |
-| `src/services/quranApi.js` | Fetches Quran text, translation, and audio from the Al-Quran Cloud API. Implements caching via `cache.js`. Handles offline via `offlineLibrary.js`. |
-| `src/services/hadithApi.js` | Fetches Hadith data from the Hadith API. Caches results. |
-| `src/services/tafsirApi.js` | Fetches Tafsir from multiple scholars. Caches results. |
-| `src/services/islamicNews.js` | Client-side news service — calls `GET /api/news` on the backend and caches the response. |
-| `src/services/notifications.js` | Full notification service: schedule prayer reminders, Quran reminders, custom reminders using `expo-notifications`. Handles foreground callbacks, web timer fallback, and snooze logic. |
-| `src/services/reminderSound.js` | Manages reminder chime audio using `expo-av`. Primes audio on first user tap (required for web browsers). Loads and unloads sound files. |
-| `src/services/cache.js` | Generic async cache using `AsyncStorage`. Supports TTL (time-to-live), namespacing, and invalidation. Used by API services. |
-| `src/services/storage.js` | Low-level storage helper wrapping `AsyncStorage` with serialisation/deserialisation and error handling. |
-| `src/services/preferences.js` | Reads and writes user preferences (theme, language, prayer method, etc.) to `AsyncStorage`. Provides synchronous in-memory cache. |
-| `src/services/appLock.js` | App lock service: PIN storage in `expo-secure-store`, biometric authentication, lock state management, timeout logic. |
-| `src/services/authToken.js` | JWT token storage and retrieval using `expo-secure-store`. Handles token refresh scheduling. |
-| `src/services/offlineLibrary.js` | Manages the offline Quran download: download progress, file storage in `expo-file-system`, and serving cached content when offline. |
-| `src/services/learningEngine.js` | Spaced repetition engine for Hifz review: calculates review intervals using SM-2 algorithm, tracks memorisation strength. |
-| `src/services/globalSearch.js` | Searches across Quran text, Hadith, Duas, Names of Allah, and other content. Scores and ranks results by relevance. |
-| `src/services/contextDuas.js` | Returns appropriate duas for a given context (waking up, eating, travelling, etc.). Used by `DuasScreen`. |
-| `src/services/geocode.js` | Reverse geocodes GPS coordinates to city/country name. Used to show prayer location name. |
-| `src/services/placeLookup.js` | Searches for a city by name and returns coordinates. Used in Settings for manual location entry. |
-| `src/services/weather.js` | Fetches current weather for device location. Caches result. Used by `HomeWeather` component. |
-| `src/services/diagnostics.js` | Collects diagnostic information: storage usage, cache sizes, server reachability, notification permissions. |
-| `src/services/diagnosticsFormat.js` | Formats raw diagnostics data into a human-readable report. Used by `DiagnosticsScreen`. |
-| `src/services/aiUsage.js` | Tracks and reports AI feature usage: question count, response latency, source label distribution. |
-| `src/services/apiCatalog.js` | Client-side mirror of the API catalog — used by `ApiConsoleScreen` to list and test available endpoints. |
-| `src/services/backup.js` | App data backup: exports all user data (bookmarks, notes, settings, etc.) to a JSON file via `expo-document-picker`. |
-| `src/services/backupFormat.js` | Defines the backup file format schema and validators for import/export. |
-| `src/services/decks.js` | Manages flashcard decks for Quran memorisation. CRUD operations on `AsyncStorage`. |
-| `src/services/sync.js` | Syncs local data with the backend for logged-in users. Handles conflict resolution (last-write-wins). |
-| `src/services/todaysReminders.js` | Calculates which reminders are due today. Used by `TodaysRemindersStrip` and `TodaysRemindersPopup`. |
-
-### `src/theme/` — Theme System
-
-| File | Purpose |
-|------|---------|
-| `src/theme/index.js` | Main theme export: `ThemeProvider` component, `useColors()`, `useThemedStyles()`, `useGlobalStyles()` hooks. |
-| `src/theme/globalStyles.js` | Shared `StyleSheet` with commonly used styles (containers, typography, cards, buttons). Used via `useGlobalStyles()`. |
-| `src/theme/fonts.js` | `FONT_ASSETS` map passed to `useFonts()` in `App.js`. Maps font family names to bundled font files in `assets/fonts/`. |
-
-### `src/utils/`
-
-| File | Purpose |
-|------|---------|
-| `src/utils/webAlerts.js` | Installs browser `confirm()`/`alert()` as fallbacks for `React Native`'s `Alert` API on web (where `Alert` is a no-op). Called once at app startup in `App.js`. |
-
----
-
-## `src/firebase/`
-
-| File | Purpose |
-|------|---------|
-| `src/firebase/config.js` | Firebase SDK initialisation. Only runs if Firebase config is present in `app.config.js`. |
-| `src/firebase/syncedStorage.js` | Dual-write storage: writes to both `AsyncStorage` and Firestore. Reads from local first (offline-first). |
-
----
-
-## Test Files (`__tests__/` folders)
-
-Each major folder contains a `__tests__/` directory with Jest tests:
-
-| Path | Tests |
-|------|-------|
-| `src/ai/__tests__/` | Tests for `assistant.js` pipeline and `claudeClient.js` |
-| `src/components/__tests__/` | Render tests for all shared components |
-| `src/context/__tests__/` | Context provider tests |
-| `src/data/__tests__/` | Data integrity tests (completeness, field validation) |
-| `src/i18n/__tests__/` | Translation key coverage tests |
-| `src/navigation/__tests__/` | Navigator rendering and routing tests |
-| `src/services/__tests__/` | Unit tests for all service modules |
-| `src/theme/__tests__/` | Theme provider and colour palette tests |
-| `server/__tests__/` | Integration tests for all API routes using `supertest` |
-
-Run all tests: `npm test`
-
----
-
-## Mobile-App Verification Checklist
-
-This project is **100% mobile-first**. Here is a confirmation of every module's mobile readiness:
-
-| Module | Mobile API | Offline | Sharing |
-|--------|-----------|---------|---------|
-| Quran | ✅ expo-av, expo-file-system | ✅ offlineLibrary.js | ✅ ShareSheet |
-| Prayer Times | ✅ expo-location | ✅ Calculated locally | ✅ ShareSheet |
-| Qibla | ✅ expo-sensors | ✅ Compass is local | ✅ ShareSheet |
-| Duas | ✅ Local data | ✅ src/data/duas.js | ✅ ShareSheet |
-| Hadith | ✅ hadithApi + cache | ✅ Cached offline | ✅ ShareSheet |
-| Zakat | ✅ Local calculation | ✅ No network needed | ✅ ShareSheet |
-| Hajj Guide | ✅ Local data | ✅ src/data/hajj.js | ✅ ShareSheet |
-| Notifications | ✅ expo-notifications | ✅ Local triggers | N/A |
-| App Lock | ✅ expo-local-auth, expo-secure-store | ✅ Fully local | N/A |
-| AI Assistant | ✅ via backend proxy | ✅ Offline fallback | ✅ ShareSheet |
-| E-Learning | ✅ Local data | ✅ src/data/courses.js | ✅ ShareSheet |
-| Communities | ✅ Local data | ✅ Local only | ✅ ShareSheet |
-| News | ✅ via backend | ⚠️ Cached (30 min) | ✅ ShareSheet |
-| Tasbih | ✅ expo-haptics | ✅ Fully local | ✅ ShareSheet |
-| Hifz/Review | ✅ Local engine | ✅ Fully local | ✅ ShareSheet |
-| Reminders | ✅ expo-notifications | ✅ Local triggers | N/A |
-| Calendar | ✅ Local calculation | ✅ Fully local | ✅ ShareSheet |
-
----
-
-## Quick Reference — Where Things Live
-
-| "Where is the code for..." | File(s) |
-|---------------------------|---------|
-| App startup / font loading | `App.js` |
-| Navigation & screens list | `src/navigation/AppNavigator.jsx`, `src/navigation/screenRegistry.js` |
-| AI pipeline | `src/ai/assistant.js` |
-| AI backend route | `server/routes/ai.js` |
-| Offline Islamic knowledge | `src/ai/islamicKnowledge.js` |
-| Theme colours | `src/theme/index.js`, `src/config/theme.config.js` |
-| Arabic/Urdu translations | `src/i18n/translations.js` |
-| Prayer time calculation | `src/screens/PrayerTimesScreen.jsx` + `src/data/prayerMethods.js` |
-| Quran offline download | `src/services/offlineLibrary.js` |
-| Push notifications | `src/services/notifications.js` |
-| App PIN lock | `src/services/appLock.js` + `src/context/AppLockContext.jsx` |
-| User authentication | `server/routes/auth.js` + `src/services/backend.js` |
-| Database schema | `server/migrations/` |
-| Environment variables | `.env` / `.env.example` / `server/config/env.js` |
-| Build configuration | `app.config.js` + `eas.json` |

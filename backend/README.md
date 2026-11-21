@@ -1,4 +1,4 @@
-# server/ — Backend (Express API)
+# backend/ — Backend (Express API)
 
 This is the **Node.js / Express API server** for Qitab-e-Noor.
 Runs on port **3001** by default. Start it with `npm run server` from the project root.
@@ -79,7 +79,7 @@ Run with: `npm run server:migrate`
 
 ## Environment Variables
 
-See `.env.example` in the project root for all supported variables. The key ones:
+See `backend/.env.example` for all supported variables. The key ones:
 
 | Variable | Purpose |
 |----------|---------|

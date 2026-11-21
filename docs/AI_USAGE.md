@@ -32,11 +32,11 @@ The live assistant is **OFF** because no Anthropic key is configured on the serv
 
 ### Tier 1 — Real live AI (optional)
 
-Anthropic Claude, called through **this project's own authenticated backend**. The key exists only in the server-side `.env`. The app sends a question to `POST /api/ai/chat`; the server adds a system prompt and retrieved context, calls Anthropic, and returns plain text.
+Anthropic Claude, called through **this project's own authenticated backend**. The key exists only in the server-side `backend/.env`. The app sends a question to `POST /api/ai/chat`; the server adds a system prompt and retrieved context, calls Anthropic, and returns plain text.
 
 ### Tier 2 — Offline AI-like system (always available)
 
-A deterministic retrieval engine in `src/ai/islamicKnowledge.js`:
+A deterministic retrieval engine in `frontend/src/ai/islamicKnowledge.js`:
 
 - **161 hand-written topic entries**, each with keywords, a topic name, an answer, and references.
 - **8 browse categories**.
@@ -58,13 +58,13 @@ A separate group of features is **branded or shaped like AI but is not AI at all
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────┐
-│                        React Native app (src/)                       │
+│                        React Native app (frontend/src/)                       │
 │                                                                      │
 │  AIChatScreen ─────────────┐                                         │
 │  ZakatScreen (Zakat AI) ───┤                                         │
 │                            ▼                                         │
 │                   getAIAnswer(question)                              │
-│                   src/ai/assistant.js                                │
+│                   frontend/src/ai/assistant.js                                │
 │                            │                                         │
 │         ┌──────────────────┼───────────────────┐                     │
 │         ▼                  ▼                   ▼                     │
@@ -76,7 +76,7 @@ A separate group of features is **branded or shaped like AI but is not AI at all
 │         │          │ yes                 │ no / failure              │
 │         │          ▼                     ▼                           │
 │         │      askClaude()          top offline entry                │
-│         │      src/ai/claudeClient.js     │                          │
+│         │      frontend/src/ai/claudeClient.js     │                          │
 │         │          │                      ▼                          │
 │         │          │               no entry? → quranService.search() │
 │         │          │                      │                          │
@@ -88,7 +88,7 @@ A separate group of features is **branded or shaped like AI but is not AI at all
           │ HTTPS + Bearer JWT
           ▼
 ┌──────────────────────────────────────────────────────────────────────┐
-│                     Express API (server/)                            │
+│                     Express API (backend/)                            │
 │                                                                      │
 │  POST /api/ai/chat                                                   │
 │    authenticate → aiLimiter (20 / 15 min per user) → validate        │
@@ -132,10 +132,10 @@ A separate group of features is **branded or shaped like AI but is not AI at all
 | Provider | Anthropic (Messages API) |
 | SDK | `@anthropic-ai/sdk` (server only) |
 | Default model | `claude-sonnet-5` |
-| Model override | `ANTHROPIC_MODEL` in root `.env` |
+| Model override | `ANTHROPIC_MODEL` in `backend/.env` |
 | Default output cap | `ANTHROPIC_MAX_TOKENS=700` |
-| Key variable | `ANTHROPIC_API_KEY` — server `.env` only |
-| Client creation | One singleton per server process (`server/routes/ai.js:13-15`) |
+| Key variable | `ANTHROPIC_API_KEY` — `backend/.env` only |
+| Client creation | One singleton per server process (`backend/routes/ai.js:13-15`) |
 | Missing key behavior | Non-fatal; server starts, endpoint reports `no_key`, app uses offline answers |
 
 The key is deliberately **not** available to the app. `EXPO_PUBLIC_ANTHROPIC_API_KEY` is explicitly forbidden because every `EXPO_PUBLIC_*` value is compiled into the shipped bundle.
@@ -147,7 +147,7 @@ The key is deliberately **not** available to the app. `EXPO_PUBLIC_ANTHROPIC_API
 | `GET` | `/api/ai/status` | Public | None | Whether a key is configured and which model would be used |
 | `POST` | `/api/ai/chat` | Bearer JWT | 20 requests / 15 min per user (IP fallback) | Ask the assistant |
 
-Both are mounted at `server/server.js:89` through `app.use('/api/ai', aiRoutes)`. They are listed in the public API catalogue at `server/config/apiCatalog.js:143-144`.
+Both are mounted at `backend/server.js:89` through `app.use('/api/ai', aiRoutes)`. They are listed in the public API catalogue at `backend/config/apiCatalog.js:143-144`.
 
 **`GET /api/ai/status` response**
 
@@ -177,7 +177,7 @@ Only Anthropic `text` blocks are joined. Non-text blocks are ignored. An empty r
 
 ### 4.3 System prompt: scope and safeguards
 
-The live prompt lives in `server/routes/ai.js:20-45` and defines the assistant as a **broad Islamic study companion**, not a narrow prayer FAQ. It explicitly covers:
+The live prompt lives in `backend/routes/ai.js:20-45` and defines the assistant as a **broad Islamic study companion**, not a narrow prayer FAQ. It explicitly covers:
 
 - Islamic belief, purpose, the unseen, comparative religion
 - Quran, tafsir, Hadith authentication, Seerah and history
@@ -205,7 +205,7 @@ Formatting rules:
 - Add a scholar-consultation note for personal fiqh.
 - Redirect off-topic questions briefly.
 
-A server test asserts that the prompt contains both the broad scope and the safety boundaries (`server/__tests__/aiRoute.test.js`).
+A server test asserts that the prompt contains both the broad scope and the safety boundaries (`backend/__tests__/aiRoute.test.js`).
 
 ### 4.4 Retrieved-context grounding (RAG)
 
@@ -221,7 +221,7 @@ This is **retrieval-augmented generation with lexical retrieval**, not embedding
 
 ### 4.5 Error mapping and fallback
 
-The client never sees raw upstream errors. `server/routes/ai.js` maps them to machine-readable reasons:
+The client never sees raw upstream errors. `backend/routes/ai.js` maps them to machine-readable reasons:
 
 | Condition | HTTP | `reason` | App behavior |
 | --- | --- | --- | --- |
@@ -238,7 +238,7 @@ The client never sees raw upstream errors. `server/routes/ai.js` maps them to ma
 
 Upstream error messages are logged server-side but **never forwarded** — they can quote the request and, on auth errors, name the key.
 
-The client maps these into human-readable status text in `src/ai/claudeClient.js:23-34`.
+The client maps these into human-readable status text in `frontend/src/ai/claudeClient.js:23-34`.
 
 ### 4.6 Status detection
 
@@ -268,7 +268,7 @@ The client maps these into human-readable status text in `src/ai/claudeClient.js
 
 ### 5.1 Coverage
 
-`KNOWLEDGE_BASE` in `src/ai/islamicKnowledge.js` contains **161 entries** across **8 categories**:
+`KNOWLEDGE_BASE` in `frontend/src/ai/islamicKnowledge.js` contains **161 entries** across **8 categories**:
 
 | Category | Entries |
 | --- | ---: |
@@ -311,7 +311,7 @@ Topic-browser search uses `topicMatchesQuery()`, which adds **word-prefix matchi
 
 ### 5.3 Topic browser
 
-`TopicBrowserModal` (`src/components/TopicBrowserModal.jsx`) gives the offline base a browsable interface:
+`TopicBrowserModal` (`frontend/src/components/TopicBrowserModal.jsx`) gives the offline base a browsable interface:
 
 - full-screen modal opened from the assistant header and from "Browse all 161 topics";
 - search field;
@@ -358,13 +358,13 @@ These never call Claude, even when live AI is configured.
 
 | Screen / surface | File | How it uses AI | Details |
 | --- | --- | --- | --- |
-| **Islamic AI Assistant** | `src/screens/AIChatScreen.jsx` | Calls `getAIAnswer()` at line 136 | Chat UI, suggestions, source labels, topic browser, local history |
-| **Zakat AI** tab | `src/screens/ZakatScreen.jsx` | Calls `getAIAnswer()` at line 132 | Focused Zakat question box; same pipeline; scholar disclaimer |
-| **Home AI card** | `src/screens/HomeScreen.jsx:488` | Navigation only | "Ask the Islamic AI Assistant" → `AIChat` |
-| **Settings status card** | `src/screens/SettingsScreen.jsx:569-583` | Status only | "Live AI connected (Claude)" or "Offline knowledge base only" |
-| **Diagnostics** | `src/screens/DiagnosticsScreen.jsx:244-252` | Status only | "Live" or "Offline knowledge base" |
-| **API Console** | `src/screens/ApiConsoleScreen.jsx` | Catalogue/testing | Lists `/ai/status` and `/ai/chat`; can test the status endpoint |
-| **Quran Study** (formerly AI Quran Assistant) | `src/screens/AIQuranAssistantScreen.jsx` | **No LLM** | Templates + quran.com search; see section 8 |
+| **Islamic AI Assistant** | `frontend/src/screens/AIChatScreen.jsx` | Calls `getAIAnswer()` at line 136 | Chat UI, suggestions, source labels, topic browser, local history |
+| **Zakat AI** tab | `frontend/src/screens/ZakatScreen.jsx` | Calls `getAIAnswer()` at line 132 | Focused Zakat question box; same pipeline; scholar disclaimer |
+| **Home AI card** | `frontend/src/screens/HomeScreen.jsx:488` | Navigation only | "Ask the Islamic AI Assistant" → `AIChat` |
+| **Settings status card** | `frontend/src/screens/SettingsScreen.jsx:569-583` | Status only | "Live AI connected (Claude)" or "Offline knowledge base only" |
+| **Diagnostics** | `frontend/src/screens/DiagnosticsScreen.jsx:244-252` | Status only | "Live" or "Offline knowledge base" |
+| **API Console** | `frontend/src/screens/ApiConsoleScreen.jsx` | Catalogue/testing | Lists `/ai/status` and `/ai/chat`; can test the status endpoint |
+| **Quran Study** (formerly AI Quran Assistant) | `frontend/src/screens/AIQuranAssistantScreen.jsx` | **No LLM** | Templates + quran.com search; see section 8 |
 
 ### Assistant screen behavior
 
@@ -403,7 +403,7 @@ It does **not** call the Zakat calculator, inspect the user's assets, or perform
 - Shows an amber dot and "Offline knowledge base only" otherwise.
 - Explains that the model is pretrained, not custom-trained, and that the offline base is the fallback.
 - Prints the current offline topic count from `KNOWLEDGE_BASE.length`, so the copy stays accurate when entries are added.
-- Shows a local **AI usage** summary from `src/services/aiUsage.js`: total questions, how many were live, offline or other, the last seven days, and a reset action. Counts are device-local, contain no question text, and are refreshed when Settings gains focus.
+- Shows a local **AI usage** summary from `frontend/src/services/aiUsage.js`: total questions, how many were live, offline or other, the last seven days, and a reset action. Counts are device-local, contain no question text, and are refreshed when Settings gains focus.
 
 ### Diagnostics
 
@@ -427,12 +427,12 @@ This distinction matters when auditing "where AI is used", because several scree
 
 | Feature | File | What it actually does |
 | --- | --- | --- |
-| **Quran Study** (`AIQuran` internal name) | `src/screens/AIQuranAssistantScreen.jsx` | Live translation search through `quranService.searchVerses()`; answers are the matched verses themselves (Arabic, translation, translator, surah:ayah) with a tap-through to the reader. No LLM, no knowledge base, no `getAIAnswer()`. |
-| **Hadith Verification** | `src/screens/HadithVerificationScreen.jsx` | Data lookup against authenticated sources. The screen itself states: "AI cannot verify hadith authenticity" (line 306). |
-| **Tafsir** | `src/screens/TafsirScreen.jsx` | Static/API commentary content, not generated. |
+| **Quran Study** (`AIQuran` internal name) | `frontend/src/screens/AIQuranAssistantScreen.jsx` | Live translation search through `quranService.searchVerses()`; answers are the matched verses themselves (Arabic, translation, translator, surah:ayah) with a tap-through to the reader. No LLM, no knowledge base, no `getAIAnswer()`. |
+| **Hadith Verification** | `frontend/src/screens/HadithVerificationScreen.jsx` | Data lookup against authenticated sources. The screen itself states: "AI cannot verify hadith authenticity" (line 306). |
+| **Tafsir** | `frontend/src/screens/TafsirScreen.jsx` | Static/API commentary content, not generated. |
 | **Islamic News** | News screen + server RSS aggregator | RSS aggregation, normalisation and deterministic keyword/topic mining. No AI summarisation. |
-| **Universal Search** | `src/screens/SearchScreen.jsx` + search service | Local ranking over app content; no model. |
-| **Generator** | `src/screens/GeneratorScreen.jsx` | Manual content-card creation and sharing; no generation. |
+| **Universal Search** | `frontend/src/screens/SearchScreen.jsx` + search service | Local ranking over app content; no model. |
+| **Generator** | `frontend/src/screens/GeneratorScreen.jsx` | Manual content-card creation and sharing; no generation. |
 | **Reminders / Prayer Times / Qibla** | Various | Scheduling, time calculation, device sensors; no AI. |
 | **Communities / E-Learning** | Various | Local-first user content and progress; no AI recommendation engine. |
 
@@ -444,9 +444,9 @@ If you are looking for "the AI", the answer is `AIChatScreen` → `getAIAnswer` 
 
 ### Key handling
 
-- The Anthropic key lives only in the **root** `.env` on the server.
-- `scripts/configure-ai.js` (`npm run ai:configure`) writes it with a hidden prompt, restrictive permissions where supported, refuses to overwrite without `--replace`, and prints only the last four characters.
-- No key exists in `src/`, the app bundle, AsyncStorage, or any `EXPO_PUBLIC_*` variable.
+- The Anthropic key lives only in the `backend/.env` on the server.
+- `backend/scripts/configure-ai.js` (`npm run ai:configure`) writes it with a hidden prompt, restrictive permissions where supported, refuses to overwrite without `--replace`, and prints only the last four characters.
+- No key exists in `frontend/src/`, the app bundle, AsyncStorage, or any `EXPO_PUBLIC_*` variable.
 - The server never returns key material in responses or error messages.
 
 ### Authentication and abuse control
@@ -504,7 +504,7 @@ Key:    looks valid (…abcd)
 Server: live assistant ON (model: claude-sonnet-5)
 ```
 
-Optional `.env` overrides:
+Optional `backend/.env` overrides:
 
 ```ini
 ANTHROPIC_MODEL=claude-sonnet-5
@@ -513,7 +513,7 @@ ANTHROPIC_MAX_TOKENS=700
 
 ### Disable live AI
 
-Remove or blank `ANTHROPIC_API_KEY` in the root `.env` and restart the API. The app automatically uses the offline knowledge base; no code change is required.
+Remove or blank `ANTHROPIC_API_KEY` in the `backend/.env` and restart the API. The app automatically uses the offline knowledge base; no code change is required.
 
 ### Troubleshooting
 
@@ -536,15 +536,15 @@ AI behavior is covered by both Jest projects.
 
 | Test file | Tests | Coverage |
 | --- | ---: | --- |
-| `src/ai/__tests__/islamicKnowledge.test.js` | 95 | Retrieval quality, synonyms, stemming, topic categories, all 161 topics, browse data, round-trip for every topic |
-| `src/ai/__tests__/assistant.test.js` | 44 | Live/offline flow, fallback reasons, small talk, Quran fallback, unavailable path |
-| `src/ai/__tests__/claudeClient.test.js` | 19 | Endpoint usage, status probe, reason mapping, empty response |
-| `src/components/__tests__/topicBrowser.test.jsx` | 8 | Header, search, transliteration, false-positive avoidance, category filter, empty state, close, reset |
-| `src/services/__tests__/aiUsage.test.js` | 6 | Source classification, daily counts, seven-day window, corrupt storage, reset |
-| `server/__tests__/aiRoute.test.js` | 26 | Status, auth, validation, success path, context caps, error mapping, prompt scope/safeguards |
-| `server/__tests__/newsTextMining.test.js` | 6 | Stop words, topic lexicon, keywords, per-story trend counting, empty input |
-| `server/__tests__/newsRoute.test.js` | 10 | Aggregation, Al Jazeera fallback, mining fields, caching and failure paths |
-| `src/screens/__tests__/screens.smoke.test.js` | — | Mounts every screen, including `AIChat` and `AIQuran` |
+| `frontend/src/ai/__tests__/islamicKnowledge.test.js` | 95 | Retrieval quality, synonyms, stemming, topic categories, all 161 topics, browse data, round-trip for every topic |
+| `frontend/src/ai/__tests__/assistant.test.js` | 44 | Live/offline flow, fallback reasons, small talk, Quran fallback, unavailable path |
+| `frontend/src/ai/__tests__/claudeClient.test.js` | 19 | Endpoint usage, status probe, reason mapping, empty response |
+| `frontend/src/components/__tests__/topicBrowser.test.jsx` | 8 | Header, search, transliteration, false-positive avoidance, category filter, empty state, close, reset |
+| `frontend/src/services/__tests__/aiUsage.test.js` | 6 | Source classification, daily counts, seven-day window, corrupt storage, reset |
+| `backend/__tests__/aiRoute.test.js` | 26 | Status, auth, validation, success path, context caps, error mapping, prompt scope/safeguards |
+| `backend/__tests__/newsTextMining.test.js` | 6 | Stop words, topic lexicon, keywords, per-story trend counting, empty input |
+| `backend/__tests__/newsRoute.test.js` | 10 | Aggregation, Al Jazeera fallback, mining fields, caching and failure paths |
+| `frontend/src/screens/__tests__/screens.smoke.test.js` | — | Mounts every screen, including `AIChat` and `AIQuran` |
 
 **Verified 28 Oct 2026:** the five AI-focused suites above passed — **192 tests**. The last full-suite run recorded for this revision was 983 tests across 53 suites with 0 lint errors. Re-run the standard Jest commands after any AI change.
 
@@ -561,18 +561,16 @@ AI behavior is covered by both Jest projects.
 7. **No dedicated moderation model.** Safety relies on the system prompt and Anthropic's own refusal behavior, plus the app's offline content curation.
 8. **A configured-but-unauthenticated client may attempt one live call** before learning `no_auth` and falling back.
 9. **Mixed-language retrieval is limited.** Arabic/Urdu queries work best when they match the curated transliterations or English keywords.
-10. **Documentation drift:**
-    - `docs/CUSTOM_AI_TRAINING_GUIDE.md` still says the knowledge base has 57 entries; it now has 161.
-    - The repository `README.md` currently contains a copy of `.env.example` rather than a project README.
-11. **No live AI in News, Tafsir, Hadith Verification, Search, Generator, Communities or E-Learning.** These are data, ranking or manual-content features. The News "trending" line is deterministic text mining (`server/services/newsTextMining.js`), not a model.
+10. **Documentation drift:** none known after the frontend/backend split (2026-11-21).
+11. **No live AI in News, Tafsir, Hadith Verification, Search, Generator, Communities or E-Learning.** These are data, ranking or manual-content features. The News "trending" line is deterministic text mining (`backend/services/newsTextMining.js`), not a model.
 
 ---
 
 ## 13. How to add another AI-powered feature safely
 
-1. **Use the existing pipeline first.** Import `getAIAnswer` from `src/ai/assistant.js`; do not call Anthropic from a screen.
+1. **Use the existing pipeline first.** Import `getAIAnswer` from `frontend/src/ai/assistant.js`; do not call Anthropic from a screen.
 2. **Never put a key in the app.** No `EXPO_PUBLIC_*` secrets, no client-side Anthropic SDK.
-3. **If a new server endpoint is genuinely needed,** put it under `server/routes/`, apply `authenticate`, `aiLimiter`, validation and the same error mapping, and never forward upstream error text.
+3. **If a new server endpoint is genuinely needed,** put it under `backend/routes/`, apply `authenticate`, `aiLimiter`, validation and the same error mapping, and never forward upstream error text.
 4. **Add a source label** in the consuming screen so users can tell live from offline answers.
 5. **Add tests** for the live path, the offline fallback, auth failure, rate limit and empty response.
 6. **Keep the offline path working.** Every AI feature must degrade to curated content or a clear "not available" message when the key, network or account is missing.
@@ -588,60 +586,60 @@ The binding product rules for all future work are in [`PRODUCT_PRINCIPLES.md`](.
 
 | File | Role |
 | --- | --- |
-| `src/ai/assistant.js` | Orchestrates small talk, retrieval, live call, offline fallback, Quran fallback, follow-ups |
-| `src/ai/claudeClient.js` | Client for `/ai/status` and `/ai/chat`; status and reason mapping |
-| `src/ai/islamicKnowledge.js` | 161-entry knowledge base, retrieval engine, categories, topic-browser matching |
+| `frontend/src/ai/assistant.js` | Orchestrates small talk, retrieval, live call, offline fallback, Quran fallback, follow-ups |
+| `frontend/src/ai/claudeClient.js` | Client for `/ai/status` and `/ai/chat`; status and reason mapping |
+| `frontend/src/ai/islamicKnowledge.js` | 161-entry knowledge base, retrieval engine, categories, topic-browser matching |
 
 ### AI UI
 
 | File | Role |
 | --- | --- |
-| `src/screens/AIChatScreen.jsx` | Main assistant chat, source labels, history, topic browser entry |
-| `src/components/TopicBrowserModal.jsx` | Searchable, category-filtered topic browser |
-| `src/screens/ZakatScreen.jsx` | Zakat calculator, Ushr, and Zakat AI tab |
-| `src/screens/HomeScreen.jsx` | AI call-to-action card |
-| `src/screens/SettingsScreen.jsx` | Live/offline status card and local AI usage summary |
-| `src/services/aiUsage.js` | Device-local answer counts by source and day; reset and summary |
-| `src/screens/DiagnosticsScreen.jsx` | AI status row in diagnostics report |
-| `src/services/diagnostics.js` | Probes AI status during diagnostics collection |
-| `src/screens/ApiConsoleScreen.jsx` | Lists and tests AI endpoints |
+| `frontend/src/screens/AIChatScreen.jsx` | Main assistant chat, source labels, history, topic browser entry |
+| `frontend/src/components/TopicBrowserModal.jsx` | Searchable, category-filtered topic browser |
+| `frontend/src/screens/ZakatScreen.jsx` | Zakat calculator, Ushr, and Zakat AI tab |
+| `frontend/src/screens/HomeScreen.jsx` | AI call-to-action card |
+| `frontend/src/screens/SettingsScreen.jsx` | Live/offline status card and local AI usage summary |
+| `frontend/src/services/aiUsage.js` | Device-local answer counts by source and day; reset and summary |
+| `frontend/src/screens/DiagnosticsScreen.jsx` | AI status row in diagnostics report |
+| `frontend/src/services/diagnostics.js` | Probes AI status during diagnostics collection |
+| `frontend/src/screens/ApiConsoleScreen.jsx` | Lists and tests AI endpoints |
 
 ### Server
 
 | File | Role |
 | --- | --- |
-| `server/routes/ai.js` | Anthropic client, system prompt, status and chat endpoints, error mapping |
-| `server/services/newsTextMining.js` | Deterministic headline keyword/topic mining (no model) |
-| `server/config/env.js` | Reads `ANTHROPIC_API_KEY`, model and token cap; warns when missing |
-| `server/middleware/security.js` | `aiLimiter` and request security middleware |
-| `server/middleware/auth.js` | JWT authentication for `/ai/chat` |
-| `server/server.js` | Mounts `/api/ai` |
-| `server/config/apiCatalog.js` | Documents AI endpoints in the public catalogue |
+| `backend/routes/ai.js` | Anthropic client, system prompt, status and chat endpoints, error mapping |
+| `backend/services/newsTextMining.js` | Deterministic headline keyword/topic mining (no model) |
+| `backend/config/env.js` | Reads `ANTHROPIC_API_KEY`, model and token cap; warns when missing |
+| `backend/middleware/security.js` | `aiLimiter` and request security middleware |
+| `backend/middleware/auth.js` | JWT authentication for `/ai/chat` |
+| `backend/server.js` | Mounts `/api/ai` |
+| `backend/config/apiCatalog.js` | Documents AI endpoints in the public catalogue |
 
 ### Scripts, configuration, docs
 
 | File | Role |
 | --- | --- |
-| `scripts/configure-ai.js` | Secure interactive key setup and status check |
-| `.env.example` | Documented key/model variables |
+| `backend/scripts/configure-ai.js` | Secure interactive key setup and status check |
+| `backend/.env.example` | Documented key/model variables |
 | `docs/LIVE_AI_SETUP.md` | Live vs offline setup and troubleshooting |
 | `docs/CUSTOM_AI_TRAINING_GUIDE.md` | Future open-weight fine-tuning guide (entry count stale) |
-| `src/config/routes.js` | `AIQuran` and `AIChat` module definitions |
-| `src/navigation/screenRegistry.js` | Registers `AIChat`, `AIQuran`, `Zakat`, `Settings`, `Diagnostics` |
-| `src/config/appConfig.js` | API base URL and quran.com base URL |
-| `src/services/backend.js` | Authenticated HTTP client with timeout and reason preservation |
-| `src/services/quranApi.js` | Quran search used by the offline fallback |
+| `frontend/src/config/routes.js` | `AIQuran` and `AIChat` module definitions |
+| `frontend/src/navigation/screenRegistry.js` | Registers `AIChat`, `AIQuran`, `Zakat`, `Settings`, `Diagnostics` |
+| `frontend/src/config/appConfig.js` | API base URL and quran.com base URL |
+| `frontend/src/services/backend.js` | Authenticated HTTP client with timeout and reason preservation |
+| `frontend/src/services/quranApi.js` | Quran search used by the offline fallback |
 
 ### Tests
 
 | File | Role |
 | --- | --- |
-| `src/ai/__tests__/islamicKnowledge.test.js` | Retrieval and topic coverage |
-| `src/ai/__tests__/assistant.test.js` | Answer pipeline and fallbacks |
-| `src/ai/__tests__/claudeClient.test.js` | Live client and status mapping |
-| `src/components/__tests__/topicBrowser.test.jsx` | Topic browser behavior |
-| `server/__tests__/aiRoute.test.js` | Server endpoint, validation, limits, prompt |
-| `src/screens/__tests__/screens.smoke.test.js` | Screen mounting |
+| `frontend/src/ai/__tests__/islamicKnowledge.test.js` | Retrieval and topic coverage |
+| `frontend/src/ai/__tests__/assistant.test.js` | Answer pipeline and fallbacks |
+| `frontend/src/ai/__tests__/claudeClient.test.js` | Live client and status mapping |
+| `frontend/src/components/__tests__/topicBrowser.test.jsx` | Topic browser behavior |
+| `backend/__tests__/aiRoute.test.js` | Server endpoint, validation, limits, prompt |
+| `frontend/src/screens/__tests__/screens.smoke.test.js` | Screen mounting |
 
 ---
 

@@ -49,7 +49,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci && npm --prefix frontend ci && npm --prefix backend ci
 
       # A release build is the worst place to discover a broken test. EAS
       # minutes are consumed whether or not the code works, and a production
@@ -74,17 +74,17 @@ jobs:
             fail=1
           fi
 
-          if ! node -e "process.exit(require('./app.json').expo?.extra?.eas?.projectId ? 0 : 1)"; then
+          if ! node -e "process.exit(require('./frontend/app.json').expo?.extra?.eas?.projectId ? 0 : 1)"; then
             echo "::error::app.json has no extra.eas.projectId — the repo is not linked to"               "an EAS project. Run 'eas init' locally and commit the change."
             fail=1
           fi
 
-          if ! node -e "process.exit(require('./app.json').expo?.android?.package ? 0 : 1)"; then
+          if ! node -e "process.exit(require('./frontend/app.json').expo?.android?.package ? 0 : 1)"; then
             echo "::error::app.json is missing android.package, which Play requires."
             fail=1
           fi
 
-          if ! node -e "process.exit(require('./app.json').expo?.ios?.bundleIdentifier ? 0 : 1)"; then
+          if ! node -e "process.exit(require('./frontend/app.json').expo?.ios?.bundleIdentifier ? 0 : 1)"; then
             echo "::error::app.json is missing ios.bundleIdentifier, which the App Store requires."
             fail=1
           fi
@@ -92,11 +92,11 @@ jobs:
           # An empty submit.production cannot submit unattended: Android needs a
           # track and iOS needs an ascAppId.
           if [ "${{ inputs.submit }}" = "true" ]; then
-            if ! node -e "const s=require('./eas.json').submit?.production||{}; process.exit(s.android?.track ? 0 : 1)"; then
+            if ! node -e "const s=require('./frontend/eas.json').submit?.production||{}; process.exit(s.android?.track ? 0 : 1)"; then
               echo "::error::submit.production.android.track is not set in eas.json,"                 "so 'eas submit --non-interactive' has no track to publish to."
               fail=1
             fi
-            if ! node -e "const s=require('./eas.json').submit?.production||{}; process.exit(s.ios?.ascAppId ? 0 : 1)"; then
+            if ! node -e "const s=require('./frontend/eas.json').submit?.production||{}; process.exit(s.ios?.ascAppId ? 0 : 1)"; then
               echo "::error::submit.production.ios.ascAppId is not set in eas.json."                 "Take the numeric id from the App Store Connect URL for your app."
               fail=1
             fi
@@ -109,7 +109,7 @@ jobs:
           # they are internal, and pointing one at a not-yet-live host is a
           # legitimate thing to do.
           api_url=$(node -e "
-            const j = require('./eas.json');
+            const j = require('./frontend/eas.json');
             const resolve = (name, seen = new Set()) => {
               if (!name || seen.has(name)) return {};
               seen.add(name);
@@ -157,8 +157,8 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Build for iOS and Android
-        run: eas build --platform all --non-interactive --profile ${{ inputs.profile }} --wait
+        run: cd frontend && eas build --platform all --non-interactive --profile ${{ inputs.profile }} --wait
 
       - name: Submit to the stores
         if: ${{ inputs.submit }}
-        run: eas submit --platform all --non-interactive --latest
+        run: cd frontend && eas submit --platform all --non-interactive --latest

@@ -1,12 +1,14 @@
 {
   "name": "qitabe-noor-api",
   "version": "1.0.0",
-  "description": "Backend API for Qitabe Noor Islamic companion app",
+  "description": "Qitab-e-Noor API (Express + PostgreSQL). Serves ../frontend over HTTP at /api.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "migrate": "node migrations/run.js"
+    "migrate": "node migrations/run.js",
+    "test": "jest",
+    "test:watch": "jest --watch"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",
@@ -21,5 +23,19 @@
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^10.1.0",
     "pg": "^8.13.1"
+  },
+  "private": true,
+  "devDependencies": {
+    "jest": "~29.7.0",
+    "supertest": "^7.2.2"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "<rootDir>/**/__tests__/**/*.test.js"
+    ],
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.js"
+    ]
   }
 }

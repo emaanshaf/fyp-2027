@@ -72,7 +72,7 @@ async function tryConnect() {
       process.exit(1);
     }
 
-    console.log('PostgreSQL not available — using file-backed local storage (server/.data)');
+    console.log('PostgreSQL not available — using file-backed local storage (backend/.data)');
   }
 }
 

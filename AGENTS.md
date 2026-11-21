@@ -13,7 +13,7 @@ Qitab-e-Noor is an Expo SDK 57 / React Native 0.86 mobile app with an Express AP
 ## Hard rules
 
 1. **Never run `start.bat`.** It force-kills every `node.exe` on the machine. Use `npm run server`, `npm start`, `npm run dev` or `npm run web`.
-2. **Never put secrets in the app.** API keys stay in the server-side `.env`. Never use `EXPO_PUBLIC_*` for secrets, never print a key, and never commit `.env`.
+2. **Never put secrets in the app.** API keys stay in the server-side `backend/.env`. Never use `EXPO_PUBLIC_*` for secrets, never print a key, and never commit `.env`.
 3. **Follow the five product guardrails:**
    - No new top-level modules by default — improve Home, Search, Recents, Favourites or an existing module.
    - Do not label templates, search or static content as "AI".
@@ -27,9 +27,9 @@ Qitab-e-Noor is an Expo SDK 57 / React Native 0.86 mobile app with an Express AP
 
 ## AI rules
 
-- The only live model integration is Anthropic Claude through `POST /api/ai/chat` (`server/routes/ai.js`).
-- The app calls its own backend through `src/ai/claudeClient.js`; screens must not call Anthropic directly.
-- The assistant pipeline is `getAIAnswer()` in `src/ai/assistant.js`: small talk → retrieval → optional live call → offline answer → Quran search → unavailable.
+- The only live model integration is Anthropic Claude through `POST /api/ai/chat` (`backend/routes/ai.js`).
+- The app calls its own backend through `frontend/src/ai/claudeClient.js`; screens must not call Anthropic directly.
+- The assistant pipeline is `getAIAnswer()` in `frontend/src/ai/assistant.js`: small talk → retrieval → optional live call → offline answer → Quran search → unavailable.
 - Keep source labels honest: `claude+rag`, `claude`, `offline`, `offline+quran`, `unavailable`.
 - The live key is optional. When absent, `/api/ai/status` reports `configured:false` and offline answers must still work.
 - Never send chat history to the server; only the current question plus up to three retrieved entries.
@@ -40,18 +40,17 @@ See [`docs/AI_USAGE.md`](docs/AI_USAGE.md) for the full inventory and [`docs/LIV
 ## Layout
 
 ```text
-src/            Expo app (ES modules)
-  ai/           assistant, Claude client, 161-topic knowledge base
-  components/   shared UI
-  navigation/   screen registry and linking
-  screens/      one screen per module
-  services/     backend, cache, Quran, Hadith, storage, backup, notifications
-server/         Express API (CommonJS)
-  routes/       auth, bookmarks, notes, modules, news, ai
-  middleware/   auth, validation, security, rate limits
-  migrations/   PostgreSQL schema
-docs/           setup, AI, principles, CI/CD
-scripts/        asset, sound and AI configuration scripts
+frontend/        Expo / React Native app (Android, iOS, react-native-web preview)
+  App.js         app entry point and provider tree
+  src/           screens, components, services, AI pipeline, data, theme
+  assets/        icons, splash screen, fonts, reminder sounds
+  scripts/       asset, sound and legal-page generators
+  public/        generated privacy and terms pages
+backend/         Express API (CommonJS) and PostgreSQL migrations
+  server.js      entry point
+  routes/  middleware/  config/  services/  migrations/  scripts/  __tests__/
+docs/            product, AI, CI/CD and file-map documentation
+scripts/         Windows firewall helpers for testing on a phone
 ```
 
 Notes:
@@ -63,14 +62,15 @@ Notes:
 ## Commands
 
 ```bash
+npm run setup         # install root, frontend/ and backend/ dependencies
 npm run server        # API on :3001
 npm start             # Expo
 npm run web           # web preview on :8081
-npm test              # Jest (app + server projects)
+npm test              # Jest (frontend + backend)
 npm run lint          # ESLint
 npm run doctor        # expo-doctor
 npm run verify        # lint + tests + doctor
-npm run ai:configure  # write the Anthropic key to .env (hidden prompt)
+npm run ai:configure  # write the Anthropic key to backend/.env (hidden prompt)
 npm run ai:status     # check key + server state
 ```
 

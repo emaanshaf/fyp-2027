@@ -1,9 +1,9 @@
 # Container image for the Qitab-e-Noor API.
 #
-# Build context is this directory, not the repo root — the API has its own
+# Build context is this directory (backend/), not the repo root — the API has its own
 # package.json and shares nothing with the Expo app:
 #
-#   docker build -t qitabe-noor-api ./server
+#   docker build -t qitabe-noor-api ./backend
 #   docker run --rm -p 3001:3001 \
 #     -e NODE_ENV=production \
 #     -e DATABASE_URL=postgresql://... \

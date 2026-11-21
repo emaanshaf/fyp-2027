@@ -32,7 +32,7 @@ services:
   # fresh database, not on every restart.
   migrate:
     build:
-      context: ./server
+      context: ./backend
     command: ["npm", "run", "migrate"]
     environment:
       DATABASE_URL: postgresql://postgres:${DB_PASSWORD:-postgres}@db:5432/qitabe_noor
@@ -44,7 +44,7 @@ services:
 
   api:
     build:
-      context: ./server
+      context: ./backend
     restart: unless-stopped
     ports:
       - "3001:3001"
@@ -62,7 +62,7 @@ services:
 
   web:
     build:
-      context: .
+      context: ./frontend
       dockerfile: Dockerfile.web
       args:
         EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL:-http://localhost:3001/api}

@@ -36,10 +36,10 @@ jobs:
           cache: npm
 
       - name: Install app dependencies
-        run: npm ci
+        run: npm ci && npm --prefix frontend ci
 
       - name: Install API dependencies
-        working-directory: server
+        working-directory: backend
         run: npm ci
 
       # Errors fail the build; warnings do not. There are ~150 pre-existing
@@ -73,7 +73,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci && npm --prefix frontend ci
 
       # The unit tests import modules individually and mock freely, so they do
       # not prove the app assembles. Exporting the bundle runs every module
@@ -81,9 +81,11 @@ jobs:
       # at launch: an unresolved import, a native module missing from the
       # dependency list, a Babel plugin that moved between SDK versions.
       - name: Export ${{ matrix.platform }} bundle
+        working-directory: frontend
         run: npx expo export --platform ${{ matrix.platform }} --output-dir dist-${{ matrix.platform }}
 
       - name: Check the bundle is not empty
+        working-directory: frontend
         run: |
           bytes=$(find dist-${{ matrix.platform }} -name '*.hbc' -o -name '*.js' \
             | xargs --no-run-if-empty stat -c%s | awk '{s+=$1} END {print s+0}')
@@ -111,14 +113,15 @@ jobs:
       - name: Install dependencies
         run: |
           npm ci
-          cd server && npm ci
+          npm --prefix frontend ci
+          cd backend && npm ci
 
       # Starting the server catches what unit tests cannot: a broken require
       # chain, a config value that throws on load, a route that fails to mount.
       # Development mode, so it runs on the file-backed store without Postgres.
       - name: Start the API
         run: |
-          node server/server.js &
+          node backend/server.js &
           echo $! > /tmp/api.pid
           for i in $(seq 1 30); do
             if curl -sf http://127.0.0.1:3001/api/health > /dev/null; then
@@ -170,13 +173,13 @@ jobs:
 
       # Builds without pushing. Runs on pull requests and on branches where no
       # registry credentials should be in play, and it is the only thing that
-      # proves server/Dockerfile still builds — otherwise a broken Dockerfile
+      # proves backend/Dockerfile still builds — otherwise a broken Dockerfile
       # is not discovered until someone is trying to cut a release.
       - name: Build the API image
         uses: docker/build-push-action@v6
         with:
-          context: ./server
-          file: ./server/Dockerfile
+          context: ./backend
+          file: ./backend/Dockerfile
           push: false
           load: true
           tags: qitabe-noor-api:ci
@@ -188,7 +191,7 @@ jobs:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/qitabe_noor
           PGSSLMODE: disable
         run: |
-          cd server && npm ci && npm run migrate
+          cd backend && npm ci && npm run migrate
 
       # Building cleanly and starting cleanly are different things. Run it the
       # way a host would, in production mode, and wait for the health endpoint.

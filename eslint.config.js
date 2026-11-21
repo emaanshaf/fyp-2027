@@ -23,17 +23,18 @@ module.exports = [
   {
     ignores: [
       'node_modules/**',
-      'server/node_modules/**',
-      '.expo/**',
-      'dist/**',
-      'web-build/**',
-      'coverage/**',
+      'frontend/node_modules/**',
+      'backend/node_modules/**',
+      '**/.expo/**',
+      '**/dist/**',
+      '**/web-build/**',
+      '**/coverage/**',
     ],
   },
 
-  // React Native / Expo application code.
+  // React Native / Expo application code (frontend/).
   {
-    files: ['src/**/*.{js,jsx}', 'App.js'],
+    files: ['frontend/src/**/*.{js,jsx}', 'frontend/App.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
@@ -58,9 +59,15 @@ module.exports = [
     },
   },
 
-  // API server and build scripts: CommonJS on Node.
+  // API server (backend/) and Node build scripts: CommonJS on Node.
   {
-    files: ['server/**/*.js', 'scripts/**/*.js', '*.config.js', 'jest.setup.js'],
+    files: [
+      'backend/**/*.js',
+      'frontend/scripts/**/*.js',
+      'frontend/*.config.js',
+      'frontend/jest.setup.js',
+      'eslint.config.js',
+    ],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'commonjs',

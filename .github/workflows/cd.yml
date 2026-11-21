@@ -86,7 +86,8 @@ jobs:
       - name: Install dependencies
         run: |
           npm ci
-          cd server && npm ci
+          npm --prefix frontend ci
+          cd backend && npm ci
 
       # CI runs these too, but CD can be triggered on a commit CI has not
       # finished checking, and a build costs real minutes. Cheaper to repeat
@@ -116,7 +117,7 @@ jobs:
         if: steps.profile.outputs.name == 'production'
         run: |
           api_url=$(node -e "
-            const j = require('./eas.json');
+            const j = require('./frontend/eas.json');
             const resolve = (name, seen = new Set()) => {
               if (!name || seen.has(name)) return {};
               seen.add(name);
@@ -139,14 +140,14 @@ jobs:
 
       - name: Build
         run: |
-          eas build --platform all --non-interactive --wait             --profile ${{ steps.profile.outputs.name }}
+          cd frontend && eas build --platform all --non-interactive --wait             --profile ${{ steps.profile.outputs.name }}
 
       # Only ever reached from a tag. The first release of each app has to be
       # uploaded to the stores by hand — Play rejects API submissions until a
       # build exists in the console — so this will fail until that is done once.
       - name: Submit to the stores
         if: steps.profile.outputs.submit == 'true'
-        run: eas submit --platform all --non-interactive --latest
+        run: cd frontend && eas submit --platform all --non-interactive --latest
 
       - name: Summary
         if: always()
@@ -200,8 +201,8 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: ./server
-          file: ./server/Dockerfile
+          context: ./backend
+          file: ./backend/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

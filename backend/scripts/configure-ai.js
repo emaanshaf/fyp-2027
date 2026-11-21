@@ -2,7 +2,7 @@
 /**
  * Securely configures the live Claude assistant.
  *
- * The key is read without echo, written only to the root `.env` (gitignored),
+ * The key is read without echo, written only to backend/.env (gitignored),
  * and never printed. It is intentionally not an EXPO_PUBLIC_ value: those are
  * compiled into the app bundle, where anyone could read and spend the key.
  *

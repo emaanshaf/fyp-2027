@@ -2,10 +2,10 @@
 #
 # Same Expo/React Native codebase as the mobile app — react-native-web and
 # app.json's "web" platform entry are already in place, so this just exports
-# the web bundle and serves it as static files. Build context is the repo
-# root (the app and the web build share one package.json):
+# the web bundle and serves it as static files. Build context is frontend/, the Expo app
+# that owns the web bundle and its package.json:
 #
-#   docker build -f Dockerfile.web -t qitabe-noor-web .
+#   docker build -f frontend/Dockerfile.web -t qitabe-noor-web ./frontend
 #   docker run --rm -p 8080:8080 qitabe-noor-web
 #
 # EXPO_PUBLIC_* values are baked in at build time (Metro inlines them into the
