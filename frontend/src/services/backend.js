@@ -95,11 +95,10 @@ class BackendService {
       }
 
       if (!response.ok) {
-        // The API sends a machine-readable `reason` alongside the
-        // human-readable `error`. Throwing only the message forced callers to
-        // match on the prose, so rewording a server message silently changed
-        // app behaviour.
-        const failure = new Error(data?.error || `Request failed (HTTP ${response.status})`);
+  console.log('BACKEND ERROR STATUS:', response.status);
+  console.log('BACKEND ERROR DATA:', data);
+
+  const failure = new Error(data?.error || `Request failed (HTTP ${response.status})`);
         failure.status = response.status;
         failure.reason = data?.reason || null;
         failure.data = data;

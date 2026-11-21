@@ -6,6 +6,9 @@
 // theme hooks, and the hooks need this factory — importing it from the barrel
 // would be a cycle.
 export const makeGlobalStyles = (t) => ({
+  container: {
+    flex: 1,
+  },
   screen: {
     flex: 1,
     backgroundColor: t.colors.bg,

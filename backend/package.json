@@ -22,7 +22,8 @@
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^10.1.0",
-    "pg": "^8.13.1"
+    "pg": "^8.13.1",
+    "qitabe-noor": "file:.."
   },
   "private": true,
   "devDependencies": {

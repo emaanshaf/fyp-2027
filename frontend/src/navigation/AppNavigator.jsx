@@ -508,13 +508,23 @@ function AppNavigator(props, ref) {
             name="Login"
             options={{ headerShown: false }}
           >
-            {(screenProps) => (
-              <LoginScreen
-                {...screenProps}
-                onSuccess={() => screenProps.navigation.goBack()}
-                onSkip={() => screenProps.navigation.goBack()}
-              />
-            )}
+            {(screenProps) => {
+              // Opened from a drawer link there is a route beneath to close;
+              // opened directly at /login (or reloaded there) there is not,
+              // and goBack() would silently leave the user stuck on the form.
+              const leaveLogin = () => {
+                const { navigation } = screenProps;
+                if (navigation.canGoBack()) navigation.goBack();
+                else navigation.navigate('Main');
+              };
+              return (
+                <LoginScreen
+                  {...screenProps}
+                  onSuccess={leaveLogin}
+                  onSkip={leaveLogin}
+                />
+              );
+            }}
           </Stack.Screen>
           <Stack.Screen
             name="AdminPanel"
