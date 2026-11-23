@@ -199,6 +199,9 @@ jest.mock('expo-location', () => ({
     Promise.resolve({ coords: { latitude: 31.5204, longitude: 74.3587 } })
   ),
   reverseGeocodeAsync: jest.fn(() => Promise.resolve([{ city: 'Lahore', country: 'Pakistan' }])),
+  // The Duas screen follows the user after a grant; the smoke tests only need
+  // a subscription they can remove.
+  watchPositionAsync: jest.fn(() => Promise.resolve({ remove: jest.fn() })),
   // The Qibla screen subscribes to this; without it the screen only ever
   // exercises its no-compass fallback and the dial path goes untested.
   watchHeadingAsync: jest.fn(cb => {

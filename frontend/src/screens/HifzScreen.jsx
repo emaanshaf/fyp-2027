@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, ScrollView,
-  TextInput, Alert, Animated
+  View, Text, TouchableOpacity, StyleSheet, ScrollView,
+  TextInput, Animated
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,7 +9,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 
 const PLANS_KEY = 'hifz_plans';
-const PROGRESS_KEY = 'hifz_progress';
 
 const PLAN_TEMPLATES = [
   { id: 'juz1', name: 'Juz 1 (Al-Fatiha - Al-Baqarah 141)', juz: 1, totalAyahs: 150, days: 30 },
@@ -46,7 +45,6 @@ export default function HifzScreen() {
   const [todayCount, setTodayCount] = useState(0);
   const [showArabic, setShowArabic] = useState(true);
   const [todayAyahs, setTodayAyahs] = useState([]);
-  const [sessionComplete, setSessionComplete] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => { loadPlans(); loadToday(); }, []);

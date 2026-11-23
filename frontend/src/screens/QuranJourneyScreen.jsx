@@ -5,16 +5,18 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { COLORS, useColors, useGlobalStyles, useThemedStyles } from '../theme';
+import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 
+// Accents are stored as theme tokens, not hex, so the level card follows the
+// active palette instead of staying frozen on the dark theme's bright hues.
 export const LEVELS = [
   // 'seedling' and 'book-stars' are not Ionicons glyphs — both rendered as an
   // empty box. Every name here is checked against the Ionicons glyph map.
-  { id: 'beginner', name: 'Beginner', desc: 'Just starting your Quran journey', icon: 'leaf', color: COLORS.emerald, req: 0 },
-  { id: 'reader', name: 'Regular Reader', desc: 'Read Quran consistently', icon: 'book', color: COLORS.blue, req: 30 },
-  { id: 'devoted', name: 'Devoted Reader', desc: 'Deep engagement with the Quran', icon: 'library', color: COLORS.purple, req: 100 },
-  { id: 'memorizer', name: 'Hafiz/Hafiza', desc: ' memorizing the Quran', icon: 'school', color: COLORS.gold, req: 300 },
-  { id: 'scholar', name: 'Quran Scholar', desc: 'Complete mastery', icon: 'ribbon', color: COLORS.pink, req: 604 },
+  { id: 'beginner', name: 'Beginner', desc: 'Just starting your Quran journey', icon: 'leaf', accent: 'emerald', req: 0 },
+  { id: 'reader', name: 'Regular Reader', desc: 'Read Quran consistently', icon: 'book', accent: 'blue', req: 30 },
+  { id: 'devoted', name: 'Devoted Reader', desc: 'Deep engagement with the Quran', icon: 'library', accent: 'purple', req: 100 },
+  { id: 'memorizer', name: 'Hafiz/Hafiza', desc: ' memorizing the Quran', icon: 'school', accent: 'gold', req: 300 },
+  { id: 'scholar', name: 'Quran Scholar', desc: 'Complete mastery', icon: 'ribbon', accent: 'pink', req: 604 },
 ];
 
 const SURAH_MILESTONES = [
@@ -31,6 +33,7 @@ export default function QuranJourneyScreen() {
   const COLORS = useColors();
   const globalStyles = useGlobalStyles();
   const styles = useThemedStyles(makeStyles);
+  const levels = LEVELS.map(l => ({ ...l, color: COLORS[l.accent] }));
 
   const [totalPages, setTotalPages] = useState(0);
   const [streak, setStreak] = useState(0);
@@ -70,16 +73,16 @@ export default function QuranJourneyScreen() {
   };
 
   const getLevel = () => {
-    for (let i = LEVELS.length - 1; i >= 0; i--) {
-      if (totalPages >= LEVELS[i].req) return LEVELS[i];
+    for (let i = levels.length - 1; i >= 0; i--) {
+      if (totalPages >= levels[i].req) return levels[i];
     }
-    return LEVELS[0];
+    return levels[0];
   };
 
   const getNextLevel = () => {
     const current = getLevel();
-    const idx = LEVELS.findIndex(l => l.id === current.id);
-    return idx < LEVELS.length - 1 ? LEVELS[idx + 1] : null;
+    const idx = levels.findIndex(l => l.id === current.id);
+    return idx < levels.length - 1 ? levels[idx + 1] : null;
   };
 
   const level = getLevel();
@@ -168,7 +171,7 @@ const makeStyles = (COLORS) => StyleSheet.create({
   levelName: { color: COLORS.gold, fontSize: 22, fontWeight: '900' },
   levelDesc: { color: COLORS.textSecondary, fontSize: 13, marginTop: 4 },
   progressBar: {
-    width: '100%', height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.06)',
+    width: '100%', height: 6, borderRadius: 3, backgroundColor: COLORS.divider,
     marginTop: 16, overflow: 'hidden',
   },
   progressFill: { height: '100%', borderRadius: 3 },
@@ -191,9 +194,9 @@ const makeStyles = (COLORS) => StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, marginBottom: 8,
     borderRadius: 14, backgroundColor: COLORS.glass, borderWidth: 1, borderColor: COLORS.glassBorder,
   },
-  milestoneDone: { borderColor: COLORS.emerald + '30', backgroundColor: 'rgba(255, 255, 255,0.04)' },
+  milestoneDone: { borderColor: COLORS.emerald + '30', backgroundColor: COLORS.divider },
   milestoneNum: {
-    width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255, 255, 255,0.1)',
+    width: 36, height: 36, borderRadius: 10, backgroundColor: COLORS.divider,
     alignItems: 'center', justifyContent: 'center',
   },
   milestoneNumText: { color: COLORS.gold, fontWeight: '800', fontSize: 13 },

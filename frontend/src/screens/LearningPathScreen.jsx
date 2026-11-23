@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 import { learning, TOPICS } from '../services/learningEngine';
 import { deckSummaries, enrollDeck, enrollAll } from '../services/decks';
-import { LEVELS, withProgress, levelProgress, nextLesson } from '../data/curriculum';
+import { withProgress, levelProgress, nextLesson } from '../data/curriculum';
 
 /**
  * The learning hub.

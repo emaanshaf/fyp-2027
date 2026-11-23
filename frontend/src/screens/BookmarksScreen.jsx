@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, TextInput,
   StyleSheet, Alert
@@ -26,12 +26,26 @@ const TABS = [
 
 const TYPE_ICONS = { quran: 'book-outline', hadith: 'shield-checkmark-outline', duas: 'heart-outline', notes: 'document-text-outline' };
 
+/**
+ * The reader saves bookmarks as an array of "surah:ayah" keys while older
+ * builds (and the sample library) stored a { "surah:ayah": true } map. Accept
+ * either so both screens list the same set.
+ */
+const bookmarkMap = raw => {
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (Array.isArray(parsed)) return Object.fromEntries(parsed.map(k => [k, true]));
+    if (parsed && typeof parsed === 'object') return parsed;
+  } catch { /* corrupt value — show nothing */ }
+  return {};
+};
+
 export default function BookmarksScreen() {
   const COLORS = useColors();
   const globalStyles = useGlobalStyles();
   const styles = useThemedStyles(makeStyles);
 
-  const TYPE_COLORS = { quran: COLORS.gold, hadith: COLORS.emerald, duas: '#ff4444', notes: '#ffffff' };
+  const TYPE_COLORS = { quran: COLORS.gold, hadith: COLORS.emerald, duas: COLORS.red, notes: COLORS.textPrimary };
 
   const [activeTab, setActiveTab] = useState('all');
   const [search, setSearch] = useState('');
@@ -111,7 +125,7 @@ export default function BookmarksScreen() {
 
           setItems(all.sort((a, b) => b.timestamp - a.timestamp));
           return;
-        } catch (e) {
+        } catch {
           // Backend failed, fall through to local storage
         }
       }
@@ -123,7 +137,7 @@ export default function BookmarksScreen() {
         getItem('qitab_fav_duas'),
       ]);
 
-      const bookmarks = bkRaw ? JSON.parse(bkRaw) : {};
+      const bookmarks = bookmarkMap(bkRaw);
       const notes = notesRaw ? JSON.parse(notesRaw) : {};
       const favDuas = favDuasRaw ? JSON.parse(favDuasRaw) : [];
 
@@ -169,7 +183,7 @@ export default function BookmarksScreen() {
       });
 
       setItems(all.reverse());
-    } catch (e) { setItems([]); }
+    } catch { setItems([]); }
   };
 
   const removeItem = async (item) => {
@@ -192,7 +206,7 @@ export default function BookmarksScreen() {
               }
               await loadAll();
               return;
-            } catch (e) {
+            } catch {
               // Backend failed, fall through to local storage
             }
           }
@@ -201,8 +215,10 @@ export default function BookmarksScreen() {
           if (item.type === 'quran') {
             const raw = await getItem('qitab_bookmarks');
             const bk = raw ? JSON.parse(raw) : {};
-            delete bk[item.key];
-            await setItem('qitab_bookmarks', JSON.stringify(bk));
+            const next = Array.isArray(bk)
+              ? bk.filter(k => k !== item.key)
+              : Object.fromEntries(Object.entries(bk).filter(([k]) => k !== item.key));
+            await setItem('qitab_bookmarks', JSON.stringify(next));
           } else if (item.type === 'notes') {
             const raw = await getItem('qitab_notes');
             const n = raw ? JSON.parse(raw) : {};

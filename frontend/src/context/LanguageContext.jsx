@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   LANGUAGE_STORAGE_KEY, LANGUAGES, moduleTitle, translate,
 } from '../i18n/translations';
+import preferences from '../services/preferences';
 
 // A context with a real default value rather than `null` + a throwing hook:
 // screens are mounted in isolated tests and in the landing flow before the
@@ -31,9 +32,16 @@ export function LanguageProvider({ children }) {
   }, []);
 
   const setLanguage = useCallback(async code => {
-    const next = LANGUAGES.some(l => l.code === code) ? code : 'en';
-    setLanguageState(next);
-    try { await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, next); } catch { /* local only */ }
+    const option = LANGUAGES.find(l => l.code === code) || LANGUAGES[0];
+    setLanguageState(option.code);
+    try { await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, option.code); } catch { /* local only */ }
+
+    // The app language and the scripture reading language are separate
+    // choices, but switching to اردو should not leave the Quran in English.
+    // Only app languages that have a reading translation touch the preference.
+    if (option.translation) {
+      preferences.set({ translationLanguage: option.translation }).catch(() => {});
+    }
   }, []);
 
   const toggleLanguage = useCallback(async () => {

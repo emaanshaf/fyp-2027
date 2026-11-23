@@ -10,7 +10,11 @@
  *  - GPS knows coordinates, not buildings. A mosque, market or graveyard is
  *    only inferred from the *label* the device geocoder returns (Apple or
  *    Google, on the device), and that lookup is best-effort.
- *  - There is no weather API, so rain is a manual chip, not a sensor reading.
+ *  - Weather comes from Open-Meteo and landscape names from OpenStreetMap
+ *    (see contextEnvironment.js). The rain history reaches back 92 days, so a
+ *    long dry spell is reported as "92+ days", never as an exact figure.
+ *  - The moon phase is an astronomical approximation from the mean synodic
+ *    month; the local crescent sighting can differ by a day.
  *  - Movement is judged from speed alone; a fast train reads the same as a car.
  * Coordinates are never sent to the Qitab-e-Noor server.
  */
@@ -24,6 +28,9 @@ export const MANUAL_CONTEXTS = [
   { id: 'market',    label: 'In the market', icon: 'cart-outline' },
   { id: 'travel',    label: 'Travelling',    icon: 'car-outline' },
   { id: 'rain',      label: 'It is raining', icon: 'rainy-outline' },
+  { id: 'river',     label: 'Near water',    icon: 'water-outline' },
+  { id: 'mountain',  label: 'In mountains',  icon: 'triangle-outline' },
+  { id: 'drought',   label: 'Dry spell',     icon: 'sunny-outline' },
   { id: 'illness',   label: 'Feeling unwell', icon: 'medkit-outline' },
   { id: 'exam',      label: 'Study or exam', icon: 'school-outline' },
   { id: 'anxiety',   label: 'Worried',       icon: 'pulse-outline' },
@@ -92,6 +99,107 @@ export function movementContexts(speedMps) {
     : { contexts: [], label: '' };
 }
 
+// WMO codes as returned by Open-Meteo. Hail is its own group because 96/99
+// mean a thunderstorm that is already producing hail.
+const RAIN_CODES = [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82];
+const HAIL_CODES = [96, 99];
+const STORM_CODES = [95];
+
+/** After this many dry days the card offers the prayer for rain (Istisqa). */
+export const DROUGHT_DAYS = 60;
+
+/**
+ * Contexts implied by the current weather reading from contextEnvironment.js.
+ * Only the conditions with a clear Sunnah dua are turned into contexts; snow,
+ * fog and heat fall through to the clock or the place instead of guessing.
+ */
+export function weatherContexts(weather) {
+  if (!weather || !Number.isFinite(Number(weather.code))) {
+    return { contexts: [], reason: '' };
+  }
+  const code = Number(weather.code);
+
+  if (HAIL_CODES.includes(code)) {
+    return { contexts: ['hail', 'storm'], reason: 'Hail or a thunderstorm where you are' };
+  }
+  if (STORM_CODES.includes(code)) {
+    return { contexts: ['storm'], reason: 'A thunderstorm where you are' };
+  }
+  if (RAIN_CODES.includes(code)) {
+    return { contexts: ['rain'], reason: 'It is raining where you are' };
+  }
+
+  const dryDays = Number(weather.daysSinceRain);
+  if (Number.isFinite(dryDays) && dryDays >= DROUGHT_DAYS) {
+    const tracked = Number(weather.rainTrackedDays);
+    const windowExhausted = Number.isFinite(tracked) && dryDays >= tracked;
+    return {
+      contexts: ['drought'],
+      reason: `No rain here for ${windowExhausted ? `${tracked}+` : dryDays} days`,
+    };
+  }
+  return { contexts: [], reason: '' };
+}
+
+const SYNODIC_DAYS = 29.530588853;
+// A known new moon: 6 January 2000, 18:14 UTC.
+const NEW_MOON_EPOCH = Date.UTC(2000, 0, 6, 18, 14);
+/** Half a day either side — close enough to prompt the dua, labelled approximate. */
+const NEW_MOON_TOLERANCE = 0.025;
+
+/** Lunar phase from the clock alone: 0 at new moon, 0.5 at full. */
+export function moonPhase(date = new Date()) {
+  const days = (date.getTime() - NEW_MOON_EPOCH) / 86400000;
+  const phase = (((days % SYNODIC_DAYS) + SYNODIC_DAYS) % SYNODIC_DAYS) / SYNODIC_DAYS;
+  return { phase, illumination: (1 - Math.cos(2 * Math.PI * phase)) / 2 };
+}
+
+export function moonContext(date = new Date()) {
+  const { phase, illumination } = moonPhase(date);
+  const distance = Math.min(phase, 1 - phase);
+  const isNew = distance <= NEW_MOON_TOLERANCE;
+  return {
+    phase,
+    illumination,
+    isNew,
+    reason: isNew
+      ? 'The moon is at its new phase (approximate) — the Sunnah dua for the crescent'
+      : '',
+  };
+}
+
+const NATURE_ORDER = ['river', 'sea', 'lake', 'mountain', 'forest', 'desert'];
+
+function natureReason(kind, name) {
+  const named = name ? `the ${name}` : null;
+  switch (kind) {
+    case 'river': return named ? `You are near ${named}` : 'You are near a river';
+    case 'sea': return 'You are near the coast';
+    case 'lake': return named ? `You are near ${named}` : 'You are near a lake or pond';
+    case 'mountain': return 'You are in the mountains';
+    case 'forest': return named ? `You are near ${named}` : 'You are in a forest';
+    case 'desert': return 'You are in a desert area';
+    default: return '';
+  }
+}
+
+/**
+ * Landscape contexts from contextEnvironment.js. All detected kinds are kept
+ * for matching (a riverside forest matches both), while the reason names the
+ * first by a fixed priority so the wording is stable.
+ */
+export function natureContexts(nature) {
+  const kinds = Array.isArray(nature?.kinds)
+    ? NATURE_ORDER.filter(kind => nature.kinds.includes(kind))
+    : [];
+  if (!kinds.length) return { contexts: [], reason: '' };
+  const primary = kinds[0];
+  return {
+    contexts: kinds,
+    reason: natureReason(primary, nature?.names?.[primary]),
+  };
+}
+
 /** Keep only ids we know, so bad stored/manual input cannot break the screen. */
 export function sanitizeManualContexts(ids) {
   if (!Array.isArray(ids)) return [];
@@ -115,45 +223,60 @@ export function matchDuas(contexts = []) {
 /**
  * Pick the dua that best fits right now.
  *
- * Priority is deliberate: what the user chose or where they are beats the
- * clock. Falling back to the time-based pick keeps the card filled when the
- * location is unavailable or nothing matches.
+ * Priority is deliberate: what the user chose, the sky, a long dry spell and
+ * the moon beat a place label, which in turn beats the landscape and the
+ * clock. Weather outranks place because rain or hail changes what the moment
+ * calls for even when the geocoder already named a mosque. Falling back to the
+ * time-based pick keeps the card filled when nothing else is known.
  */
 export function buildContextRecommendation({
   date = new Date(),
   manualContexts = [],
   place = null,
   speedMps = null,
+  weather = null,
+  nature = null,
 } = {}) {
   const manual = sanitizeManualContexts(manualContexts);
   const detectedPlace = placeContexts(place?.address || place);
   const detectedMovement = movementContexts(speedMps);
+  const detectedWeather = weatherContexts(weather);
+  const detectedNature = natureContexts(nature);
+  const moon = moonContext(date);
 
   const sources = [];
-  if (manual.length) sources.push('manual');
-  if (detectedPlace.contexts.length) sources.push('place');
-  if (!manual.length && detectedMovement.contexts.length) sources.push('movement');
-
-  const primary = manual.length
-    ? manual
-    : detectedPlace.contexts.length
-      ? detectedPlace.contexts
-      : detectedMovement.contexts;
-
-  let contexts = [...primary];
+  let contexts;
   let reason;
 
-  if (contexts.length) {
-    reason = manual.length
-      ? 'Dua for the moment you selected'
-      : detectedPlace.label
-        ? `You are near ${detectedPlace.label}`
-        : 'You appear to be on the move';
+  if (manual.length) {
+    sources.push('manual');
+    contexts = [...manual];
+    reason = 'Dua for the moment you selected';
+  } else if (detectedWeather.contexts.length) {
+    sources.push('weather');
+    contexts = [...detectedWeather.contexts];
+    reason = detectedWeather.reason;
+  } else if (moon.isNew) {
+    sources.push('moon');
+    contexts = ['newmoon', 'moon'];
+    reason = moon.reason;
+  } else if (detectedPlace.contexts.length) {
+    sources.push('place');
+    contexts = [...detectedPlace.contexts];
+    reason = `You are near ${detectedPlace.label}`;
+  } else if (detectedNature.contexts.length) {
+    sources.push('nature');
+    contexts = [...detectedNature.contexts];
+    reason = detectedNature.reason;
+  } else if (detectedMovement.contexts.length) {
+    sources.push('movement');
+    contexts = [...detectedMovement.contexts];
+    reason = 'You appear to be on the move';
   } else {
     const clock = timeContexts(date);
+    sources.push('time');
     contexts = [clock.context];
     reason = clock.reason;
-    sources.push('time');
   }
 
   const matches = matchDuas(contexts);
@@ -167,6 +290,7 @@ export function buildContextRecommendation({
       contexts: [clock.context],
       sources,
       placeLabel: detectedPlace.label,
+      moon,
     };
   }
 
@@ -182,5 +306,6 @@ export function buildContextRecommendation({
     contexts,
     sources,
     placeLabel: detectedPlace.label,
+    moon,
   };
 }

@@ -14,6 +14,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 import { backend } from '../services/backend';
+import { activateAccount } from '../services/personalData';
+import preferences from '../services/preferences';
 
 import {
   signInWithEmailAndPassword,
@@ -149,12 +151,21 @@ export default function LoginScreen({ onSuccess, onSkip }) {
       }
 
       // =========================================
+      // SWITCH ACCOUNT-SCOPED DEVICE DATA
+      // =========================================
+      // A different account on this device must not inherit the previous
+      // user's name, bookmarks, saved city or preferences.
+      await activateAccount(firebaseUser.uid);
+      await preferences.reload();
+
+      // =========================================
       // RESTORE SYNCED DATA
       // =========================================
       await pullSyncedData(
         firebaseUser.uid,
         SYNCED_KEYS
       );
+      await preferences.hydrateFromServer();
 
       // =========================================
       // OPEN APP

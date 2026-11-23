@@ -1,25 +1,38 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, Modal, Animated, Platform
+  StyleSheet, Modal, Animated, Platform, Alert, ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
-import { Magnetometer } from 'expo-sensors';
-import Svg, { Circle, Line, Polygon, G, Text as SvgText, Defs, RadialGradient, Stop, Path } from 'react-native-svg';
+import Svg, { Circle, Line, Polygon, Text as SvgText, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { useColors, useGlobalStyles, useThemedStyles } from '../theme';
 import {
   FIQH_METHODS, DEFAULT_FIQH, fiqhByKey, fiqhQuery, fiqhCacheSuffix,
 } from '../data/prayerMethods';
+import {
+  detectLocation, getSavedLocation, saveLocation, clearSavedCoordinates, reverseGeocode,
+} from '../services/location';
+import { geocodeCity } from '../services/geocode';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const KAABA_LAT = 21.4225;
 const KAABA_LNG = 39.8262;
 const PRAYER_ORDER = ['Fajr', 'Sunrise', 'Dhuhr', 'Asr', 'Maghrib', 'Isha', 'Midnight'];
 const PRAYER_ICONS = { Fajr: 'partly-sunny-outline', Sunrise: 'sunny-outline', Dhuhr: 'sunny', Asr: 'partly-sunny', Maghrib: 'cloudy-night-outline', Isha: 'moon-outline', Midnight: 'moon' };
-const PRAYER_COLORS = { Fajr: '#ffffff', Sunrise: '#ffffff', Dhuhr: '#ffffff', Asr: '#ffffff', Maghrib: '#ff4444', Isha: '#ffffff', Midnight: '#aaaaaa' };
+// Marker colours are resolved from the active theme so the highlighted prayer
+// stays readable on both the dark and the ivory light background.
+const prayerColorsFor = COLORS => ({
+  Fajr: COLORS.textPrimary,
+  Sunrise: COLORS.textPrimary,
+  Dhuhr: COLORS.textPrimary,
+  Asr: COLORS.textPrimary,
+  Maghrib: COLORS.red,
+  Isha: COLORS.textPrimary,
+  Midnight: COLORS.textSecondary,
+});
 const DIRS = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -65,7 +78,7 @@ const R_OUTER = 138;
 const R_FACE  = 118;
 const R_INNER = 22;
 
-function LiveQiblaCompass({ qiblaAngle, heading, accuracy, distanceKm, location }) {
+function LiveQiblaCompass({ qiblaAngle, heading, accuracy }) {
   const COLORS = useColors();
   const styles = useThemedStyles(makeStyles);
   const compassAnim = useRef(new Animated.Value(0)).current;
@@ -251,6 +264,7 @@ export default function PrayerTimesScreen() {
   const COLORS = useColors();
   const globalStyles = useGlobalStyles();
   const styles = useThemedStyles(makeStyles);
+  const PRAYER_COLORS = prayerColorsFor(COLORS);
 
   const [timings, setTimings]   = useState(null);
   const [fiqh, setFiqh]         = useState(DEFAULT_FIQH);
@@ -260,6 +274,7 @@ export default function PrayerTimesScreen() {
   const [tempCity, setTempCity] = useState('');
   const [tempCountry, setTempCountry] = useState('');
   const [modal, setModal]       = useState(false);
+  const [locatingCity, setLocatingCity] = useState(false);
   const [nextPrayer, setNextPrayer] = useState('');
   const [tab, setTab]           = useState('times');
 
@@ -305,12 +320,33 @@ export default function PrayerTimesScreen() {
       const cachedCountry = await AsyncStorage.getItem('qitab_prayer_country');
       const savedFiqh     = await AsyncStorage.getItem('qitab_prayer_fiqh');
       if (savedFiqh) setFiqh(savedFiqh);
-      if (cachedCity)    setCity(cachedCity);
-      if (cachedCountry) setCountry(cachedCountry);
+
+      let c  = cachedCity;
+      let co = cachedCountry;
+
+      // First run (or a device with no saved city): try GPS once so the
+      // weather and Qibla stop using Islamabad's coordinates.
+      if (!c) {
+        try {
+          const fix = await detectLocation({ timeoutMs: 12000 });
+          if (fix.city) {
+            c = fix.city;
+            co = fix.country || '';
+            setCity(c);
+            setCountry(co);
+          }
+        } catch {
+          // Denied, offline or no fix — the defaults below keep the screen usable.
+        }
+      }
+
+      if (c) setCity(c);
+      if (co) setCountry(co);
+
       await fetchTimings(
-        cachedCity || 'Islamabad',
-        cachedCountry || 'Pakistan',
-        (await AsyncStorage.getItem('qitab_prayer_fiqh')) || DEFAULT_FIQH
+        c || 'Islamabad',
+        co || 'Pakistan',
+        savedFiqh || DEFAULT_FIQH
       );
     } catch {} finally { setLoading(false); }
   };
@@ -368,63 +404,161 @@ export default function PrayerTimesScreen() {
     setCity(c); setCountry(co); setModal(false);
     await AsyncStorage.setItem('qitab_prayer_city', c);
     await AsyncStorage.setItem('qitab_prayer_country', co);
+    // A typed city replaces any GPS fix; otherwise weather and Qibla would
+    // keep using the old coordinates under the new city's name.
+    await clearSavedCoordinates();
     setLoading(true);
     await fetchTimings(c, co);
     setLoading(false);
   };
 
-  // ── Qibla Compass ───────────────────────────────────────────────────────────
-  const startQibla = async () => {
-    if (Platform.OS === 'web') {
-      // Web: use browser Geolocation API
-      if ('geolocation' in navigator) {
-        setLocStatus('loading');
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            const { latitude, longitude } = pos.coords;
-            setLocation({ latitude, longitude });
-            const angle = calcQibla(latitude, longitude);
-            const dist  = haversine(latitude, longitude, KAABA_LAT, KAABA_LNG);
-            setQiblaAngle(angle);
-            setDistanceKm(dist);
-            setLocStatus('ok');
-          },
-          () => setLocStatus('error')
+  const handleUseMyLocation = async () => {
+    if (locatingCity) return;
+    setLocatingCity(true);
+    try {
+      const fix = await detectLocation({ timeoutMs: 15000 });
+      if (!fix.city) {
+        Alert.alert(
+          'Location found',
+          'We found your coordinates but could not name the city. Enter a city name above so prayer times can be looked up.'
         );
+        return;
       }
+      setTempCity(fix.city);
+      setTempCountry(fix.country || '');
+      setCity(fix.city);
+      setCountry(fix.country || '');
+      setModal(false);
+      setLoading(true);
+      await fetchTimings(fix.city, fix.country || '');
+    } catch (e) {
+      Alert.alert('Could not get your location', e?.message || 'Please try again.');
+    } finally {
+      setLocatingCity(false);
+      setLoading(false);
+    }
+  };
+
+  // ── Qibla Compass ───────────────────────────────────────────────────────────
+  const readCurrentCoordinates = async () => {
+    if (Platform.OS === 'web') {
+      if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
+        throw new Error('Geolocation is not available in this browser.');
+      }
+      return new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          pos => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+          err => reject(new Error(err?.message || 'Location permission denied')),
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+        );
+      });
+    }
+
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') throw new Error('Location permission denied');
+
+    const pos = await Promise.race([
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('GPS timed out')), 15000)
+      ),
+    ]);
+    return { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+  };
+
+  const startHeading = async () => {
+    if (Platform.OS === 'web') {
+      if (typeof window === 'undefined') return;
+      const onOrient = event => {
+        const compass = typeof event.webkitCompassHeading === 'number'
+          ? event.webkitCompassHeading
+          : (typeof event.alpha === 'number' ? (360 - event.alpha) % 360 : null);
+        if (compass !== null && Number.isFinite(compass)) {
+          setHeading(compass);
+          setMagAccuracy(12);
+        }
+      };
+      window.addEventListener('deviceorientationabsolute', onOrient, true);
+      window.addEventListener('deviceorientation', onOrient, true);
+      setSensorSub({
+        remove: () => {
+          window.removeEventListener('deviceorientationabsolute', onOrient, true);
+          window.removeEventListener('deviceorientation', onOrient, true);
+        },
+      });
       return;
     }
 
-    // Mobile: expo-location + Magnetometer
-    setLocStatus('loading');
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') { setLocStatus('error'); return; }
+      const sub = await Location.watchHeadingAsync(({ trueHeading, magHeading, accuracy }) => {
+        const h = Number.isFinite(trueHeading) && trueHeading >= 0 ? trueHeading : magHeading;
+        if (!Number.isFinite(h) || h < 0) return;
+        setHeading(h);
+        setMagAccuracy(accuracy >= 3 ? 4 : accuracy === 2 ? 12 : 30);
+      });
+      setSensorSub({ remove: () => sub?.remove?.() });
+    } catch (e) {
+      console.warn('Compass heading unavailable:', e?.message);
+      setMagAccuracy(30);
+    }
+  };
 
-      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      const { latitude, longitude } = pos.coords;
-      setLocation({ latitude, longitude });
-      const angle = calcQibla(latitude, longitude);
-      const dist  = haversine(latitude, longitude, KAABA_LAT, KAABA_LNG);
-      setQiblaAngle(angle);
-      setDistanceKm(dist);
+  const startQibla = async () => {
+    if (locStatus === 'loading') return;
+
+    setLocStatus('loading');
+    sensorSub && sensorSub.remove();
+    setSensorSub(null);
+
+    try {
+      let coords = null;
+      let approximate = false;
+
+      // 1. Real GPS first.
+      try {
+        coords = await readCurrentCoordinates();
+      } catch (e) {
+        console.warn('Qibla GPS failed:', e?.message);
+      }
+
+      // 2. Saved city when GPS is denied or unavailable, labelled approximate.
+      if (!coords) {
+        const saved = await getSavedLocation();
+        const placeName = saved.city || city;
+        if (!placeName) {
+          setLocStatus('error');
+          return;
+        }
+        try {
+          const place = await geocodeCity(placeName);
+          coords = { latitude: place.latitude, longitude: place.longitude };
+          approximate = true;
+        } catch {
+          setLocStatus('error');
+          return;
+        }
+      }
+
+      setLocation({ ...coords, approximate });
+      setQiblaAngle(calcQibla(coords.latitude, coords.longitude));
+      setDistanceKm(haversine(coords.latitude, coords.longitude, KAABA_LAT, KAABA_LNG));
       setLocStatus('ok');
 
-      // Start magnetometer
-      Magnetometer.setUpdateInterval(100);
-      const sub = Magnetometer.addListener(({ x, y, z }) => {
-        // Standard compass heading formula (device held flat, screen up)
-        let angle = Math.atan2(y, x) * (180 / Math.PI);
-        let h = (angle >= 0 ? angle : angle + 360);
-        h = (90 - h + 360) % 360;
-        setHeading(h);
-        // Use z magnitude as rough accuracy proxy (lower = more accurate near equator)
-        const mag = Math.sqrt(x * x + y * y + z * z);
-        const acc = Math.abs(mag - 50); // μT deviation from typical Earth field
-        setMagAccuracy(Math.min(acc, 50));
-      });
-      setSensorSub(sub);
-    } catch { setLocStatus('error'); }
+      if (!approximate) {
+        // Share the fix with prayer times and the Home weather row.
+        saveLocation(coords);
+        reverseGeocode(coords.latitude, coords.longitude)
+          .then(name => {
+            if (name?.city) saveLocation({ ...coords, city: name.city, country: name.country });
+          })
+          .catch(() => {});
+      }
+
+      await startHeading();
+    } catch (e) {
+      console.warn('Qibla error:', e?.message);
+      setLocStatus('error');
+    }
   };
 
   const retryLocation = () => {
@@ -622,8 +756,6 @@ export default function PrayerTimesScreen() {
                 qiblaAngle={qiblaAngle}
                 heading={heading}
                 accuracy={magAccuracy}
-                distanceKm={distanceKm}
-                location={location}
               />
 
               {/* How to use */}
@@ -651,8 +783,10 @@ export default function PrayerTimesScreen() {
               {location && (
                 <View style={styles.coordCard}>
                   <Ionicons name="location-outline" size={16} color={COLORS.textSecondary} />
-                  <Text style={{ color: COLORS.textSecondary, fontSize: 12, marginLeft: 6 }}>
-                    Your location: {location.latitude.toFixed(4)}°N, {location.longitude.toFixed(4)}°E
+                  <Text style={{ color: COLORS.textSecondary, fontSize: 12, marginLeft: 6, flex: 1 }}>
+                    {location.approximate
+                      ? `Approximate: based on ${city}, ${country}`
+                      : `Your location: ${location.latitude.toFixed(4)}°N, ${location.longitude.toFixed(4)}°E`}
                   </Text>
                   <TouchableOpacity onPress={retryLocation} style={{ marginLeft: 'auto' }}>
                     <Ionicons name="refresh-outline" size={16} color={COLORS.gold} />
@@ -710,6 +844,28 @@ export default function PrayerTimesScreen() {
             <TouchableOpacity style={globalStyles.btnPrimary} onPress={handleLocationSubmit}>
               <Ionicons name="location" size={18} color="#000" />
               <Text style={globalStyles.btnPrimaryText}>Update Location</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[globalStyles.btnPrimary, {
+                marginTop: 10,
+                backgroundColor: COLORS.glass,
+                borderWidth: 1,
+                borderColor: COLORS.glassBorder,
+              }]}
+              onPress={handleUseMyLocation}
+              disabled={locatingCity}
+            >
+              {locatingCity ? (
+                <ActivityIndicator color={COLORS.gold} />
+              ) : (
+                <>
+                  <Ionicons name="navigate" size={18} color={COLORS.gold} />
+                  <Text style={[globalStyles.btnPrimaryText, { color: COLORS.gold }]}>
+                    Use My Current Location
+                  </Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
         </View>

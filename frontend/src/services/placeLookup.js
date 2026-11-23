@@ -86,4 +86,51 @@ export async function lookupCurrentPlace({ prompt = true } = {}) {
   }
 }
 
+/** Names a coordinate the device already has, without taking a new fix. */
+export async function describeCoordinates(latitude, longitude) {
+  if (Platform.OS === 'web') return null;
+  try {
+    const results = await Location.reverseGeocodeAsync({ latitude, longitude });
+    return Array.isArray(results) && results.length ? results[0] : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Follows the device as it moves. Only started after the grant is already in
+ * place, so no system dialog appears just because the screen opened. Returns
+ * null when permission is missing or the platform refuses to watch.
+ */
+export async function watchDevicePosition(onFix) {
+  let permission;
+  try {
+    permission = await Location.getForegroundPermissionsAsync();
+  } catch {
+    return null;
+  }
+  if (permission?.status !== 'granted') return null;
+
+  try {
+    return await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.Balanced,
+        distanceInterval: 300,
+        timeInterval: 60000,
+      },
+      position => {
+        const coords = position?.coords || {};
+        onFix?.({
+          latitude: coords.latitude ?? null,
+          longitude: coords.longitude ?? null,
+          accuracy: coords.accuracy ?? null,
+          speedMps: typeof coords.speed === 'number' && coords.speed >= 0 ? coords.speed : null,
+        });
+      }
+    );
+  } catch {
+    return null;
+  }
+}
+
 export default lookupCurrentPlace;

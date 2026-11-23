@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet,
-  Modal, ActivityIndicator, Alert, Platform
+  Modal, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,11 +16,25 @@ import { APP_CONFIG } from '../config/appConfig';
 import * as Speech from 'expo-speech';
 import {
   quranService, TRANSLATIONS, RECITERS, TARJAMA_AUDIO, hasRecitedTranslation,
-  reciterById, isPerVerseOnly,
+  isPerVerseOnly,
 } from '../services/quranApi';
 
 /** Translations arrive with footnote markup (<sup>, <a>) that must not render. */
 const stripHtml = t => (t || '').replace(/<[^>]*>/g, '').trim();
+
+/**
+ * Bookmarks are stored as an array of "surah:ayah" keys, but older builds and
+ * the sample library stored a `{ "surah:ayah": true }` map. Reading the map as
+ * an array crashed the reader on `bookmarks.includes`.
+ */
+const bookmarkKeys = raw => {
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (Array.isArray(parsed)) return parsed.filter(k => typeof k === 'string');
+    if (parsed && typeof parsed === 'object') return Object.keys(parsed).filter(k => parsed[k]);
+  } catch { /* corrupt value — treat as no bookmarks */ }
+  return [];
+};
 
 /**
  * Reader settings (translation language + reciter).
@@ -62,69 +76,73 @@ function ReaderSettingsModal({
           </TouchableOpacity>
         </View>
 
-        <Text style={globalStyles.label}>TRANSLATION LANGUAGE</Text>
-        {Object.entries(TRANSLATIONS).map(([key, t]) => (
-          <TouchableOpacity
-            key={key}
-            onPress={() => { onSelectLanguage(key); }}
-            style={[styles.settingRow, langKey === key && { borderColor: COLORS.gold, backgroundColor: 'rgba(255, 255, 255,0.06)' }]}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: langKey === key ? COLORS.gold : COLORS.textPrimary, fontWeight: '700' }}>
-                {t.native} <Text style={{ color: COLORS.textSecondary, fontWeight: '500' }}>· {t.name}</Text>
-              </Text>
-              <Text style={{ color: COLORS.textSecondary, fontSize: 11 }}>{t.author}</Text>
-              {/* Says up front whether Tarjama will be a recitation or the
-                  device voice, rather than surprising the user on play. */}
-              <Text style={{ color: COLORS.textSecondary, fontSize: 10, marginTop: 2, opacity: 0.8 }}>
-                {hasRecitedTranslation(key)
-                  ? `Tarjama recited by ${TARJAMA_AUDIO[key].reciter}`
-                  : 'Tarjama read by device voice'}
-              </Text>
-            </View>
-            {langKey === key && <Ionicons name="checkmark-circle" size={18} color={COLORS.gold} />}
-          </TouchableOpacity>
-        ))}
-
-        <View style={{ height: 1, backgroundColor: COLORS.glassBorder, marginVertical: 16 }} />
-
-        <Text style={globalStyles.label}>QARI · {RECITERS.length} RECITERS</Text>
-        <Text style={styles.qariHint}>
-          Search by name, or scroll. Qaris marked “verse by verse” are stitched
-          ayah by ayah — the reader follows along as they recite.
-        </Text>
-
-        <View style={styles.qariSearch}>
-          <Ionicons name="search" size={14} color={COLORS.textSecondary} />
-          <TextInput
-            style={styles.qariSearchInput}
-            value={qariQuery}
-            onChangeText={setQariQuery}
-            placeholder="Search qari"
-            placeholderTextColor={COLORS.textSecondary}
-            accessibilityLabel="Search qari"
-          />
-          {qariQuery ? (
-            <TouchableOpacity onPress={() => setQariQuery('')}>
-              <Ionicons name="close-circle" size={15} color={COLORS.textSecondary} />
-            </TouchableOpacity>
-          ) : null}
-        </View>
-
-        <FlatList
-          data={filteredQaris}
-          keyExtractor={r => String(r.id)}
-          style={{ maxHeight: 280 }}
+        {/* The language list and qari list together are taller than a phone
+            screen. The modal had no height bound, so it grew past the top edge
+            and the languages — the first thing in the body — were the part
+            that got cut off. Bound the sheet and scroll its body. */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          ListEmptyComponent={
+          style={{ flexGrow: 0, flexShrink: 1 }}
+        >
+          <Text style={globalStyles.label}>TRANSLATION LANGUAGE</Text>
+          {Object.entries(TRANSLATIONS).map(([key, t]) => (
+            <TouchableOpacity
+              key={key}
+              onPress={() => { onSelectLanguage(key); }}
+              style={[styles.settingRow, langKey === key && { borderColor: COLORS.gold, backgroundColor: COLORS.glass }]}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: langKey === key ? COLORS.gold : COLORS.textPrimary, fontWeight: '700' }}>
+                  {t.native} <Text style={{ color: COLORS.textSecondary, fontWeight: '500' }}>· {t.name}</Text>
+                </Text>
+                <Text style={{ color: COLORS.textSecondary, fontSize: 11 }}>{t.author}</Text>
+                {/* Says up front whether Tarjama will be a recitation or the
+                    device voice, rather than surprising the user on play. */}
+                <Text style={{ color: COLORS.textSecondary, fontSize: 10, marginTop: 2, opacity: 0.8 }}>
+                  {hasRecitedTranslation(key)
+                    ? `Tarjama recited by ${TARJAMA_AUDIO[key].reciter}`
+                    : 'Tarjama read by device voice'}
+                </Text>
+              </View>
+              {langKey === key && <Ionicons name="checkmark-circle" size={18} color={COLORS.gold} />}
+            </TouchableOpacity>
+          ))}
+
+          <View style={{ height: 1, backgroundColor: COLORS.glassBorder, marginVertical: 16 }} />
+
+          <Text style={globalStyles.label}>QARI · {RECITERS.length} RECITERS</Text>
+          <Text style={styles.qariHint}>
+            Search by name, or scroll. Qaris marked “verse by verse” are stitched
+            ayah by ayah — the reader follows along as they recite.
+          </Text>
+
+          <View style={styles.qariSearch}>
+            <Ionicons name="search" size={14} color={COLORS.textSecondary} />
+            <TextInput
+              style={styles.qariSearchInput}
+              value={qariQuery}
+              onChangeText={setQariQuery}
+              placeholder="Search qari"
+              placeholderTextColor={COLORS.textSecondary}
+              accessibilityLabel="Search qari"
+            />
+            {qariQuery ? (
+              <TouchableOpacity onPress={() => setQariQuery('')}>
+                <Ionicons name="close-circle" size={15} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+
+          {filteredQaris.length === 0 ? (
             <Text style={styles.qariEmpty}>No qari matches “{qariQuery}”.</Text>
-          }
-          renderItem={({ item: r }) => {
+          ) : filteredQaris.map(r => {
             const active = String(reciterId) === String(r.id);
             return (
               <TouchableOpacity
+                key={r.id}
                 onPress={() => { onSelectReciter(r.id); }}
-                style={[styles.settingRow, active && { borderColor: COLORS.emerald, backgroundColor: 'rgba(255, 255, 255,0.06)' }]}
+                style={[styles.settingRow, active && { borderColor: COLORS.emerald, backgroundColor: COLORS.glass }]}
                 accessibilityRole="button"
                 accessibilityLabel={`${r.name}${r.style ? ', ' + r.style : ''}`}
               >
@@ -147,8 +165,8 @@ function ReaderSettingsModal({
                 {active && <Ionicons name="checkmark-circle" size={18} color={COLORS.emerald} />}
               </TouchableOpacity>
             );
-          }}
-        />
+          })}
+        </ScrollView>
       </View>
     </View>
   </Modal>
@@ -198,7 +216,13 @@ export default function QuranScreen({ route }) {
   // is applied only once its verses have loaded, then cleared so a later
   // manual scroll is not undone.
   const readerListRef = useRef(null);
+  // Caps estimate-then-retry loops when a far-off index still has no rows.
+  const jumpRetryRef = useRef(0);
   const [pendingAyah, setPendingAyah] = useState(null);
+  // The ayah a deep link asked to land on. Unlike `pendingAyah` (cleared after
+  // the scroll), this stays set so the list keeps mounting enough rows for the
+  // jump to be measurable — ScrollToIndex cannot target an unrendered row.
+  const [readAnchor, setReadAnchor] = useState(null);
   // Which surah `verses` currently belongs to. A deep link switches the
   // chapter first and the fetch resolves later; without this the scroll
   // effect saw the *previous* surah's verses, decided the ayah was out of
@@ -226,13 +250,13 @@ export default function QuranScreen({ route }) {
           });
           setNotes(notesMap);
           return;
-        } catch (e) { /* fall through */ }
+        } catch { /* fall through */ }
       }
-      getItem('qitab_bookmarks').then(v => v && setBookmarks(JSON.parse(v)));
-      getItem('qitab_notes').then(v => v && setNotes(JSON.parse(v)));
-    } catch (e) {
-      getItem('qitab_bookmarks').then(v => v && setBookmarks(JSON.parse(v)));
-      getItem('qitab_notes').then(v => v && setNotes(JSON.parse(v)));
+      getItem('qitab_bookmarks').then(v => v && setBookmarks(bookmarkKeys(v))).catch(() => {});
+      getItem('qitab_notes').then(v => v && setNotes(JSON.parse(v))).catch(() => {});
+    } catch {
+      getItem('qitab_bookmarks').then(v => v && setBookmarks(bookmarkKeys(v))).catch(() => {});
+      getItem('qitab_notes').then(v => v && setNotes(JSON.parse(v))).catch(() => {});
     }
   };
 
@@ -244,6 +268,17 @@ export default function QuranScreen({ route }) {
     setPlayTarjama(prefs.autoPlayTarjama);
     setContinuous(prefs.continuousPlay);
   }, [prefsReady, prefs]);
+
+  // The app language can change while this reader is already mounted (drawer
+  // toggle, Settings tab), and Settings can change the default translation.
+  // Follow the preference after the first seed so the verses are refetched in
+  // the newly chosen language instead of staying in English until a remount.
+  useEffect(() => {
+    if (!prefsReady || !seeded.current) return;
+    setLangKey(prev => (
+      prefs.translationLanguage === prev ? prev : prefs.translationLanguage
+    ));
+  }, [prefsReady, prefs.translationLanguage]);
 
   useEffect(() => {
     if (activeChapter) loadVerses(activeChapter.id);
@@ -263,7 +298,15 @@ export default function QuranScreen({ route }) {
     const ayah = Number(route?.params?.ayah);
     if (!surah || !ayah) return;
     setPendingAyah({ surah, ayah });
+    setReadAnchor(ayah - 1);
   }, [route?.params?.surah, route?.params?.ayah]);
+
+  // Picking a different surah clears the anchor so the list starts from the
+  // top; the deep link that set it is exempt.
+  useEffect(() => {
+    if (pendingAyah?.surah === activeChapter?.id) return;
+    setReadAnchor(null);
+  }, [activeChapter?.id]);
 
   useEffect(() => {
     if (!pendingAyah || !verses.length) return;
@@ -277,6 +320,7 @@ export default function QuranScreen({ route }) {
       setPendingAyah(null);
       return undefined;
     }
+    jumpRetryRef.current = 0;
     const timer = setTimeout(() => {
       readerListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.05 });
       setPendingAyah(null);
@@ -290,7 +334,7 @@ export default function QuranScreen({ route }) {
     try {
       const data = await quranService.getChapters();
       setChapters(data);
-    } catch (e) {
+    } catch {
       setError('Could not load chapters. Check your internet connection.');
     } finally { setLoadingChapters(false); }
   };
@@ -485,7 +529,7 @@ export default function QuranScreen({ route }) {
             surah_name: activeChapter?.name_simple,
           });
         }
-      } catch (e) { /* backend unavailable */ }
+      } catch { /* backend unavailable */ }
     }
   };
 
@@ -707,20 +751,36 @@ export default function QuranScreen({ route }) {
         </View>
 
         <FlatList
+          // Re-mount when a deep link sets an anchor so the target row is in
+          // the initial render window and therefore measurable.
+          key={`reader-${activeChapter?.id ?? 0}-${readAnchor ?? 'top'}`}
           ref={readerListRef}
+          initialNumToRender={readAnchor != null ? Math.min(verses.length, readAnchor + 5) : 10}
           data={verses}
           keyExtractor={v => v.id.toString()}
           contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
           ItemSeparatorComponent={() => <View style={styles.verseDivider} />}
           // Variable-height verse cards cannot be measured ahead of time, so
-          // an exact jump can fail. Estimate the offset and let the user
-          // continue from there rather than throwing the scroll away.
+          // an exact jump can fail. Scroll to an estimated offset first, then
+          // retry the exact index once the rows around it have rendered —
+          // otherwise the estimate alone lands several verses short.
           onScrollToIndexFailed={info => {
+            if (jumpRetryRef.current >= 8) return;
+            jumpRetryRef.current += 1;
+            const estimate = info.averageItemLength * info.index;
             setTimeout(() => {
-              readerListRef.current?.scrollToOffset({
-                offset: info.averageItemLength * info.index,
-                animated: true,
-              });
+              // While the first rows are still being measured the average is
+              // 0; scrolling to that estimate would yank the list to the top.
+              if (Number.isFinite(estimate) && estimate > 0) {
+                readerListRef.current?.scrollToOffset({ offset: estimate, animated: false });
+              }
+              setTimeout(() => {
+                readerListRef.current?.scrollToIndex({
+                  index: info.index,
+                  animated: true,
+                  viewPosition: 0.05,
+                });
+              }, 350);
             }, 120);
           }}
           renderItem={({ item: verse, index }) => {
@@ -826,7 +886,7 @@ export default function QuranScreen({ route }) {
                         content: selectedVerse.note, category: 'quran',
                         surah_number: parseInt(surah), ayah_number: parseInt(ayah),
                       });
-                    } catch (e) { /* backend unavailable */ }
+                    } catch { /* backend unavailable */ }
                   }
                   setSelectedVerse(null);
                 }}
@@ -870,7 +930,7 @@ const makeStyles = (COLORS) => StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: COLORS.glass,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.glassBorder,
@@ -881,8 +941,8 @@ const makeStyles = (COLORS) => StyleSheet.create({
   searchInput: { flex: 1, color: COLORS.textPrimary, fontSize: 14 },
   settingsBtn: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255,0.08)',
-    borderWidth: 1, borderColor: 'rgba(255, 255, 255,0.3)',
+    backgroundColor: COLORS.glass,
+    borderWidth: 1, borderColor: COLORS.glassBorder,
     alignItems: 'center', justifyContent: 'center',
   },
   indicatorRow: {
@@ -895,7 +955,7 @@ const makeStyles = (COLORS) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: COLORS.glass,
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -915,7 +975,7 @@ const makeStyles = (COLORS) => StyleSheet.create({
   },
   chapterNum: {
     width: 38, height: 38, borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255,0.1)',
+    backgroundColor: COLORS.glass,
     alignItems: 'center', justifyContent: 'center',
   },
   readerHeader: {
@@ -946,8 +1006,8 @@ const makeStyles = (COLORS) => StyleSheet.create({
   },
   verseNum: {
     width: 44, height: 28, borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255,0.1)',
-    borderWidth: 1, borderColor: 'rgba(255, 255, 255,0.3)',
+    backgroundColor: COLORS.glass,
+    borderWidth: 1, borderColor: COLORS.glassBorder,
     alignItems: 'center', justifyContent: 'center',
   },
   arabicVerse: {
@@ -974,11 +1034,11 @@ const makeStyles = (COLORS) => StyleSheet.create({
   },
   translationBox: {
     borderLeftWidth: 3, borderLeftColor: COLORS.gold,
-    paddingLeft: 14, backgroundColor: 'rgba(255,255,255,0.02)',
+    paddingLeft: 14, backgroundColor: COLORS.glass,
     borderRadius: 8, padding: 12,
   },
   translationText: {
-    color: '#f1f5f9', fontSize: 15, lineHeight: 24,
+    color: COLORS.textPrimary, fontSize: 15, lineHeight: 24,
   },
   translationLabel: {
     color: COLORS.textSecondary, fontSize: 10,
@@ -996,6 +1056,7 @@ const makeStyles = (COLORS) => StyleSheet.create({
     backgroundColor: COLORS.bgSecondary,
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: 24, borderTopWidth: 1, borderColor: COLORS.glassBorder,
+    maxHeight: '88%',
   },
   settingRow: {
     flexDirection: 'row', justifyContent: 'space-between',

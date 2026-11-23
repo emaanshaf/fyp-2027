@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, ScrollView
+  View, Text, TouchableOpacity, StyleSheet, ScrollView
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,12 +22,6 @@ export const PRAYERS = [
 
 function getTodayKey() {
   const d = new Date();
-  return `prayer_log_${d.getFullYear()}_${d.getMonth()}_${d.getDate()}`;
-}
-
-function getWeekKey(offset = 0) {
-  const d = new Date();
-  d.setDate(d.getDate() - d.getDay() + offset);
   return `prayer_log_${d.getFullYear()}_${d.getMonth()}_${d.getDate()}`;
 }
 

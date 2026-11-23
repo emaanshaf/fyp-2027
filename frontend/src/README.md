@@ -73,7 +73,7 @@ Each file in `screens/` is a self-contained module screen:
 | `GoodDeedsScreen.jsx` | Good deeds tracker |
 | `RamadanModeScreen.jsx` | Ramadan-specific features |
 | `PillarsScreen.jsx` | Five Pillars of Islam |
-| `ProphetsStoriesScreen.jsx` + `SeerahScreen.jsx` | Prophets and Seerah content |
+| `ProphetsStoriesScreen.jsx` + `SeerahScreen.jsx` | The 25 prophets named in the Quran with references, full stories read from the Quran in five languages, and the Seerah timeline |
 | `AyahOfDayScreen.jsx` | Daily Ayah feature |
 | `GeneratorScreen.jsx` | Islamic content generator |
 | `SearchScreen.jsx` | Global search across all modules |

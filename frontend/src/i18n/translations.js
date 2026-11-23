@@ -9,8 +9,8 @@
 export const LANGUAGE_STORAGE_KEY = 'qitab_language';
 
 export const LANGUAGES = [
-  { code: 'en', label: 'English', native: 'English' },
-  { code: 'ur', label: 'Urdu', native: 'اردو' },
+  { code: 'en', label: 'English', native: 'English', translation: 'en' },
+  { code: 'ur', label: 'Urdu', native: 'اردو', translation: 'ur' },
 ];
 
 const en = {
@@ -66,7 +66,7 @@ const en = {
 
   'settings.appearance': 'Appearance',
   'settings.language': 'App Language',
-  'settings.languageHint': 'Interface copy and the new worship guides switch immediately. The brand, navigation, feature names and AI assistant stay in English.',
+  'settings.languageHint': 'The interface switches immediately. Choosing اردو also switches the Quran and Tafsir tarjuma to Jalandhari Urdu; all five reading translations stay available in Reading settings and in the reader.',
   'settings.english': 'English',
   'settings.urdu': 'اردو',
 
@@ -153,7 +153,7 @@ const ur = {
 
   'settings.appearance': 'ظاہری شکل',
   'settings.language': 'ایپ کی زبان',
-  'settings.languageHint': 'انٹرفیس اور نئی عبادتی رہنماؤں کی زبان فوراً تبدیل ہو جاتی ہے۔ برانڈ، نیویگیشن، فیچر کے نام اور AI معاون انگریزی میں رہتے ہیں۔',
+  'settings.languageHint': 'انٹرفیس فوراً تبدیل ہو جاتا ہے۔ اردو منتخب کرنے پر قرآن اور تفسیر کا ترجمہ بھی جالندھری اردو میں آ جاتا ہے؛ پانچوں ترجمے ریڈنگ سیٹنگز اور ریڈر میں دستیاب رہتے ہیں۔',
   'settings.english': 'English',
   'settings.urdu': 'اردو',
 };

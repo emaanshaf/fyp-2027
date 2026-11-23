@@ -307,7 +307,8 @@ Paths are relative to the repository root. `node_modules/`, `.expo/`, `dist*/` a
 | `frontend/src/data/names.js` | The 99 Names of Allah. |
 | `frontend/src/data/pillars.js` | The five pillars of Islam and the six articles of faith. |
 | `frontend/src/data/prayerMethods.js` | Prayer-time calculation methods by school of fiqh. |
-| `frontend/src/data/prophets.js` | The twenty-five prophets named in the Quran, in canonical order. |
+| `frontend/src/data/prophets.js` | The twenty-five prophets named in the Quran, in canonical order, with the surah/ayah ranges each one appears in. |
+| `frontend/src/data/prophetsI18n.js` | Prophet names, summaries and lessons in Urdu, Malay, French and Indonesian, plus the story reader's UI labels in all five reading languages. |
 | `frontend/src/data/quiz.js` | Question bank shared by the Islamic Quiz and the learning engine. |
 | `frontend/src/data/quranReminder.js` | Quran reminder slots and their default times. |
 | `frontend/src/data/seerah.js` | The Seerah as a dated timeline. |
@@ -366,7 +367,7 @@ Paths are relative to the repository root. `node_modules/`, `.expo/`, `dist*/` a
 | `frontend/src/screens/CommunitiesScreen.jsx` | Local-first community circles. Nothing is shared with other users yet. |
 | `frontend/src/screens/DiagnosticsScreen.jsx` | System health report: network, backend, AI status and storage. |
 | `frontend/src/screens/DuaLibraryScreen.jsx` | Full dua library with search and sharing. |
-| `frontend/src/screens/DuasScreen.jsx` | Duas for the time of day, the place (optional GPS) and manual context chips. |
+| `frontend/src/screens/DuasScreen.jsx` | Duas for the time of day, live location, weather, moon phase, landscape and manual context chips. |
 | `frontend/src/screens/ELearningScreen.jsx` | E-Learning course library: lessons, review questions and progress. |
 | `frontend/src/screens/GeneratorScreen.jsx` | Manual content-card creator with sharing. No generation. |
 | `frontend/src/screens/GoodDeedsScreen.jsx` | Good deeds tracker. |
@@ -390,7 +391,7 @@ Paths are relative to the repository root. `node_modules/`, `.expo/`, `dist*/` a
 | `frontend/src/screens/PillarsScreen.jsx` | Five pillars and six articles of faith. |
 | `frontend/src/screens/PrayerTimesScreen.jsx` | Prayer times for the saved city and calculation method, with the next-prayer countdown. |
 | `frontend/src/screens/PrayerTrackerScreen.jsx` | Daily prayer tracker. |
-| `frontend/src/screens/ProphetsStoriesScreen.jsx` | Stories of the prophets. |
+| `frontend/src/screens/ProphetsStoriesScreen.jsx` | The twenty-five prophets named in the Quran, each marked as such with its references, a full story reader that loads those verses in the chosen language, and a jump into the Quran reader. |
 | `frontend/src/screens/QiblaFinderScreen.jsx` | Qibla direction and distance to the Kaaba, using the compass and location. |
 | `frontend/src/screens/QuranJourneyScreen.jsx` | Quran reading journey and progress. |
 | `frontend/src/screens/QuranScreen.jsx` | Quran reader with translations, recitation audio and offline download. |
@@ -417,7 +418,8 @@ Paths are relative to the repository root. `node_modules/`, `.expo/`, `dist*/` a
 | `frontend/src/services/__tests__/backupFormat.test.js` | Automated tests for the `backupFormat` module. |
 | `frontend/src/services/__tests__/backupRestore.test.js` | Automated tests for the `backupRestore` module. |
 | `frontend/src/services/__tests__/cache.test.js` | Automated tests for the `cache` module. |
-| `frontend/src/services/__tests__/contextDuas.test.js` | Automated tests for the `contextDuas` module. |
+| `frontend/src/services/__tests__/contextDuas.test.js` | Automated tests for the `contextDuas` module, including weather, moon and landscape priority. |
+| `frontend/src/services/__tests__/contextEnvironment.test.js` | Automated tests for the environment sensing service (rain history, weather normalisation, Overpass parsing and cache). |
 | `frontend/src/services/__tests__/diagnosticsFormat.test.js` | Automated tests for the `diagnosticsFormat` module. |
 | `frontend/src/services/__tests__/geocode.test.js` | Automated tests for the `geocode` module. |
 | `frontend/src/services/__tests__/globalSearch.test.js` | Automated tests for the `globalSearch` module. |
@@ -441,7 +443,7 @@ Paths are relative to the repository root. `node_modules/`, `.expo/`, `dist*/` a
 | `frontend/src/services/backup.js` | Backup and restore: file input and output. |
 | `frontend/src/services/backupFormat.js` | Backup envelope format and validation. |
 | `frontend/src/services/cache.js` | Offline-first data layer. Serves cached data when the network fails and refreshes it when the connection returns. |
-| `frontend/src/services/contextDuas.js` | Picks duas from the time of day, the optional place and the manual context chips. |
+| `frontend/src/services/contextDuas.js` | Picks duas from the time of day, place, weather, moon phase, landscape and the manual context chips. |
 | `frontend/src/services/decks.js` | Turns shipped content (Names, duas, quiz bank, Hifz) into review cards for the learning engine. |
 | `frontend/src/services/diagnostics.js` | Collects the system health data shown on the Diagnostics screen. |
 | `frontend/src/services/diagnosticsFormat.js` | Pure formatting and analysis of the diagnostics report. |
@@ -452,7 +454,7 @@ Paths are relative to the repository root. `node_modules/`, `.expo/`, `dist*/` a
 | `frontend/src/services/learningEngine.js` | Adaptive review engine that schedules learning items with spaced intervals. |
 | `frontend/src/services/notifications.js` | Notifications for prayer times, reminders and Quran recitation, plus the in-app reminder subscriber. |
 | `frontend/src/services/offlineLibrary.js` | Downloaded Quran library for reading without a connection. |
-| `frontend/src/services/placeLookup.js` | Turns a one-shot GPS fix into a place label through the phone's own geocoder (never the server). |
+| `frontend/src/services/placeLookup.js` | Turns a GPS fix into a place label through the phone's own geocoder and follows the device while live context is on (never the server). |
 | `frontend/src/services/preferences.js` | User preferences storage. |
 | `frontend/src/services/quranApi.js` | Quran service backed by the quran.com v4 API, including translations and recitation audio. |
 | `frontend/src/services/reminderSound.js` | Plays the chosen reminder chime and primes audio on the first tap. |
@@ -461,6 +463,7 @@ Paths are relative to the repository root. `node_modules/`, `.expo/`, `dist*/` a
 | `frontend/src/services/tafsirApi.js` | Tafsir service backed by the quran.com v4 API. |
 | `frontend/src/services/todaysReminders.js` | Works out which reminders are due today and keeps them due until they are marked done. |
 | `frontend/src/services/weather.js` | Keyless Open-Meteo weather for the saved city, cached for thirty minutes with an offline fallback. |
+| `frontend/src/services/contextEnvironment.js` | Keyless Open-Meteo weather, 92-day rain history and elevation plus OpenStreetMap Overpass landscape names for the Duas card; every call degrades to null offline. |
 
 ### `frontend/src/theme`
 

@@ -12,6 +12,7 @@ import {
   advanceByMinutes,
   formatTime12,
   nextOccurrence,
+  parseTimeInput,
   slotObjectsFromSettings,
 } from '../data/quranReminder';
 
@@ -227,6 +228,9 @@ export class NotificationService {
   }
 
   async cancelAllNotifications() {
+    // Web timers live outside expo-notifications, so they need clearing here
+    // too — otherwise "enable notifications off" leaves popups firing.
+    this.clearWebQuranTimers();
     await Notifications.cancelAllScheduledNotificationsAsync();
   }
 
@@ -374,6 +378,39 @@ export class NotificationService {
   clearWebQuranTimers() {
     for (const timer of this.webQuranTimers.values()) clearTimeout(timer);
     this.webQuranTimers.clear();
+  }
+
+  /**
+   * Web-only daily reminder for a custom reminder. Native builds use an OS
+   * alarm (scheduleDailyReminder in RemindersScreen) and survive the app
+   * closing; the browser tab has to keep its own timer, re-armed for the
+   * next day after it fires.
+   */
+  scheduleWebReminder({ identifier, title, body, time }) {
+    if (Platform.OS !== 'web') return null;
+    const parsed = parseTimeInput(time);
+    if (!parsed) return null;
+    const existing = this.webQuranTimers.get(identifier);
+    if (existing) clearTimeout(existing);
+    this.armWebReminder(identifier, parsed, title, body);
+    return identifier;
+  }
+
+  armWebReminder(identifier, parsed, title, body) {
+    const fireAt = nextOccurrence(parsed, 0);
+    const delay = Math.max(0, fireAt.getTime() - Date.now());
+    const timer = setTimeout(() => {
+      this.raiseQuranPopup({ title, body });
+      this.armWebReminder(identifier, parsed, title, body);
+    }, delay);
+    this.webQuranTimers.set(identifier, timer);
+  }
+
+  cancelWebReminder(identifier) {
+    const timer = this.webQuranTimers.get(identifier);
+    if (!timer) return;
+    clearTimeout(timer);
+    this.webQuranTimers.delete(identifier);
   }
 
   /** Notify the app (in-app popup banner) and, on web, the browser itself. */

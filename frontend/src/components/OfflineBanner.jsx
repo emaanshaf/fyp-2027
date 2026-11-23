@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, Platform } from 'react-native';
+import { Text, StyleSheet, Animated, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../theme';
+import { useColors } from '../theme';
 import { isOnline, onConnectivityChange } from '../services/cache';
 
 /**
@@ -15,6 +15,7 @@ import { isOnline, onConnectivityChange } from '../services/cache';
  * disappearance is explained rather than just happening.
  */
 export default function OfflineBanner() {
+  const COLORS = useColors();
   const [online, setOnline] = useState(isOnline());
   const [visible, setVisible] = useState(false);
   const slide = useRef(new Animated.Value(0)).current;

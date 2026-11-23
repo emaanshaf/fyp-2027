@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput,
-  StyleSheet, Switch, Modal, Platform, Animated, Alert,
+  StyleSheet, Switch, Modal, Platform, Animated, Alert, ScrollView, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -52,6 +52,7 @@ const ensureReminderChannel = async () => {
 };
 
 const cancelNotificationId = async identifier => {
+  notificationService.cancelWebReminder(identifier);
   if (Platform.OS === 'web') return;
   try {
     // expo-notifications has no bulk-by-ids cancel; the singular call is the
@@ -118,6 +119,143 @@ const QURAN_MESSAGES_PREVIEW = [
 const STORAGE_KEY_QURAN  = QURAN_REMINDER_STORAGE_KEY;
 const STORAGE_KEY_STREAK = 'qitab_quran_streak';
 
+// ── Time picker ─────────────────────────────────────────────────────────────
+// Typing "7:08 pm" by hand was the only way to set a reminder time. This is a
+// tappable field that opens hour / minute / AM-PM pickers and hands back the
+// same "7:08 PM" string the scheduler already understands.
+function TimeField({ value, onChange, placeholder = 'Select time', inline = false }) {
+  const COLORS = useColors();
+  const globalStyles = useGlobalStyles();
+  const styles = useThemedStyles(makeStyles);
+
+  const [open, setOpen] = useState(false);
+  const [draftHour, setDraftHour] = useState(7);
+  const [draftMinute, setDraftMinute] = useState(0);
+
+  const openPicker = () => {
+    const parsed = parseTimeInput(value) || { hour: 7, minute: 0 };
+    setDraftHour(parsed.hour);
+    setDraftMinute(parsed.minute);
+    setOpen(true);
+  };
+
+  const hour12 = draftHour % 12 || 12;
+  const isPm = draftHour >= 12;
+
+  const pickHour = h => setDraftHour((h % 12) + (isPm ? 12 : 0));
+  const pickPeriod = pm => setDraftHour((draftHour % 12) + (pm ? 12 : 0));
+
+  const confirm = () => {
+    onChange(formatTime12({ hour: draftHour, minute: draftMinute }));
+    setOpen(false);
+  };
+
+  // A Modal inside another Modal (Add Reminder) is unreliable on Android, so
+  // the picker can expand inline instead of stacking a second sheet.
+  const pickerBody = (
+    <View style={inline ? styles.inlinePicker : undefined}>
+      <View style={[globalStyles.spaceBetween, { marginBottom: 16 }]}>
+        <Text style={{ color: COLORS.textPrimary, fontWeight: '900', fontSize: 20 }}>Choose Time</Text>
+        <TouchableOpacity onPress={() => setOpen(false)}>
+          <Ionicons name="close-circle" size={26} color={COLORS.textSecondary} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 18 }}>
+        <Text style={{ color: COLORS.gold, fontSize: 38, fontWeight: '900', letterSpacing: 1 }}>
+          {String(hour12).padStart(2, '0')}:{String(draftMinute).padStart(2, '0')}
+        </Text>
+        <View style={{ flexDirection: 'row', borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: COLORS.glassBorder }}>
+          {[false, true].map(pm => (
+            <TouchableOpacity
+              key={pm ? 'PM' : 'AM'}
+              onPress={() => pickPeriod(pm)}
+              style={{
+                paddingHorizontal: 14, paddingVertical: 8,
+                backgroundColor: isPm === pm ? COLORS.primary : 'transparent',
+              }}
+            >
+              <Text style={{ color: isPm === pm ? '#fff' : COLORS.textSecondary, fontWeight: '800' }}>
+                {pm ? 'PM' : 'AM'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      <Text style={styles.sectionLabel}>HOUR</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingBottom: 12 }}>
+        {Array.from({ length: 12 }, (_, i) => i + 1).map(h => (
+          <TouchableOpacity
+            key={h}
+            onPress={() => pickHour(h)}
+            style={[styles.timeChip, h === hour12 && styles.timeChipActive]}
+          >
+            <Text style={[styles.timeChipText, h === hour12 && styles.timeChipTextActive]}>
+              {String(h).padStart(2, '0')}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      <Text style={styles.sectionLabel}>MINUTE</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingBottom: 16 }}>
+        {Array.from({ length: 60 }, (_, m) => m).map(m => (
+          <TouchableOpacity
+            key={m}
+            onPress={() => setDraftMinute(m)}
+            style={[styles.timeChip, m === draftMinute && styles.timeChipActive]}
+          >
+            <Text style={[styles.timeChipText, m === draftMinute && styles.timeChipTextActive]}>
+              {String(m).padStart(2, '0')}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      <TouchableOpacity style={globalStyles.btnPrimary} onPress={confirm}>
+        <Ionicons name="checkmark" size={18} color="#fff" />
+        <Text style={[globalStyles.btnPrimaryText, { color: '#fff' }]}>
+          Set {formatTime12({ hour: draftHour, minute: draftMinute })}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  return (
+    <>
+      <TouchableOpacity
+        style={[globalStyles.input, { marginBottom: 14 }]}
+        onPress={openPicker}
+        accessibilityRole="button"
+        accessibilityLabel={value ? `Reminder time ${value}. Tap to change` : 'Choose reminder time'}
+      >
+        <Ionicons name="time-outline" size={18} color={COLORS.textSecondary} />
+        <Text style={{
+          flex: 1, marginLeft: 8, fontSize: 15,
+          color: value ? COLORS.textPrimary : COLORS.textSecondary,
+        }}>
+          {value || placeholder}
+        </Text>
+        <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
+      </TouchableOpacity>
+
+      {inline ? (open ? pickerBody : null) : (
+        <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
+          <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.7)' }}>
+            <View style={[styles.modal, { backgroundColor: COLORS.bgSecondary, maxHeight: '90%' }]}>
+              <View style={[styles.modalHandle, { backgroundColor: COLORS.glassBorder }]} />
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {pickerBody}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      )}
+    </>
+  );
+}
+
 // ── Main Component ──────────────────────────────────────────────────────────
 export default function RemindersScreen() {
   const COLORS       = useColors();
@@ -126,6 +264,7 @@ export default function RemindersScreen() {
 
   // ── State ────────────────────────────────────────────────────────────────
   const [permGranted,    setPermGranted]    = useState(false);
+  const [permBlocked,    setPermBlocked]    = useState(false);
   const [prayerToggles,  setPrayerToggles]  = useState({});
   const [reminders,      setReminders]      = useState([]);
   const [addModal,       setAddModal]       = useState(false);
@@ -141,6 +280,7 @@ export default function RemindersScreen() {
   const [msgPreviewIdx,  setMsgPreviewIdx]  = useState(0);
   const [quranSaving,    setQuranSaving]    = useState(false);
   const [quranSaved,     setQuranSaved]     = useState(false);
+  const [quranNotice,    setQuranNotice]    = useState('');
   const [reminderSound,  setReminderSound]  = useState(true);
   const [soundId,        setSoundId]        = useState(DEFAULT_REMINDER_SOUND_ID);
   const [activeTab,      setActiveTab]      = useState('quran'); // 'quran' | 'prayer' | 'custom'
@@ -180,25 +320,43 @@ export default function RemindersScreen() {
 
   // ── Data loading ─────────────────────────────────────────────────────────
   const loadData = async () => {
+    let localToggles = null;
+    let localReminders = [];
     try {
-      const hasToken = await hasAuthToken();
-      if (hasToken) {
-        try {
-          const [apiToggles, apiReminders] = await Promise.all([
-            backend.getPrayerToggles(),
-            backend.getReminders(),
-          ]);
-          if (apiToggles?.toggles) setPrayerToggles(apiToggles.toggles);
-          if (apiReminders)        setReminders(apiReminders);
-          return;
-        } catch { /* fall through */ }
+      const [togglesRaw, remindersRaw] = await Promise.all([
+        getItem('qitab_prayer_toggles'),
+        getItem('qitab_reminders'),
+      ]);
+      if (togglesRaw) localToggles = JSON.parse(togglesRaw);
+      if (remindersRaw) localReminders = JSON.parse(remindersRaw) || [];
+    } catch { /* unreadable local data — start from defaults */ }
+
+    if (localToggles) setPrayerToggles(localToggles);
+    if (localReminders.length) setReminders(localReminders);
+    armWebReminders(localReminders);
+
+    // This device's data wins; the backend only seeds a fresh install. A
+    // successful-but-empty backend response used to erase reminders that had
+    // just been saved locally, which looked like "my reminder didn't save".
+    let hasToken = false;
+    try { hasToken = await hasAuthToken(); } catch { /* treat as guest */ }
+    if (!hasToken) return;
+
+    try {
+      const [apiToggles, apiReminders] = await Promise.all([
+        backend.getPrayerToggles(),
+        backend.getReminders(),
+      ]);
+      if (!localToggles && apiToggles?.toggles) {
+        setPrayerToggles(apiToggles.toggles);
+        await setItem('qitab_prayer_toggles', JSON.stringify(apiToggles.toggles));
       }
-      getItem('qitab_prayer_toggles').then(v => v && setPrayerToggles(JSON.parse(v)));
-      getItem('qitab_reminders').then(v => v && setReminders(JSON.parse(v)));
-    } catch {
-      getItem('qitab_prayer_toggles').then(v => v && setPrayerToggles(JSON.parse(v)));
-      getItem('qitab_reminders').then(v => v && setReminders(JSON.parse(v)));
-    }
+      if (!localReminders.length && apiReminders?.length) {
+        setReminders(apiReminders);
+        await setItem('qitab_reminders', JSON.stringify(apiReminders));
+        armWebReminders(apiReminders);
+      }
+    } catch { /* offline — local data already shown */ }
   };
 
   const loadQuranSettings = async () => {
@@ -229,11 +387,32 @@ export default function RemindersScreen() {
   const checkPermission = async () => {
     const { status } = await getPerms();
     setPermGranted(status === 'granted');
+    setPermBlocked(status === 'denied');
   };
 
   const requestPerm = async () => {
     const { status } = await requestPerms();
     setPermGranted(status === 'granted');
+    setPermBlocked(status === 'denied');
+    if (status === 'granted') return;
+
+    // Once the user has blocked notifications, the OS/browser never shows the
+    // prompt again — the app must point them at where to re-enable it.
+    if (Platform.OS === 'web') {
+      Alert.alert(
+        'Notifications are blocked',
+        'Allow notifications for this site to receive reminder popups: click the icon next to the address bar → Site settings → Notifications → Allow, then reload the page.'
+      );
+    } else {
+      Alert.alert(
+        'Notifications are blocked',
+        'Allow notifications for Qitab-e-Noor in your device settings to receive reminder popups.',
+        [
+          { text: 'Later', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings().catch(() => {}) },
+        ]
+      );
+    }
   };
 
   const toggleReminderSound = async val => {
@@ -262,6 +441,7 @@ export default function RemindersScreen() {
   const toggleQuranEnabled = async (val) => {
     setQuranEnabled(val);
     setQuranSaved(false);
+    setQuranNotice('');
     if (!val) {
       await notificationService.cancelQuranReminders();
     } else if (quranSlots.length > 0 || quranCustomTime.trim()) {
@@ -276,15 +456,18 @@ export default function RemindersScreen() {
       : [...quranSlots, presetId];
     setQuranSlots(next);
     setQuranSaved(false);
+    setQuranNotice('');
     if (quranEnabled) await saveAndScheduleQuranReminders(next, quranCustomTime, true);
     await persistQuranSettings(quranEnabled, next, quranCustomTime);
   };
 
   const saveAndScheduleQuranReminders = async (slots, customTime, enabled) => {
+    setQuranNotice('');
+    setQuranSaved(false);
     if (!enabled) {
       await notificationService.cancelQuranReminders();
       await persistQuranSettings(false, slots, customTime);
-      setQuranSaved(false);
+      setQuranNotice('Times saved. Turn on the Quran reminder switch to receive popups.');
       return;
     }
 
@@ -315,6 +498,8 @@ export default function RemindersScreen() {
         const dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
         await notificationService.scheduleQuranReminders(slotObjects, dayOfYear);
         setQuranSaved(true);
+      } else {
+        setQuranNotice('Choose at least one time, then save.');
       }
       // Persist here too: a typed custom time must survive a reload even when
       // the user taps Save without blurring the input first.
@@ -400,14 +585,25 @@ export default function RemindersScreen() {
   };
 
   // ── Custom reminders ─────────────────────────────────────────────────────
+  const customReminderPayload = reminder => ({
+    identifier: `custom-reminder-${reminder.id}`,
+    title: `🔔 ${reminder.title}`,
+    body: reminder.message || 'Time for your scheduled reminder.',
+    time: reminder.time,
+  });
+
+  // On web there is no OS alarm; the open tab keeps a daily timer instead.
+  const armWebReminders = list => {
+    if (Platform.OS !== 'web') return;
+    list.filter(r => r.enabled).forEach(r => notificationService.scheduleWebReminder(customReminderPayload(r)));
+  };
+
   const scheduleCustomReminder = async reminder => {
-    if (Platform.OS === 'web') return null;
+    const payload = customReminderPayload(reminder);
+    if (Platform.OS === 'web') return notificationService.scheduleWebReminder(payload);
     if (!(await ensureAlertPermission())) return null;
     return scheduleDailyReminder({
-      identifier: `custom-reminder-${reminder.id}`,
-      title: `🔔 ${reminder.title}`,
-      body: reminder.message || 'Time for your scheduled reminder.',
-      time: reminder.time,
+      ...payload,
       data: { kind: 'custom', id: reminder.id },
     });
   };
@@ -512,9 +708,15 @@ export default function RemindersScreen() {
               <Ionicons name="notifications-off" size={20} color={COLORS.amber} />
             </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={{ color: COLORS.amber, fontWeight: '800', fontSize: 14 }}>Notifications Disabled</Text>
+              <Text style={{ color: COLORS.amber, fontWeight: '800', fontSize: 14 }}>
+                {permBlocked ? 'Notifications Blocked' : 'Notifications Disabled'}
+              </Text>
               <Text style={{ color: COLORS.textSecondary, fontSize: 12, marginTop: 2 }}>
-                Tap to enable push notifications for all reminders.
+                {permBlocked
+                  ? Platform.OS === 'web'
+                    ? 'Blocked by the browser. Tap to see how to allow them.'
+                    : 'Blocked in device settings. Tap to allow them.'
+                  : 'Tap to enable push notifications for all reminders.'}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={COLORS.amber} />
@@ -634,20 +836,32 @@ export default function RemindersScreen() {
             <Text style={[styles.sectionLabel, { color: COLORS.textSecondary, marginTop: 18, marginBottom: 8 }]}>
               CUSTOM TIME (OPTIONAL)
             </Text>
-            <View style={[globalStyles.input, { marginBottom: 6 }]}>
-              <Ionicons name="time-outline" size={18} color={COLORS.textSecondary} />
-              <TextInput
-                style={{ flex: 1, color: COLORS.textPrimary, fontSize: 15, marginLeft: 8 }}
-                value={quranCustomTime}
-                onChangeText={setQuranCustomTime}
-                placeholder="e.g. 09:00 AM"
-                placeholderTextColor={COLORS.textSecondary}
-                onBlur={async () => {
-                  await persistQuranSettings(quranEnabled, quranSlots, quranCustomTime);
-                  if (quranEnabled) await saveAndScheduleQuranReminders(quranSlots, quranCustomTime, true);
+            <TimeField
+              value={quranCustomTime}
+              placeholder="Tap to choose a time"
+              onChange={async next => {
+                setQuranCustomTime(next);
+                await persistQuranSettings(quranEnabled, quranSlots, next);
+                if (quranEnabled) {
+                  await saveAndScheduleQuranReminders(quranSlots, next, true);
+                } else {
+                  setQuranSaved(false);
+                  setQuranNotice('Time saved. Turn on the Quran reminder switch to receive popups.');
+                }
+              }}
+            />
+            {quranCustomTime ? (
+              <TouchableOpacity
+                onPress={async () => {
+                  setQuranCustomTime('');
+                  await persistQuranSettings(quranEnabled, quranSlots, '');
+                  if (quranEnabled) await saveAndScheduleQuranReminders(quranSlots, '', true);
                 }}
-              />
-            </View>
+                style={{ alignSelf: 'flex-end', marginBottom: 6 }}
+              >
+                <Text style={{ color: COLORS.textSecondary, fontSize: 12 }}>Clear custom time</Text>
+              </TouchableOpacity>
+            ) : null}
 
             {/* ── Save Button ───────────────────────────────────────────── */}
             <TouchableOpacity
@@ -669,6 +883,15 @@ export default function RemindersScreen() {
                 </Text>
               </View>
             )}
+
+            {quranNotice ? (
+              <View style={[styles.savedNote, { borderColor: `${COLORS.amber}40`, backgroundColor: `${COLORS.amber}12` }]}>
+                <Ionicons name="information-circle" size={16} color={COLORS.amber} />
+                <Text style={{ color: COLORS.amber, fontSize: 12.5, fontWeight: '700', flex: 1 }}>
+                  {quranNotice}
+                </Text>
+              </View>
+            ) : null}
 
             {/* ── Reminder chime ────────────────────────────────────────── */}
             <View style={[styles.soundCard, { backgroundColor: COLORS.glass, borderColor: COLORS.glassBorder }]}>
@@ -906,10 +1129,11 @@ export default function RemindersScreen() {
       {/* ════ Add Reminder Modal ══════════════════════════════════════════ */}
       <Modal visible={addModal} transparent animationType="slide" onRequestClose={() => setAddModal(false)}>
         <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.7)' }}>
-          <View style={[styles.modal, { backgroundColor: COLORS.bgSecondary }]}>
+          <View style={[styles.modal, { backgroundColor: COLORS.bgSecondary, maxHeight: '90%' }]}>
             {/* Handle */}
             <View style={[styles.modalHandle, { backgroundColor: COLORS.glassBorder }]} />
 
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             <View style={[globalStyles.spaceBetween, { marginBottom: 20 }]}>
               <Text style={{ color: COLORS.textPrimary, fontWeight: '900', fontSize: 20 }}>New Reminder</Text>
               <TouchableOpacity onPress={() => setAddModal(false)}>
@@ -929,17 +1153,8 @@ export default function RemindersScreen() {
               />
             </View>
 
-            <Text style={styles.sectionLabel}>TIME (e.g. 07:30 AM)</Text>
-            <View style={[globalStyles.input, { marginBottom: 14 }]}>
-              <Ionicons name="time-outline" size={18} color={COLORS.textSecondary} />
-              <TextInput
-                style={{ flex: 1, color: COLORS.textPrimary, fontSize: 15, marginLeft: 8 }}
-                value={newTime}
-                onChangeText={setNewTime}
-                placeholder="07:30 AM"
-                placeholderTextColor={COLORS.textSecondary}
-              />
-            </View>
+            <Text style={styles.sectionLabel}>TIME</Text>
+            <TimeField value={newTime} onChange={setNewTime} placeholder="Tap to choose a time" inline />
 
             <Text style={styles.sectionLabel}>MESSAGE (OPTIONAL)</Text>
             <View style={[globalStyles.input, { marginBottom: 24 }]}>
@@ -957,6 +1172,7 @@ export default function RemindersScreen() {
               <Ionicons name="notifications-outline" size={18} color="#fff" />
               <Text style={[globalStyles.btnPrimaryText, { color: '#fff' }]}>Create Reminder</Text>
             </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -1114,6 +1330,20 @@ const makeStyles = COLORS => StyleSheet.create({
   // Add modal
   modal: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24 },
   modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
+
+  // Time picker
+  inlinePicker: {
+    borderWidth: 1, borderColor: COLORS.glassBorder, borderRadius: 16,
+    backgroundColor: COLORS.glass, padding: 14, marginBottom: 14,
+  },
+  timeChip: {
+    minWidth: 48, paddingVertical: 10, paddingHorizontal: 12,
+    borderRadius: 10, borderWidth: 1, borderColor: COLORS.glassBorder,
+    backgroundColor: COLORS.glass, alignItems: 'center',
+  },
+  timeChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  timeChipText: { color: COLORS.textSecondary, fontWeight: '700', fontSize: 14 },
+  timeChipTextActive: { color: '#fff' },
 
   // Tips card
   tipsCard: {

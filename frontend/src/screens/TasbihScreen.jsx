@@ -92,10 +92,10 @@ export default function TasbihScreen() {
             })));
             return;
           }
-        } catch (e) { /* fall through to local */ }
+        } catch { /* fall through to local */ }
       }
       getItem('qitab_tasbih_history').then(v => v && setHistory(JSON.parse(v)));
-    } catch (e) {
+    } catch {
       getItem('qitab_tasbih_history').then(v => v && setHistory(JSON.parse(v)));
     }
   };
@@ -177,7 +177,7 @@ export default function TasbihScreen() {
           target,
           completed: totalCount >= target,
         });
-      } catch (e) { /* backend unavailable */ }
+      } catch { /* backend unavailable */ }
     }
 
     setCount(0);

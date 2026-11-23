@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+
+import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Location from 'expo-location';
 import { MIN_LOCATION_ACCURACY_M } from '../utils/qibla';
 
@@ -6,28 +7,14 @@ import { MIN_LOCATION_ACCURACY_M } from '../utils/qibla';
  * @typedef {Object} UserLocationState
  * @property {number|null} latitude
  * @property {number|null} longitude
- * @property {number|null} accuracy - horizontal accuracy in metres, per
- *   expo-location. Lower is better.
+ * @property {number|null} accuracy
  * @property {'idle'|'requesting'|'granted'|'denied'} permissionStatus
  * @property {boolean} loading
- * @property {string|null} error - a message safe to show the user, or null.
- * @property {boolean} isAccuracyPoor - true once a fix exists and it is
- *   looser than MIN_LOCATION_ACCURACY_M. Callers should warn rather than
- *   present the result as precise.
- * @property {() => Promise<void>} refresh - re-requests permission (if
- *   needed) and re-reads the position.
+ * @property {string|null} error
+ * @property {boolean} isAccuracyPoor
+ * @property {() => Promise<void>} refresh
  */
 
-/**
- * The device's current GPS position, with permission and accuracy handled
- * explicitly rather than left for each screen to reinvent.
- *
- * Nothing here calculates a bearing — a screen with no valid fix has no
- * honest direction to show, so callers should gate on `latitude !== null`
- * (or the convenience `loading`/`error` flags) before doing that maths.
- *
- * @returns {UserLocationState}
- */
 export function useUserLocation() {
   const [state, setState] = useState({
     latitude: null,
@@ -38,48 +25,152 @@ export function useUserLocation() {
     error: null,
   });
 
-  const refresh = useCallback(async () => {
-    setState(s => ({ ...s, loading: true, error: null }));
-    try {
-      setState(s => ({ ...s, permissionStatus: 'requesting' }));
-      const { status } = await Location.requestForegroundPermissionsAsync();
+  const mounted = useRef(true);
 
-      if (status !== 'granted') {
-        setState(s => ({
-          ...s,
-          permissionStatus: 'denied',
-          loading: false,
-          error: 'Location permission is needed to work out the Qibla from where you are.',
-        }));
+  const refresh = useCallback(async () => {
+    if (mounted.current) {
+      setState(s => ({
+        ...s,
+        loading: true,
+        error: null,
+      }));
+    }
+
+    try {
+      // 1. Check existing permission
+      let permission = await Location.getForegroundPermissionsAsync();
+
+      // 2. Request permission if not already granted
+      if (!permission.granted) {
+        permission = await Location.requestForegroundPermissionsAsync();
+      }
+
+      if (!permission.granted) {
+        if (mounted.current) {
+          setState(s => ({
+            ...s,
+            permissionStatus: 'denied',
+            loading: false,
+            error:
+              'Location permission is needed to work out the Qibla from where you are.',
+          }));
+        }
         return;
       }
 
-      const pos = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
+      if (mounted.current) {
+        setState(s => ({
+          ...s,
+          permissionStatus: 'granted',
+          error: null,
+        }));
+      }
 
-      setState({
-        latitude: pos.coords.latitude,
-        longitude: pos.coords.longitude,
-        accuracy: pos.coords.accuracy ?? null,
-        permissionStatus: 'granted',
-        loading: false,
-        error: null,
-      });
+      // 3. Check whether location services are enabled
+      const servicesEnabled =
+        await Location.hasServicesEnabledAsync();
+
+      if (!servicesEnabled) {
+        throw new Error(
+          'Your phone location services are turned off. Please turn on GPS.'
+        );
+      }
+
+      // 4. Try obtaining a fresh high-accuracy GPS position
+      let pos = null;
+
+      try {
+        pos = await Promise.race([
+          Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.High,
+          }),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error('GPS request timed out')),
+              15000
+            )
+          ),
+        ]);
+      } catch (gpsError) {
+        console.log('Fresh GPS failed:', gpsError.message);
+
+        // 5. Try last known position if fresh GPS fails
+        pos = await Location.getLastKnownPositionAsync({
+          maxAge: 120000,
+          requiredAccuracy: 1000,
+        });
+      }
+
+      if (!pos || !pos.coords) {
+        throw new Error(
+          'GPS could not find your location. Move near a window or outdoors and try again.'
+        );
+      }
+
+      // 6. Validate coordinates
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      const acc = pos.coords.accuracy ?? null;
+
+      if (
+        typeof lat !== 'number' ||
+        typeof lon !== 'number' ||
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lon) ||
+        lat < -90 ||
+        lat > 90 ||
+        lon < -180 ||
+        lon > 180
+      ) {
+        throw new Error('GPS returned invalid coordinates.');
+      }
+
+      // 7. Save valid coordinates
+      if (mounted.current) {
+        setState({
+          latitude: lat,
+          longitude: lon,
+          accuracy: acc,
+          permissionStatus: 'granted',
+          loading: false,
+          error: null,
+        });
+      }
     } catch (e) {
-      setState(s => ({
-        ...s,
-        loading: false,
-        error: e?.message || 'Could not read your location.',
-      }));
+      console.error('Qibla location error:', e);
+
+      if (mounted.current) {
+        setState(s => ({
+          ...s,
+          loading: false,
+          error:
+            e?.message ||
+            'Could not read your location. Please try again.',
+        }));
+      }
     }
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    mounted.current = true;
 
-  const isAccuracyPoor = state.accuracy !== null && state.accuracy > MIN_LOCATION_ACCURACY_M;
+    refresh();
 
-  return { ...state, isAccuracyPoor, refresh };
+    return () => {
+      mounted.current = false;
+    };
+  }, [refresh]);
+
+  const isAccuracyPoor =
+    state.accuracy !== null &&
+    state.accuracy > MIN_LOCATION_ACCURACY_M;
+
+  return {
+    ...state,
+    isAccuracyPoor,
+    refresh,
+    locate: refresh,
+  };
 }
 
 export default useUserLocation;

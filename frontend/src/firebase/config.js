@@ -25,7 +25,7 @@ try {
   auth = initializeAuth(app, {
     persistence: getReactNativePersistence(AsyncStorage),
   });
-} catch (error) {
+} catch {
   auth = getAuth(app);
 }
 

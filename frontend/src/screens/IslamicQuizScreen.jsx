@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView
 } from 'react-native';
@@ -15,7 +15,6 @@ export default function IslamicQuizScreen() {
   const styles = useThemedStyles(makeStyles);
 
   const [selectedCat, setSelectedCat] = useState(null);
-  const [quizActive, setQuizActive] = useState(false);
   const [currentQ, setCurrentQ] = useState(0);
   const [score, setScore] = useState(0);
   const [selected, setSelected] = useState(null);
@@ -29,7 +28,6 @@ export default function IslamicQuizScreen() {
     setSelectedCat(catId);
     const qs = (QUIZ_DATA[catId] || []).sort(() => Math.random() - 0.5).slice(0, 10);
     setQuestions(qs);
-    setQuizActive(true);
     setCurrentQ(0);
     setScore(0);
     setSelected(null);
@@ -111,7 +109,7 @@ export default function IslamicQuizScreen() {
           <Text style={styles.resultTitle}>{pct >= 70 ? 'MashaAllah!' : pct >= 40 ? 'Good Effort!' : 'Keep Learning!'}</Text>
           <Text style={styles.resultScore}>{score}/{questions.length}</Text>
           <Text style={styles.resultPct}>{pct}% Correct</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={() => { setSelectedCat(null); setQuizActive(false); }}>
+          <TouchableOpacity style={styles.retryBtn} onPress={() => setSelectedCat(null)}>
             <Text style={{ color: '#000', fontWeight: '800', fontSize: 16 }}>Back to Categories</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.retryBtn, { backgroundColor: COLORS.glass, borderColor: COLORS.glassBorder }]}
@@ -127,7 +125,7 @@ export default function IslamicQuizScreen() {
   return (
     <SafeAreaView style={globalStyles.screen} edges={['bottom']}>
       <View style={styles.quizHeader}>
-        <TouchableOpacity onPress={() => { setSelectedCat(null); setQuizActive(false); }}>
+        <TouchableOpacity onPress={() => setSelectedCat(null)}>
           <Ionicons name="close" size={22} color={COLORS.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.quizProgress}>{currentQ + 1}/{questions.length}</Text>

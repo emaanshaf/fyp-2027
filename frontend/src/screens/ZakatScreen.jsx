@@ -32,7 +32,7 @@ const fetchMetalPrices = async () => {
         silver: Math.round(silver.price * usdToPkr),
       };
     }
-  } catch (e) {}
+  } catch {}
   return { gold: DEFAULT_GOLD_PRICE, silver: DEFAULT_SILVER_PRICE };
 };
 
@@ -59,7 +59,6 @@ export default function ZakatScreen() {
   const [ushrRate, setUshrRate] = useState(0.10);
   const [aiQuery, setAiQuery] = useState('');
   const [aiResponse, setAiResponse] = useState('');
-  const [aiOpen, setAiOpen] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {

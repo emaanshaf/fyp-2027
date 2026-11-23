@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet,
-  ScrollView, Animated
+  View, Text, FlatList, TouchableOpacity, StyleSheet
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,7 +32,6 @@ export default function NamesOfAllahScreen({ route }) {
   // Recitation of the names alone is the default; the meaning is an
   // optional addition rather than half of every utterance.
   const [withMeaning, setWithMeaning] = useState(false);
-  const scrollY = useRef(new Animated.Value(0)).current;
   const listRef = useRef(null);
   // Set when the user stops playback, so an in-flight utterance's onDone does
   // not advance the sequence after the user has asked it to stop.

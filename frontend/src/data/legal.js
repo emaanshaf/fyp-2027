@@ -49,9 +49,10 @@ export const LEGAL_DOCUMENTS = {
       {
         title: 'Duas for where you are',
         paragraphs: [
-          'The Duas screen can suggest a dua that fits your moment. The time of day, the day of the week and the chips you tap (mosque, home, market, travelling, rain, unwell, study, worried) are handled entirely on the device.',
-          'If you tap \u201cUse my location\u201d, the app asks for location permission and reads a single position. The coordinates are passed to the location service built into your phone \u2014 Apple Maps on iOS, Google Play services on Android \u2014 to obtain a short place label such as \u201cCentral Masjid\u201d or \u201cSouq Road\u201d. The label is used on the device to choose a dua.',
-          'Your coordinates are not sent to the Qitab-e-Noor server, are not saved to your account, and are not kept after the lookup. Apple or Google sees the request as part of your phone\u2019s normal location service. The button is optional: the chips offer the same suggestions without using location at all, and the web preview cannot name places, so it relies on the chips.',
+          'The Duas screen can suggest a dua that fits your moment. The time of day, the day of the week and the chips you tap (mosque, home, market, travelling, rain, near water, mountains, dry spell, unwell, study, worried) are handled entirely on the device. The Islamic month and the moon phase are calculated from the clock alone.',
+          'If you tap \u201cUse my location\u201d or allow live context, the app asks for location permission and reads your position. To name a place such as \u201cCentral Masjid\u201d or \u201cSouq Road\u201d it uses the geocoder built into your phone \u2014 Apple Maps on iOS, Google Play services on Android.',
+          'To suggest a dua for the weather or the landscape, the app sends only your coordinates \u2014 never your name, email or account \u2014 to Open-Meteo for the current conditions, the last 92 days of rainfall and the elevation, and to OpenStreetMap\u2019s Overpass service for nearby rivers, lakes, peaks, woods and coastline. Those services answer with the sky and the landscape; the result is kept on your device and is not saved to your account. Tap Pause on the Duas card to stop live updates at any time.',
+          'Your coordinates are not sent to the Qitab-e-Noor server, are not saved to your account, and are not kept after the lookup. The chips offer the same suggestions without using location at all. The web preview cannot name places with the device geocoder, but weather and landscape context still work from the browser\u2019s own location permission.',
         ],
       },
       {
@@ -69,7 +70,7 @@ export const LEGAL_DOCUMENTS = {
         ],
         bullets: [
           'Notifications, for prayer times, Quran reminders and daily dhikr. These are scheduled by the device. While the app is open, today\u2019s reminders also appear on the main screens every five minutes; that card only reads the reminders saved on your device.',
-          'Approximate or precise location, for prayer times, the Qibla direction and the optional \u201cdua for where you are\u201d lookup described above. Coordinates are used on the device and are only saved to your account if you choose to save a location.',
+          'Approximate or precise location, for prayer times, the Qibla direction and the optional \u201cdua for where you are\u201d lookup described above. For prayer times and the Qibla it is used on the device; for the live dua context only the coordinates go to the weather and map services named below, never to our server. It is only saved to your account if you choose to save a location.',
           'Motion and compass sensors, for the Qibla finder.',
           'It does not request access to your contacts, photos, microphone, camera or files.',
         ],
@@ -78,7 +79,8 @@ export const LEGAL_DOCUMENTS = {
         title: 'Third-party content services',
         paragraphs: [
           'Quran translations and recitations are fetched from the Quran.com API, hadith texts from a public content CDN, and Islamic news headlines from the publishers\u2019 RSS feeds \u2014 including Al Jazeera, and occasionally through Google News when a publisher blocks our server. Those services receive the ordinary technical details of any web request, such as your IP address, but not your account details.',
-          'The weather shown on the Home dashboard comes from Open-Meteo. The app sends only the city name already saved for prayer times \u2014 never your coordinates \u2014 and keeps the latest reading on the device for thirty minutes, so it can still be shown without a connection.',
+          'For the live dua context, Open-Meteo supplies weather and elevation, and OpenStreetMap\u2019s Overpass service supplies the names of nearby rivers, lakes, peaks, woods and coastline. Both receive only the coordinates described above.',
+          'The weather shown on the Home dashboard and in the Duas card comes from Open-Meteo. The app sends the city name saved for prayer times, or \u2014 when the device has a GPS fix \u2014 your coordinates, so the reading matches the sky above you. It keeps the latest reading on the device for thirty minutes, so it can still be shown without a connection.',
         ],
       },
       {

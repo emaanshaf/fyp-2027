@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, ScrollView,
+  View, Text, FlatList, TouchableOpacity, StyleSheet,
   ActivityIndicator, TextInput, Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,7 +20,7 @@ const TRANSLATIONS = Object.fromEntries(
 
 // Sentinel for "fetched, but this commentary genuinely isn't available".
 const UNAVAILABLE = '__UNAVAILABLE__';
-export default function TafsirScreen({ navigation }) {
+export default function TafsirScreen() {
   // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
   const COLORS = useColors();
   const globalStyles = useGlobalStyles();
@@ -32,7 +32,6 @@ export default function TafsirScreen({ navigation }) {
   const [verses, setVerses] = useState([]);
   const [selectedTafsir, setSelectedTafsir] = useState('ibnKathir');
   const [tafsirTexts, setTafsirTexts] = useState({});
-  const [loading, setLoading] = useState(false);
   const [loadingVerses, setLoadingVerses] = useState(false);
   const [search, setSearch] = useState('');
   const [language, setLanguage] = useState('en');
@@ -66,6 +65,15 @@ export default function TafsirScreen({ navigation }) {
       setLangReady(true);
     }
   }, [prefs.translationLanguage, langReady]);
+
+  // Settings and the app-language toggle can change the default translation
+  // while this screen is mounted; follow it instead of holding the old one.
+  useEffect(() => {
+    if (!langReady) return;
+    if (prefs.translationLanguage && prefs.translationLanguage !== language) {
+      setLanguage(prefs.translationLanguage);
+    }
+  }, [prefs.translationLanguage, langReady, language]);
 
   // The language picker previously existed only as state — nothing called
   // setLanguage, so the five translations were unreachable. Changing it now
@@ -141,12 +149,9 @@ export default function TafsirScreen({ navigation }) {
   };
 
   const loadSurahs = async () => {
-    setLoading(true);
     try {
       setSurahs(await quranService.getChapters());
-    } finally {
-      setLoading(false);
-    }
+    } catch { /* keep the empty list; the picker shows a retry next open */ }
   };
 
   const loadVerses = async (surah) => {
@@ -503,7 +508,7 @@ const makeStyles = (COLORS) => StyleSheet.create({
   },
   tafsirBox: {
     marginTop: 14, padding: 14, borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: COLORS.glassBorder,
+    backgroundColor: COLORS.glass, borderWidth: 1, borderColor: COLORS.glassBorder,
   },
   tafsirLabel: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -511,5 +516,5 @@ const makeStyles = (COLORS) => StyleSheet.create({
     alignSelf: 'flex-start', marginBottom: 10,
   },
   tafsirLabelText: { fontSize: 11, fontWeight: '800' },
-  tafsirText: { color: '#e2e8f0', fontSize: 13, lineHeight: 22 },
+  tafsirText: { color: COLORS.textPrimary, fontSize: 13, lineHeight: 22 },
 });

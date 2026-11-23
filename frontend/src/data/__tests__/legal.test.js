@@ -54,11 +54,12 @@ describe('legal documents', () => {
     expect(allText(LEGAL_DOCUMENTS.privacy)).toMatch(/main screens every five minutes/i);
   });
 
-  it('discloses the weather provider and what it receives', () => {
+  it('discloses the weather and landscape providers and what they receive', () => {
     const text = allText(LEGAL_DOCUMENTS.privacy);
     expect(text).toMatch(/Open-Meteo/);
     expect(text).toMatch(/city name/i);
-    expect(text).toMatch(/never your coordinates/i);
+    expect(text).toMatch(/OpenStreetMap/);
+    expect(text).toMatch(/only your coordinates/i);
   });
 
   it('keeps the scholar boundary in the terms', () => {

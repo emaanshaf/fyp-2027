@@ -49,22 +49,6 @@ const AZKAR_DATA = {
   ],
 };
 
-const EXTRA_DUA = {
-  food: [
-    { arabic: 'بِسْمِ اللَّهِ', transliteration: 'Bismillah', translation: 'In the name of Allah.', count: 1 },
-    { arabic: 'الْحَمْدُ لِلَّهِ الَّذِي أَطْعَمَنَا وَسَقَانَا', transliteration: 'Alhamdulillahilladhi at\'amana wa saqana', translation: 'All praise is for Allah who fed us and gave us drink.', count: 1 },
-  ],
-  travel: [
-    { arabic: 'اللَّهُ أَكْبَرُ، اللَّهُ أَكْبَرُ', transliteration: 'Allahu Akbar, Allahu Akbar', translation: 'Allah is the Greatest, Allah is the Greatest.', count: 1 },
-    { arabic: 'سُبْحَانَ الَّذِي سَخَّرَ لَنَا هَذَا', transliteration: 'Subhanalladhi sakh-khana lana hadha', translation: 'Glory be to Him who has placed this at our service.', count: 1 },
-  ],
-  wakeup: [
-    { arabic: 'الْحَمْدُ لِلَّهِ الَّذِي أَحْيَانَا بَعْدَ مَا أَمَاتَنَا وَإِلَيْهِ النُّشُورُ', transliteration: 'Alhamdulillahilladhi ahyana ba\'da ma amatana wa ilaihin-nushoor', translation: 'All praise is for Allah who gave us life after causing us to die, and to Him is the resurrection.', count: 1 },
-  ],
-  home: [
-    { arabic: 'بِسْمِ اللَّهِ وَلَجْنَا، بِسْمِ اللَّهِ خَرَجْنَا', transliteration: 'Bismillahi walajna, bismillahi kharajna', translation: 'In the name of Allah we enter, in the name of Allah we leave.', count: 1 },
-  ],
-};
 export default function DuaLibraryScreen() {
   // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
   const COLORS = useColors();
@@ -81,7 +65,7 @@ const DUA_CATEGORIES = [
   { id: 'travel', name: 'Travel', icon: 'airplane', color: COLORS.cyan, time: 'During Journey' },
   { id: 'protection', name: 'Protection', icon: 'shield', color: COLORS.red, time: 'Anytime' },
   { id: 'parents', name: 'For Parents', icon: 'people', color: COLORS.pink, time: 'Anytime' },
-  { id: 'forgiveness', name: 'Forgiveness', icon: 'water', color: '#ffffff', time: 'Anytime' },
+  { id: 'forgiveness', name: 'Forgiveness', icon: 'water', color: COLORS.textSecondary, time: 'Anytime' },
   { id: 'hardship', name: 'Hard Times', icon: 'rainy', color: COLORS.amber, time: 'When in Need' },
   { id: 'food', name: 'Before/After Eating', icon: 'restaurant', color: COLORS.emerald, time: 'Mealtime' },
   { id: 'home', name: 'Entering Home', icon: 'home', color: COLORS.gold, time: 'On Entering' },

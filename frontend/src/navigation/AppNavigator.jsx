@@ -509,13 +509,12 @@ function AppNavigator(props, ref) {
             options={{ headerShown: false }}
           >
             {(screenProps) => {
-              // Opened from a drawer link there is a route beneath to close;
-              // opened directly at /login (or reloaded there) there is not,
-              // and goBack() would silently leave the user stuck on the form.
+              // Reset rather than goBack: after a sign-out the dashboard must
+              // remount, otherwise it keeps the previous account's name, city
+              // and counters in memory while the new account is signed in.
               const leaveLogin = () => {
                 const { navigation } = screenProps;
-                if (navigation.canGoBack()) navigation.goBack();
-                else navigation.navigate('Main');
+                navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
               };
               return (
                 <LoginScreen

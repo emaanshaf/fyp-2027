@@ -257,7 +257,9 @@ export function searchContent(query, { role = 'user', limit = 50 } = {}) {
     || a.title.localeCompare(b.title)
   ));
 
-  return results.slice(0, limit).map(({ searchTitle, searchSubtitle, searchBody, ...item }) => item);
+  return results.slice(0, limit).map(({
+    searchTitle: _title, searchSubtitle: _subtitle, searchBody: _body, ...item
+  }) => item);
 }
 
 /** Map quran.com search results into the same result shape as local hits. */

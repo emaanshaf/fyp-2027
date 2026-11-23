@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert
+  View, Text, TouchableOpacity, StyleSheet, ScrollView
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -55,11 +55,6 @@ export default function KhatmPlannerScreen() {
       setStartDate(d.startDate);
       setStreak(d.streak || 0);
     }
-  };
-
-  const savePlan = async (updates) => {
-    const state = { plan: activePlan, currentPage, startDate, streak, ...updates };
-    await AsyncStorage.setItem('khatm_plan', JSON.stringify(state));
   };
 
   const startPlan = async (plan) => {

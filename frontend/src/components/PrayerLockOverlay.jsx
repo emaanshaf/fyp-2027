@@ -8,7 +8,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, Animated, Easing, Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../theme';
+import { useColors, useThemedStyles } from '../theme';
 import { usePrayerLock, SNOOZE_MIN } from '../context/PrayerLockContext';
 
 const PRAYER_ARABIC = {
@@ -20,6 +20,8 @@ const PRAYER_ARABIC = {
 };
 
 export default function PrayerLockOverlay() {
+  const COLORS = useColors();
+  const styles = useThemedStyles(makeStyles);
   const { locked, lockedPrayer, confirmPrayed, snooze } = usePrayerLock();
   const fade = useRef(new Animated.Value(0)).current;
 
@@ -92,7 +94,7 @@ export default function PrayerLockOverlay() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = COLORS => StyleSheet.create({
   root: {
     flex: 1, backgroundColor: COLORS.bg,
     alignItems: 'center', justifyContent: 'center', padding: 32,

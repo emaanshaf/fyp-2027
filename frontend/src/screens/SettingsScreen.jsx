@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, Alert, Platform, Switch, ActivityIndicator,
+  Alert, Platform, Switch, ActivityIndicator,
   Modal, KeyboardAvoidingView
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,11 +11,14 @@ import Constants from 'expo-constants';
 import { claudeStatus, refreshClaudeStatus } from '../ai/claudeClient';
 import { KNOWLEDGE_BASE } from '../ai/islamicKnowledge';
 import { auth, isFirebaseConfigured } from '../firebase/config';
+import { signOut } from 'firebase/auth';
 import {
   useThemeName, useSetTheme, useColors, useGlobalStyles, useThemedStyles,
 } from '../hooks/useTheme';
 import { backend } from '../services/backend';
 import { hasAuthToken } from '../services/authToken';
+import { deactivateAccount } from '../services/personalData';
+import preferences from '../services/preferences';
 import { cacheStats, clearAllCaches, isOnline, onConnectivityChange } from '../services/cache';
 import { usePreferences } from '../hooks/usePreferences';
 import { TRANSLATIONS, RECITERS } from '../services/quranApi';
@@ -153,10 +156,10 @@ export default function SettingsScreen({ navigation }) {
             if (data.user.role) setUserRole(data.user.role);
             return;
           }
-        } catch (e) { /* fall through to local */ }
+        } catch { /* fall through to local */ }
       }
       AsyncStorage.getItem('qitab_user_name').then(n => setUserName(n || ''));
-    } catch (e) {
+    } catch {
       AsyncStorage.getItem('qitab_user_name').then(n => setUserName(n || ''));
     }
   };
@@ -178,7 +181,7 @@ export default function SettingsScreen({ navigation }) {
         // looking for a network fault that did not exist.
         setBackendStatus(error?.status === 401 ? 'expired' : 'disconnected');
       }
-    } catch (e) {
+    } catch {
       setBackendStatus('disconnected');
     }
   };
@@ -193,7 +196,7 @@ export default function SettingsScreen({ navigation }) {
       if (!mountedRef.current) return;
       setOfflinePkg(pkg);
       setOfflineStats(stats);
-    } catch (e) {
+    } catch {
       // Offline storage is optional; a read failure must not break Settings.
       if (mountedRef.current) {
         setOfflinePkg(null);
@@ -297,7 +300,7 @@ export default function SettingsScreen({ navigation }) {
     // Also save to backend if logged in
     const hasToken = await hasAuthToken();
     if (hasToken) {
-      try { await backend.updateSettings({}); } catch (e) { /* backend unavailable */ }
+      try { await backend.updateSettings({}); } catch { /* backend unavailable */ }
     }
   };
 
@@ -483,6 +486,7 @@ export default function SettingsScreen({ navigation }) {
           style: 'destructive',
           onPress: async () => {
             await clearPersonalKeys();
+            await preferences.reload();
             setUserName('');
             Alert.alert('Done', 'Your data on this device has been reset.');
           },
@@ -514,7 +518,13 @@ export default function SettingsScreen({ navigation }) {
     try {
       await backend.deleteAccount(password);
       await clearPersonalKeys();
+      try {
+        if (isFirebaseConfigured()) await signOut(auth);
+      } catch {
+        // Local account data is already gone.
+      }
       await backend.logout();
+      await preferences.reload();
       setUserName('');
       setBackendStatus('guest');
       setDeleteOpen(false);
@@ -1257,10 +1267,17 @@ export default function SettingsScreen({ navigation }) {
         {backendStatus === 'connected' && (
           <>
             <TouchableOpacity style={styles.actionRow} onPress={async () => {
-              // backend.logout() clears both the in-memory cache and the token
-              // in the OS keystore; the old extra AsyncStorage removal here was
-              // deleting a key that no longer holds the session.
+              // Set this account's data aside first so the device falls back
+              // to guest defaults and a different sign-in starts clean.
+              await deactivateAccount();
+              try {
+                if (isFirebaseConfigured()) await signOut(auth);
+              } catch {
+                // Firebase offline — the local session is cleared regardless.
+              }
               await backend.logout();
+              await preferences.reload();
+              setUserName('');
               setBackendStatus('guest');
               navigation.navigate('Login');
             }}>

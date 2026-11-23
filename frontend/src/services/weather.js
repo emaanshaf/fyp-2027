@@ -2,19 +2,21 @@
  * Current weather for the dashboard.
  *
  * Islam 360-style dashboards show the weather next to the prayer times, so the
- * Home hero does too. The data comes from Open-Meteo, which needs no API key:
- * the app geocodes the city the prayer screen already saved, then asks for the
- * current conditions. Nothing here requires an account, and only the city name
- * leaves the device — never the user's coordinates or identity.
+ * Home hero does too. The data comes from Open-Meteo, which needs no API key.
+ * When the device has a GPS fix (saved by Prayer Times or the Qibla screen) its
+ * coordinates are used directly, so the reading matches where the user actually
+ * is; otherwise the city the prayer screen saved is geocoded first. No account
+ * or identity is sent either way.
  *
- * The result is cached for 30 minutes. If a refresh fails, yesterday's cached
- * reading is returned marked `stale` so the row can say "offline" rather than
- * disappearing or pretending to be current. With no cache and no network the
- * call returns null and the row is simply not rendered.
+ * The result is cached for 30 minutes, keyed by city or rounded coordinates. If
+ * a refresh fails, the last cached reading is returned marked `stale` so the row
+ * can say "offline" rather than disappearing or pretending to be current. With
+ * no cache and no network the call returns null and the row is not rendered.
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEFAULT_CITY, DEFAULT_COUNTRY } from '../utils/nextPrayer';
+import { getSavedLocation } from './location';
 
 export const WEATHER_CACHE_KEY = 'qitab_weather_cache';
 export const WEATHER_TTL_MS = 30 * 60 * 1000;
@@ -145,18 +147,26 @@ function parseCache(raw) {
  *   the network fails and nothing is cached, or the stored cache is unusable.
  */
 export async function getHomeWeather({ now = new Date(), fetchImpl, force = false } = {}) {
-  const [savedCity, savedCountry] = await Promise.all([
-    AsyncStorage.getItem('qitab_prayer_city'),
-    AsyncStorage.getItem('qitab_prayer_country'),
-  ]);
+  const saved = await getSavedLocation();
 
-  // No city yet means the hero is already asking for a location; inventing one
-  // would show weather for somewhere the user is not. The exception is a device
-  // that has cached prayer timings under the default city: the hero is already
-  // naming that city, so its weather matches what the screen claims.
-  let city = savedCity;
-  let country = savedCountry;
-  if (!city) {
+  // A GPS fix is the truest answer and needs no geocoding. It is rounded to
+  // ~1 km for the cache key so small jitter does not force a refetch.
+  const hasFix = (
+    typeof saved.latitude === 'number' &&
+    typeof saved.longitude === 'number' &&
+    Number.isFinite(saved.latitude) &&
+    Number.isFinite(saved.longitude)
+  );
+
+  let city = saved.city;
+  let country = saved.country;
+
+  // No fix and no city yet means the hero is already asking for a location;
+  // inventing one would show weather for somewhere the user is not. The
+  // exception is a device that has cached prayer timings under the default
+  // city: the hero is already naming that city, so its weather matches what
+  // the screen claims.
+  if (!hasFix && !city) {
     const cachedTimings = await AsyncStorage.getItem(
       `qitab_timings_${DEFAULT_CITY}_${DEFAULT_COUNTRY}`,
     );
@@ -165,10 +175,13 @@ export async function getHomeWeather({ now = new Date(), fetchImpl, force = fals
     );
     if (!cachedTimings && !cachedHanafi) return null;
     city = DEFAULT_CITY;
-    country = savedCountry || DEFAULT_COUNTRY;
+    country = country || DEFAULT_COUNTRY;
   }
 
-  const cacheKey = `${city}|${country || ''}`;
+  const cacheKey = hasFix
+    ? `fix:${saved.latitude.toFixed(2)},${saved.longitude.toFixed(2)}`
+    : `${city}|${country || ''}`;
+
   const cached = parseCache(await AsyncStorage.getItem(WEATHER_CACHE_KEY));
   const cachedForCity = cached && cached.key === cacheKey ? cached : null;
 
@@ -179,15 +192,19 @@ export async function getHomeWeather({ now = new Date(), fetchImpl, force = fals
   const doFetch = fetchImpl || (typeof fetch === 'function' ? fetch : null);
 
   try {
-    const geocode = await fetchJson(doFetch, buildGeocodeUrl(city));
-    const place = geocode?.results?.[0];
-    if (!place || !isFiniteNumber(place.latitude) || !isFiniteNumber(place.longitude)) {
-      throw new Error(`Could not find ${city}`);
+    let place = { latitude: saved.latitude, longitude: saved.longitude };
+
+    if (!hasFix) {
+      const geocode = await fetchJson(doFetch, buildGeocodeUrl(city));
+      place = geocode?.results?.[0];
+      if (!place || !isFiniteNumber(place.latitude) || !isFiniteNumber(place.longitude)) {
+        throw new Error(`Could not find ${city}`);
+      }
     }
 
     const forecast = await fetchJson(doFetch, buildForecastUrl(place));
     const weather = normalizeWeather(forecast, {
-      city,
+      city: hasFix ? (city || 'My location') : city,
       country,
       fetchedAt: now.getTime(),
     });

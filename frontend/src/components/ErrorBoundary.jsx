@@ -1,9 +1,13 @@
 import React, { Component, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../theme';
+import { COLORS as DEFAULT_COLORS } from '../theme';
+import ThemeContext from '../context/ThemeContext';
 
 class ErrorBoundary extends Component {
+  // A crashing render must not also crash because it cannot read the theme;
+  // fall back to the default palette if the boundary sits outside the provider.
+  static contextType = ThemeContext;
   state = { hasError: false, error: null, errorInfo: null };
 
   static getDerivedStateFromError(error) {
@@ -21,8 +25,9 @@ class ErrorBoundary extends Component {
 
   render() {
     if (this.state.hasError) {
+      const COLORS = this.context?.theme?.colors || DEFAULT_COLORS;
       return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: COLORS.bg }]}>
           <Ionicons name="alert-circle-outline" size={48} color={COLORS.red} style={styles.icon} />
           <Text style={[styles.title, { color: COLORS.textPrimary }]}>Something went wrong</Text>
           <Text style={[styles.message, { color: COLORS.textSecondary }]}>
@@ -34,11 +39,17 @@ class ErrorBoundary extends Component {
             </Text>
           )}
           <View style={styles.actions}>
-            <TouchableOpacity style={styles.retryBtn} onPress={this.handleRetry}>
+            <TouchableOpacity
+              style={[styles.retryBtn, { backgroundColor: COLORS.gold }]}
+              onPress={this.handleRetry}
+            >
               <Text style={styles.retryText}>Try Again</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.homeBtn} onPress={() => this.props.onReset?.()}>
-              <Text style={styles.homeText}>Go Home</Text>
+            <TouchableOpacity
+              style={[styles.homeBtn, { borderColor: COLORS.glassBorder }]}
+              onPress={() => this.props.onReset?.()}
+            >
+              <Text style={[styles.homeText, { color: COLORS.textSecondary }]}>Go Home</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -56,7 +67,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 24,
     gap: 16,
-    backgroundColor: COLORS.bg,
   },
   icon: { marginBottom: 8 },
   title: { fontSize: 20, fontWeight: '700', textAlign: 'center' },
@@ -64,7 +74,6 @@ const styles = StyleSheet.create({
   stack: { fontSize: 11, fontFamily: 'monospace', textAlign: 'left', maxWidth: '100%' },
   actions: { flexDirection: 'row', gap: 12, marginTop: 8 },
   retryBtn: {
-    backgroundColor: COLORS.gold,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
@@ -72,12 +81,11 @@ const styles = StyleSheet.create({
   retryText: { color: '#000', fontWeight: '700', fontSize: 14 },
   homeBtn: {
     borderWidth: 1,
-    borderColor: COLORS.glassBorder,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
   },
-  homeText: { color: COLORS.textSecondary, fontWeight: '600', fontSize: 14 },
+  homeText: { fontWeight: '600', fontSize: 14 },
 });
 
 export default ErrorBoundary;

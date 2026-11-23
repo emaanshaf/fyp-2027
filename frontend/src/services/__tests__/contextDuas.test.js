@@ -1,12 +1,17 @@
 import {
+  DROUGHT_DAYS,
   MANUAL_CONTEXTS,
   TRAVEL_SPEED_MPS,
   buildContextRecommendation,
   matchDuas,
+  moonContext,
+  moonPhase,
   movementContexts,
+  natureContexts,
   placeContexts,
   sanitizeManualContexts,
   timeContexts,
+  weatherContexts,
 } from '../contextDuas';
 
 describe('timeContexts', () => {
@@ -111,5 +116,95 @@ describe('buildContextRecommendation', () => {
       expect(result.dua?.arabic).toBeTruthy();
       expect(typeof result.reason).toBe('string');
     }
+  });
+});
+
+describe('weatherContexts', () => {
+  it('maps rain, storms and hail to the right contexts', () => {
+    expect(weatherContexts({ code: 61 }).contexts).toEqual(['rain']);
+    expect(weatherContexts({ code: 95 }).contexts).toEqual(['storm']);
+    expect(weatherContexts({ code: 96 }).contexts).toEqual(['hail', 'storm']);
+  });
+
+  it('offers the rain prayer only after a real dry spell', () => {
+    const dry = weatherContexts({ code: 0, daysSinceRain: DROUGHT_DAYS + 10, rainTrackedDays: 93 });
+    expect(dry.contexts).toEqual(['drought']);
+    expect(dry.reason).toMatch(/70 days/);
+    expect(weatherContexts({ code: 0, daysSinceRain: 5 }).contexts).toEqual([]);
+  });
+
+  it('says 92+ when it never rained in the whole window', () => {
+    const result = weatherContexts({ code: 0, daysSinceRain: 93, rainTrackedDays: 93 });
+    expect(result.reason).toMatch(/93\+ days/);
+  });
+
+  it('ignores a missing reading', () => {
+    expect(weatherContexts(null).contexts).toEqual([]);
+    expect(weatherContexts({}).contexts).toEqual([]);
+  });
+});
+
+describe('moonContext', () => {
+  it('recognises the reference new moon', () => {
+    const newMoon = new Date(Date.UTC(2000, 0, 6, 18, 14));
+    expect(moonContext(newMoon).isNew).toBe(true);
+  });
+
+  it('does not call the full moon new', () => {
+    const full = new Date(Date.UTC(2000, 0, 6, 18, 14) + 14.77 * 86400000);
+    expect(moonContext(full).isNew).toBe(false);
+    expect(moonPhase(full).phase).toBeCloseTo(0.5, 1);
+  });
+});
+
+describe('natureContexts', () => {
+  it('names the river and orders the kinds for matching', () => {
+    const result = natureContexts({ kinds: ['mountain', 'river'], names: { river: 'Chenab' } });
+    expect(result.contexts).toEqual(['river', 'mountain']);
+    expect(result.reason).toBe('You are near the Chenab');
+  });
+
+  it('has a plain wording when the feature has no name', () => {
+    expect(natureContexts({ kinds: ['river'], names: {} }).reason).toBe('You are near a river');
+    expect(natureContexts(null).contexts).toEqual([]);
+  });
+});
+
+describe('context priority', () => {
+  const date = new Date(2026, 9, 26, 10, 0); // not near a new moon
+
+  it('lets rain beat both the clock and a named place', () => {
+    const result = buildContextRecommendation({
+      date,
+      weather: { code: 61 },
+      place: { address: { name: 'Central Masjid' } },
+    });
+    expect(result.sources).toEqual(['weather']);
+    expect([35, 36]).toContain(result.dua.id);
+  });
+
+  it('shows the crescent dua at the new moon when nothing more urgent is known', () => {
+    const newMoon = new Date(Date.UTC(2000, 0, 6, 18, 14));
+    const result = buildContextRecommendation({ date: newMoon });
+    expect(result.sources).toEqual(['moon']);
+    expect(result.dua.id).toBe(38);
+  });
+
+  it('uses the landscape when it is otherwise an ordinary morning', () => {
+    const result = buildContextRecommendation({
+      date,
+      nature: { kinds: ['river'], names: { river: 'Ravi' } },
+    });
+    expect(result.sources).toEqual(['nature']);
+    expect([42, 43]).toContain(result.dua.id);
+  });
+
+  it('still lets a tapped chip win over the weather', () => {
+    const result = buildContextRecommendation({
+      date,
+      manualContexts: ['mosque'],
+      weather: { code: 61 },
+    });
+    expect(result.sources).toEqual(['manual']);
   });
 });

@@ -18,7 +18,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../theme';
+import { useColors, useThemedStyles } from '../theme';
 
 /** Fixed order — a category keeps its colour whatever the values are. */
 export const ASSET_SERIES = [
@@ -32,6 +32,8 @@ const money = n =>
   `PKR ${Math.round(n).toLocaleString('en-PK', { maximumFractionDigits: 0 })}`;
 
 export default function ZakatBreakdown({ result, parts }) {
+  const COLORS = useColors();
+  const styles = useThemedStyles(makeStyles);
   const rows = ASSET_SERIES
     .map(s => ({ ...s, value: Math.max(0, parts[s.key] || 0) }))
     .filter(r => r.value > 0)
@@ -160,7 +162,7 @@ export default function ZakatBreakdown({ result, parts }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = COLORS => StyleSheet.create({
   card: {
     marginTop: 18, padding: 16, borderRadius: 16,
     backgroundColor: COLORS.bgSecondary,

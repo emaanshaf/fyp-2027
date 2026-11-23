@@ -135,7 +135,7 @@ const PRAYER_ICONS = {
   Isha: 'moon',
 };
 
-export default function HomeScreen({ navigation }) {
+export default function HomeScreen() {
   // ── Live theme hooks (replaces frozen module-level COLORS) ────────────
   const COLORS = useColors();
   const styles = useThemedStyles(makeStyles);

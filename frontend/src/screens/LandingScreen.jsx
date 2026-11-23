@@ -156,7 +156,7 @@ function ActionBtn({ icon, label, onPress, gold }) {
 }
 
 // ── Main screen ────────────────────────────────────────────────────────────
-export default function LandingScreen({ onDone, onNavigate }) {
+export default function LandingScreen({ onDone }) {
   const { width } = useWindowDimensions();
   const wide = width >= 900;
   const { share } = useShare();

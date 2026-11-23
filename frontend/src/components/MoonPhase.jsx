@@ -13,7 +13,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Svg, { Circle, Path, Ellipse, G } from 'react-native-svg';
-import { COLORS } from '../theme';
+import { useColors } from '../theme';
 
 /** Mean synodic month — the moon's actual cycle, not the calendar's 29/30. */
 const SYNODIC = 29.53059;
@@ -37,15 +37,18 @@ export function phaseName(phase) {
 }
 
 export default function MoonPhase({
-  day = 1, size = 76, lit = COLORS.gold, dark = COLORS.bgSecondary, onPress,
+  day = 1, size = 76, lit, dark, onPress,
 }) {
+  const COLORS = useColors();
+  const litColor = lit || COLORS.gold;
+  const darkColor = dark || COLORS.bgSecondary;
   const phase = phaseFromHijriDay(day);
   const r = size / 2 - 2;
   const c = size / 2;
 
   const k = Math.cos(2 * Math.PI * phase); // +1 new, -1 full
   const waxing = phase < 0.5;
-  const ellipseFill = k > 0 ? dark : lit;
+  const ellipseFill = k > 0 ? darkColor : litColor;
 
   // The lit half: right while waxing, left while waning.
   const halfPath = waxing
@@ -64,23 +67,23 @@ export default function MoonPhase({
     >
       <Svg width={size} height={size}>
         <G>
-          <Circle cx={c} cy={c} r={r} fill={dark} stroke={lit} strokeWidth="1" strokeOpacity="0.4" />
-          <Path d={halfPath} fill={lit} />
+          <Circle cx={c} cy={c} r={r} fill={darkColor} stroke={litColor} strokeWidth="1" strokeOpacity="0.4" />
+          <Path d={halfPath} fill={litColor} />
           <Ellipse cx={c} cy={c} rx={Math.abs(k) * r} ry={r} fill={ellipseFill} />
           {/* Rim last so the terminator never bleeds past the disc edge. */}
-          <Circle cx={c} cy={c} r={r} fill="none" stroke={lit} strokeWidth="1" strokeOpacity="0.55" />
+          <Circle cx={c} cy={c} r={r} fill="none" stroke={litColor} strokeWidth="1" strokeOpacity="0.55" />
         </G>
       </Svg>
-      <Text style={styles.caption}>{phaseName(phase)}</Text>
-      <Text style={styles.sub}>{Math.round(illumination(phase) * 100)}% illuminated</Text>
+      <Text style={[styles.caption, { color: COLORS.textPrimary }]}>{phaseName(phase)}</Text>
+      <Text style={[styles.sub, { color: COLORS.textSecondary }]}>
+        {Math.round(illumination(phase) * 100)}% illuminated
+      </Text>
     </Wrapper>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', gap: 2 },
-  caption: {
-    color: COLORS.textPrimary, fontSize: 12, fontWeight: '700', marginTop: 8,
-  },
-  sub: { color: COLORS.textSecondary, fontSize: 10.5 },
+  caption: { fontSize: 12, fontWeight: '700', marginTop: 8 },
+  sub: { fontSize: 10.5 },
 });

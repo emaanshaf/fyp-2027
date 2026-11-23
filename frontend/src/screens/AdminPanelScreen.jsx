@@ -45,7 +45,7 @@ export default function AdminPanelScreen() {
       } else {
         setRole('user');
       }
-    } catch (e) {
+    } catch {
       setRole('guest');
     } finally {
       setLoading(false);

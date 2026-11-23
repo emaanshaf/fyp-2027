@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, AppState, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, useThemedStyles } from '../theme';
 import { getHomeWeather, WEATHER_TTL_MS } from '../services/weather';
+import { subscribeLocationChanges } from '../services/location';
 
 /**
  * The current conditions line inside the Home hero.
@@ -18,16 +19,24 @@ export default function HomeWeather({ city }) {
   const styles = useThemedStyles(makeStyles);
   const [weather, setWeather] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const retryRef = useRef(null);
 
   useEffect(() => {
     let alive = true;
 
     const sync = async () => {
+      clearTimeout(retryRef.current);
       try {
         const next = await getHomeWeather();
-        if (alive && next) setWeather(next);
-        // With nothing cached and no connection, the previous reading stays
-        // on screen and the row keeps its last honest label.
+        if (!alive) return;
+        // null means there is genuinely nothing to show (no location yet, and
+        // no cached reading); leaving the previous value would keep another
+        // account's weather on screen after a sign-in.
+        setWeather(next);
+        if (next?.stale) {
+          // The offline fallback is honest but should not last half an hour.
+          retryRef.current = setTimeout(sync, 2 * 60 * 1000);
+        }
       } catch {
         // Storage failure — the hero still renders without weather.
       }
@@ -40,11 +49,15 @@ export default function HomeWeather({ city }) {
     const subscription = AppState.addEventListener('change', state => {
       if (state === 'active') sync();
     });
+    // Prayer Times or the Qibla screen may have just saved a GPS fix.
+    const unsubscribeLocation = subscribeLocationChanges(() => sync());
 
     return () => {
       alive = false;
+      clearTimeout(retryRef.current);
       clearInterval(timer);
       subscription?.remove?.();
+      unsubscribeLocation?.();
     };
   }, [city]);
 
